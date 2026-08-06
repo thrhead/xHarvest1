@@ -1,126 +1,144 @@
-# Ekim-Hasat Takvimi ve Görev Yönetimi — MVP
+# xHarvest1 — Ekim-Hasat Takvimi ve Görev Yönetimi
 
-Basit, pratik ve çiftçilerin gerçekten kullanacağı türden bir **ekim-hasat takvimi + görev yönetimi** mobil uygulaması.
+Çiftçiler için **ekim–hasat takvimi**, **görev yönetimi**, **hava durumuna göre kaydırma**, **harita / tarla poligonu** ve **ilaçlama–gübre uygulama geçmişi**.
 
-## Özellikler (MVP Kapsamı)
+Repo: [github.com/thrhead/xHarvest1](https://github.com/thrhead/xHarvest1)
+
+---
+
+## Özellikler
 
 | Özellik | Açıklama | Durum |
-|---------|----------|-------|
-| **Çoklu Tarla / Sera** | Kullanıcı birden fazla tarla veya sera ekleyebilir, haritada görüntüleyebilir | ✅ |
-| **Ürüne göre takvim** | Ekim, gübreleme, ilaçlama, hasat hatırlatmaları (CMS’den şablon) | ✅ |
-| **Görev yönetimi** | Görev oluşturma, tamamlama, erteleme | ✅ |
-| **Hava durumuna göre kaydırma** | Yağış / rüzgar / sıcaklık eşiklerine göre görevleri otomatik kaydırma | ✅ |
-| **Harita** | OpenStreetMap (react-native-maps + OSM tiles) | ✅ |
-| **İçerik yönetimi** | Payload CMS ile ürün şablonları, rehberler, ilaç/gübre önerileri | ✅ |
-| **Kimlik doğrulama** | Firebase Auth (e-posta + anonim) | ✅ |
-| **AI (stub)** | Hastalık tespiti için TFLite / CNN iskeleti (ileride) | 🟡 Stub |
+|---------|----------|--------|
+| Çoklu tarla / sera | Konum, alan, tip | ✅ |
+| Tarla poligonu | Haritada sınır çizme, alan (ha) hesabı | ✅ |
+| Harita | OSM tiles + pin / poligon (`react-native-maps`) | ✅ |
+| Ürün takvimi | CMS / yerel şablondan görev üretimi | ✅ |
+| Görev yönetimi | Liste, tamamlama, hava kaydırma | ✅ |
+| Hava entegrasyonu | Open-Meteo (API key yok); eşiklere göre kaydırma | ✅ |
+| İlaçlama / gübre kaydı | Geçmiş defteri (stok değil): ekle, listele, detay, düzenle, sil | ✅ |
+| Görev → kayıt | Tamamla: İptal / Sadece tamamla / Kayıt ekle | ✅ |
+| Payload CMS | Ürün şablonları, rehberler, admin | ✅ |
+| Otomatik tetikleyiciler | HTTP Cloud Functions + ücretsiz harici cron (Spark) | ✅ |
+| Firebase Auth / Firestore | İskelet + demo mod; production bağlama opsiyonel | 🟡 |
+| AI hastalık tespiti | TFLite planı | 🟡 Stub |
+| Yerel bildirimler | expo-notifications bağımlılığı var | 🟡 Sonraki |
 
-## Teknoloji Seçimi
+---
 
-| Katman | Teknoloji | Neden |
-|--------|-----------|-------|
-| Mobil | **Expo + React Native** (TypeScript) | Tek kodla iOS + Android, hızlı geliştirme |
-| Backend / DB | **Firebase** (Auth + Firestore + Cloud Functions) | Hızlı başlangıç, gerçek zamanlı, offline destek |
-| CMS | **Payload CMS v3** (Node.js + MongoDB/SQLite) | Ürün rehberleri, takvim şablonları, admin paneli |
-| Hava durumu | **Open-Meteo** | Ücretsiz, API key yok, toprak nemi, ET₀, tarıma uygun |
-| Harita | **react-native-maps** + OpenStreetMap tiles | Ücretsiz, Google Maps alternatifi |
-| AI | Python + TensorFlow Lite (ileride) | Mobilde hafif inference |
+## Teknoloji
 
-## Proje Yapısı
+| Katman | Stack |
+|--------|--------|
+| Mobil | Expo ~52, React Native, Expo Router, TypeScript, Zustand |
+| Web / CMS | Next.js 15, Payload CMS v3, SQLite (dev), Tailwind |
+| Veri | Firebase Auth + Firestore (demo bellek veya gerçek) |
+| Functions | Firebase Functions v2 HTTP (ücretsiz Spark uyumlu) |
+| Hava | Open-Meteo |
+| Harita | react-native-maps + OpenStreetMap |
+
+---
+
+## Proje yapısı
 
 ```
-ekim-hasat-mvp/
-├── mobile/                 # Expo React Native uygulaması
-│   ├── app/                # Expo Router ekranları
-│   ├── src/
-│   │   ├── components/
-│   │   ├── services/       # Firebase, Open-Meteo, Payload
-│   │   ├── hooks/
-│   │   ├── types/
-│   │   └── utils/
-│   └── package.json
-├── cms/                    # Payload CMS
-│   ├── src/collections/    # Crops, Guides, Templates
-│   └── package.json
+xHarvest1/
+├── mobile/                 # Expo uygulaması
+│   ├── app/                # Ekranlar (index, tasks, logs, map, …)
+│   └── src/
+│       ├── components/     # FieldMap (poligon)
+│       ├── services/       # firebase, weather, payload
+│       ├── store/          # zustand
+│       ├── types/
+│       └── utils/
+├── cms/                    # Payload + Next portal
+│   └── src/collections/    # Crops, Guides, Media, Users
 ├── backend/
-│   ├── functions/          # Firebase Cloud Functions (otomatik tetikleyiciler)
-│   │   └── src/
-│   │       ├── index.ts    # scheduled + Firestore triggers
-│   │       ├── weather.ts
-│   │       └── seedTemplates.ts
-│   └── weather_adjust.py   # Pure Python referans
-└── docs/
-    ├── ARCHITECTURE.md
-    ├── SETUP.md
-    └── API.md
+│   └── functions/          # weatherAdjustHttp, taskRemindersHttp, …
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── SETUP.md
+│   ├── FREE_CRON.md        # Blaze’siz zamanlama
+│   └── APPLICATION_LOGS_API.md
+├── memory-bank/            # AI / ekip bağlam dokümanları
+├── firestore.rules
+└── package.json            # npm workspaces (cms, mobile)
 ```
 
-## Hızlı Başlangıç
+### Mobil ekranlar
 
-### 1. Mobil Uygulama
+| Rota | Açıklama |
+|------|----------|
+| `index` | Ana özet |
+| `fields` / `add-field` | Tarlalar + son uygulamalar |
+| `map` / `pick-location` / `draw-polygon` | Harita ve sınır |
+| `tasks` / `calendar` | Görevler ve takvim |
+| `add-crop` | Ürün + otomatik görev |
+| `logs` / `add-log` / `log-detail` | İlaçlama–gübre geçmişi |
+
+---
+
+## Hızlı başlangıç
+
+### Mobil
+
 ```bash
 cd mobile
-npx create-expo-app@latest . --template blank-typescript
-# bağımlılıkları yükle (aşağıdaki package.json’a göre)
+npm install
+# İsteğe bağlı: EXPO_PUBLIC_DEMO_MODE=true (varsayılan demo)
 npx expo start
 ```
 
-### 2. Payload CMS
+### CMS (web)
+
 ```bash
 cd cms
-npx create-payload-app@latest . --template blank
-# collections ekle
+cp .env.example .env   # veya mevcut .env
+# PAYLOAD_SECRET ≥ 32 karakter
+npm install --legacy-peer-deps
 npm run dev
+# http://localhost:3000  |  /admin  |  /api/crops
 ```
 
-### 3. Firebase
-1. Firebase Console’da proje oluştur (**Spark / ücretsiz** plan yeterli)
-2. Authentication → Email/Password + Anonymous aç
-3. Firestore Database oluştur
-4. `mobile/google-services.json` ve `GoogleService-Info.plist` ekle
+### Cloud Functions (opsiyonel)
 
-### 3b. Cloud Functions (ücretsiz — Blaze gerekmez)
 ```bash
 cd backend/functions
 npm install && npm run build
-firebase use <project-id>
 firebase deploy --only functions
 ```
-Zamanlanmış işler = HTTP endpoint + ücretsiz harici cron (cron-job.org / GitHub Actions).
 
-| Fonksiyon | Tetikleyici | Ne yapar |
-|-----------|-------------|----------|
-| `weatherAdjustHttp` | Harici cron → HTTP | Hava kontrolü + görev kaydırma + FCM |
-| `taskRemindersHttp` | Harici cron → HTTP | Bugünkü görev hatırlatması |
-| `onCropCreated` | Firestore (ücretsiz) | Şablondan görev üret |
-| `onTaskUpdated` | Firestore (ücretsiz) | İstatistik güncelle |
+Zamanlanmış işler için **Blaze gerekmez**: HTTP endpoint + [cron-job.org](https://cron-job.org) veya GitHub Actions — detay: `docs/FREE_CRON.md`.
 
-Detay: `docs/FREE_CRON.md` · `backend/README.md`
+---
 
-### 4. Ortam Değişkenleri
-`mobile/.env`:
+## İlaçlama / gübre kaydı
+
+- **Amaç:** Ne, ne kadar, hangi tarlaya uygulandı (geçmiş; stok yok).
+- **API imzaları ve sequence:** `docs/APPLICATION_LOGS_API.md`
+- Firestore koleksiyonu: `applicationLogs` (kurallar `firestore.rules` içinde)
+
+---
+
+## Ortam değişkenleri
+
+**mobile**
+
 ```
-EXPO_PUBLIC_FIREBASE_API_KEY=...
+EXPO_PUBLIC_DEMO_MODE=true
 EXPO_PUBLIC_PAYLOAD_URL=http://localhost:3000
-EXPO_PUBLIC_OPEN_METEO_BASE=https://api.open-meteo.com/v1
 ```
 
-## Temel Akışlar
+**cms**
 
-1. **Kullanıcı giriş yapar** → Firebase Auth
-2. **Tarla ekler** → Konum (harita), alan, toprak tipi
-3. **Ürün seçer** → Payload’dan şablon çekilir → otomatik görevler oluşur
-4. **Görevler listelenir** → Hava durumu kontrol edilir
-5. **Uygun olmayan gün** (yağış > 5mm, rüzgar > 15 km/h vb.) → görev otomatik kaydırılır
-6. **Hatırlatma** → Expo Notifications
+```
+PAYLOAD_SECRET=...
+DATABASE_URI=file:./ekim-hasat.db
+NEXT_PUBLIC_SERVER_URL=http://localhost:3000
+```
 
-## Sonraki Adımlar (MVP sonrası)
-- Offline-first (Firestore persistence + lokal kuyruk)
-- Hastalık tespiti (TFLite model)
-- Gübre/ilaç stok takibi
-- Çoklu dil (TR + EN)
-- Dark mode + büyük font (tarla kullanımı)
-- cropTemplates seed’ini Payload CMS ile senkronize etme
+---
 
 ## Lisans
-MIT — açık kaynak, çiftçiler için.
+
+MIT — açık kaynak, tarım kullanımı için.

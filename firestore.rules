@@ -10,7 +10,26 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Kullanıcı profili — sadece kendi dokümanı
+    function ownsField(fieldId) {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/fields/$(fieldId)).data.userId
+           == request.auth.uid;
+    }
+
+    function validInputType() {
+      return request.resource.data.inputType in ['fertilizer', 'pesticide'];
+    }
+
+    function validUnit() {
+      return request.resource.data.unit in ['kg', 'g', 'L', 'mL', 'adet'];
+    }
+
+    function validQuantity() {
+      return request.resource.data.quantity is number
+        && request.resource.data.quantity > 0;
+    }
+
+    // Kullanıcı profili
     match /users/{userId} {
       allow read, write: if isOwner(userId);
     }
@@ -24,7 +43,7 @@ service cloud.firestore {
         && resource.data.userId == request.auth.uid;
     }
 
-    // Ürünler
+    // Ürünler (ekimler)
     match /crops/{cropId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn()
@@ -42,10 +61,41 @@ service cloud.firestore {
         && resource.data.userId == request.auth.uid;
     }
 
-    // Ürün şablonları — herkes okuyabilir (public content)
+    // İlaçlama / gübre uygulama geçmişi
+    match /applicationLogs/{logId} {
+      allow read: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll([
+             'userId', 'fieldId', 'inputType',
+             'productName', 'quantity', 'unit', 'appliedAt'
+           ])
+        && validInputType()
+        && validUnit()
+        && validQuantity()
+        && request.resource.data.productName is string
+        && request.resource.data.productName.size() > 0
+        && request.resource.data.productName.size() <= 120
+        && ownsField(request.resource.data.fieldId);
+
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && validInputType()
+        && validUnit()
+        && validQuantity()
+        && ownsField(request.resource.data.fieldId);
+
+      allow delete: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // Ürün şablonları — public okuma
     match /cropTemplates/{id} {
       allow read: if true;
-      allow write: if false; // sadece Admin SDK / console
+      allow write: if false;
     }
   }
 }

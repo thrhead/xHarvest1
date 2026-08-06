@@ -1,19 +1,32 @@
 # Active Context
 
-## Current Work Focus
-- Establishing and maintaining the **Memory Bank** documentation system.
-- Ensuring the monorepo application builds and runs reliably across production compilation (`npm run build`) and development preview servers.
+## Source of truth
+- **Repo:** https://github.com/thrhead/xHarvest1
+- **Branch:** `main`
+- Yerel çalışma kopyası bu repo ile senkron tutulmalı.
 
-## Recent Architectural Fixes
-- **Next.js 15 & Payload CMS Root Layout Resolution**: Fixed Next.js 15 prerendering build failures on `/_not-found` by creating a top-level `cms/src/app/layout.tsx` root layout and a client-side `cms/src/app/not-found.tsx` component.
-- **Dependency Overrides**: Configured React `19.0.0` dependencies across workspaces to maintain consistency between Next.js 15.1 and Payload CMS 3.86.
-- **Build & Lint Verification**: Successfully verified `compile_applet` and `lint_applet` builds.
+## Current focus (2026-08)
+- İlaçlama / gübre **applicationLogs** özelliği tamamlandı (MVP):
+  - Liste (tür + tarla filtresi), ekle/düzenle, detay, sil
+  - Görev tamamla diyalogu: İptal / Sadece tamamla / Kayıt ekle
+  - Tarla kartında son uygulamalar
+  - Servis filtre API + `docs/APPLICATION_LOGS_API.md`
+  - `firestore.rules` → `applicationLogs` (ownsField, validasyon)
+- Statik `preview-logs.html` kaldırıldı (sandbox localStorage sorunları).
 
-## Active Decisions & Considerations
-- Next.js App Router structure in `/cms`: Route group `(payload)` manages the CMS admin panel, while `(frontend)` manages web portal components.
-- Shared root layout in `cms/src/app/layout.tsx` supplies HTML/body wrappers to prevent Next.js 15 root layout absence errors.
-- **Next.js Route Brackets (`[[...segments]]`, `[...slug]`)**: Documented why square bracket folder structures are required by Payload CMS v3 & Next.js App Router dynamic routes, and provided Git upload solutions.
+## Stack snapshot
+- Mobile: Expo Router ekranları + Zustand + demo Firebase
+- CMS: Payload v3 + Next 15 portal
+- Backend: HTTP functions (Spark uyumlu cron)
+- Weather: Open-Meteo
 
-## Next Steps
-1. Maintain memory bank files on code updates.
-2. Verify full integration between Expo mobile app, Firebase backend functions, Open-Meteo weather API, and Payload CMS.
+## Next candidates
+1. Yerel bildirimler (`expo-notifications`)
+2. Ekim tarihi date-picker (native)
+3. `DEMO_MODE=false` + gerçek Firebase / FCM
+4. Offline kuyruk
+5. Composite index dokümantasyonu (Firestore console)
+
+## Working notes
+- CMS `npm install` için sıkça `--legacy-peer-deps` gerekir (Next / Payload peer aralığı).
+- `cms/package.json` içinde `next` 15.4.x pinlenebilir.

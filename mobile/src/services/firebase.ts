@@ -242,18 +242,48 @@ export async function createCropWithTasks(
 
 // ── APPLICATION LOGS ──
 
+export type ApplicationLogFilter = {
+  fieldId?: string;
+  inputType?: 'fertilizer' | 'pesticide';
+  from?: Date;
+  to?: Date;
+  productName?: string;
+};
+
 export async function getApplicationLogs(
   userId: string,
-  fieldId?: string
+  filter?: ApplicationLogFilter | string
 ): Promise<ApplicationLog[]> {
+  // Geriye uyum: ikinci argüman string ise fieldId kabul et
+  const f: ApplicationLogFilter =
+    typeof filter === 'string' ? { fieldId: filter } : filter || {};
+
   if (DEMO_MODE) {
     let list = demo.applicationLogs.filter((l) => l.userId === userId);
-    if (fieldId) {
-      list = list.filter((l) => l.fieldId === fieldId);
+    if (f.fieldId) list = list.filter((l) => l.fieldId === f.fieldId);
+    if (f.inputType) list = list.filter((l) => l.inputType === f.inputType);
+    if (f.from) list = list.filter((l) => l.appliedAt >= f.from!);
+    if (f.to) list = list.filter((l) => l.appliedAt <= f.to!);
+    if (f.productName) {
+      const q = f.productName.trim().toLowerCase();
+      list = list.filter((l) => l.productName.toLowerCase().includes(q));
     }
     return list.sort((a, b) => b.appliedAt.getTime() - a.appliedAt.getTime());
   }
   return [];
+}
+
+export async function getApplicationLog(
+  userId: string,
+  logId: string
+): Promise<ApplicationLog | null> {
+  if (DEMO_MODE) {
+    return (
+      demo.applicationLogs.find((l) => l.id === logId && l.userId === userId) ||
+      null
+    );
+  }
+  return null;
 }
 
 export async function createApplicationLog(
