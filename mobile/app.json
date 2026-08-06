@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Ekim-Hasat",
+    "slug": "ekim-hasat",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "ekimhasat",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#2E7D32"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ekimhasat.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Tarla konumunu haritada seçmek için konum izni gerekir."
+      }
+    },
+    "android": {
+      "package": "com.ekimhasat.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#2E7D32"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Tarla konumunu seçmek için konum kullanılır."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#2E7D32"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
