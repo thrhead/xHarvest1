@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { FieldPolygon } from './InteractiveMap'
+import { FieldPolygon } from '../types/field'
 import MobileSimulator from './MobileSimulator'
 
 // Dynamically import InteractiveMap without SSR for Leaflet compatibility

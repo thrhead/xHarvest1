@@ -1,41 +1,21 @@
-# Tech Context
+# Technical Context
 
-## Runtimes
-- Node 20+ (CMS, Functions)
-- Expo SDK ~52 / RN 0.76
-- TypeScript strict (mobil + CMS)
+## Core Technologies
+- **Languages**: TypeScript, SQL (SQLite / LibSQL), Python (backend scripts).
+- **CMS & Web Framework**: Next.js 15.1.0, React 19.0.0, Payload CMS 3.86.0.
+- **Database**:
+  - CMS: `@payloadcms/db-sqlite` with `@libsql/client`.
+  - Mobile App: Firebase Firestore with offline persistence support.
+- **Mobile Framework**: Expo / React Native 0.76 with TypeScript.
+- **Weather Services**: Open-Meteo REST API (`api.open-meteo.com/v1/forecast`).
+- **Styling**: Tailwind CSS v4, Lucide Icons, Radix UI.
 
-## Key packages
-### mobile
-- expo, expo-router, expo-location, expo-notifications
-- react-native-maps, react-native-calendars
-- zustand, date-fns
-- @react-native-firebase/* (production; demo’da stub)
+## Environment Constraints
+- **Cloud Container Runtime**: Port 3000 exposed via Nginx reverse proxy.
+- **Build Limits**: `NODE_OPTIONS="--no-deprecation --max-old-space-size=896"`.
+- **Package Management**: Monorepo using npm workspaces (`cms`, `mobile`).
 
-### cms
-- payload ^3, @payloadcms/next, @payloadcms/db-sqlite
-- next 15.4.x (peer uyumu için pin önerilir)
-- react 19
-
-### backend/functions
-- firebase-admin, firebase-functions v2
-- Open-Meteo fetch (Node 18+ native fetch)
-
-## Config / secrets
-- `PAYLOAD_SECRET`, `DATABASE_URI`
-- `CRON_SECRET` (HTTP function header)
-- `EXPO_PUBLIC_DEMO_MODE`, `EXPO_PUBLIC_PAYLOAD_URL`
-
-## Constraints
-- Firebase Spark: onSchedule yok
-- Sandbox/CI: düşük RAM → monorepo `npm install` zorlanabilir
-- `npm install --legacy-peer-deps` sık gerekli
-
-## Docs map
-| Dosya | Konu |
-|-------|------|
-| docs/SETUP.md | Kurulum |
-| docs/ARCHITECTURE.md | Veri modelleri |
-| docs/FREE_CRON.md | Ücretsiz zamanlama |
-| docs/APPLICATION_LOGS_API.md | Log API + sequence |
-| firestore.rules | Güvenlik kuralları |
+## Key Dependencies
+- `@payloadcms/next`, `@payloadcms/db-sqlite`, `@payloadcms/richtext-lexical`
+- `next`, `react`, `react-dom`
+- `firebase`, `expo-location`, `expo-notifications`

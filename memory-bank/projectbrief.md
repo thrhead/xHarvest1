@@ -1,24 +1,14 @@
-# Project Brief — xHarvest1 (Ekim-Hasat)
+# Project Brief: Ekim-Hasat Takvimi ve Görev Yönetimi
 
-## Goal
-Türkiye’deki küçük ve orta ölçekli çiftçiler için sade, tarlada kullanılabilir mobil uygulama: ekim takvimi, görevler, hava engelleri, tarla haritası ve uygulama (ilaç/gübre) geçmişi.
+## Overview
+**Ekim-Hasat Takvimi ve Görev Yönetimi** is a streamlined, practical farming task management and crop calendar mobile & web application designed for farmers.
 
-## In scope
-- Çoklu tarla / sera, poligon sınır
-- Ürün şablonundan otomatik görevler (CMS veya yerel)
-- Hava durumuna göre görev kaydırma
-- İlaçlama / gübre kayıt defteri (stok değil)
-- Payload ile içerik yönetimi
-- Ücretsiz planlarla çalışabilen backend tetikleyicileri
+## Core Objectives
+1. **Multi-Field & Greenhouse Management**: Allow farmers to register multiple fields/greenhouses with geolocation and soil properties.
+2. **Crop-Specific Calendars**: Automatically generate planting, fertilizing, spraying, irrigation, and harvesting schedules based on CMS crop templates.
+3. **Weather-Adaptive Task Rescheduling**: Continuously monitor local weather forecasts (precipitation, wind speed, temperature) via Open-Meteo and automatically push unsuitable field tasks to the next clear day.
+4. **Content & Template Management**: Administer crop guides, spray schedules, and crop templates via a Payload CMS admin panel.
+5. **Cross-Platform Access**: Expo/React Native mobile client for field usage alongside a Next.js web portal and CMS.
 
-## Out of scope (MVP)
-- Stok / depo muhasebesi
-- Yasal bekletme süresi (PHI) motoru
-- Uydu NDVI / ücretli agro API’ler
-- Kooperatif çok kullanıcılı yönetim paneli (ileride)
-
-## Success criteria
-- Çiftçi tarla ekleyip ürün seçerek görev listesi oluşturabiliyor
-- Yağışlı günde ilaçlama görevi kaydırılabiliyor
-- Uygulanan ilaç/gübre geçmişe işlenebiliyor
-- CMS kapalıyken yerel şablonlarla uygulama çalışıyor (demo)
+## Target Audience
+Farmers, agricultural business managers, and greenhouse operators seeking simple, weather-aware digital task planning without complex setup.

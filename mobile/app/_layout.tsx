@@ -22,8 +22,7 @@ export default function RootLayout() {
         <Stack.Screen name="add-field" options={{ title: 'Tarla Ekle' }} />
         <Stack.Screen name="add-crop" options={{ title: 'Ürün Ekle' }} />
         <Stack.Screen name="logs" options={{ title: 'İlaçlama / Gübre Geçmişi' }} />
-        <Stack.Screen name="add-log" options={{ title: 'Uygulama Kaydı' }} />
-        <Stack.Screen name="log-detail" options={{ title: 'Kayıt Detayı' }} />
+        <Stack.Screen name="add-log" options={{ title: 'Uygulama Kaydı Ekle' }} />
       </Stack>
     </>
   );

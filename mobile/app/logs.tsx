@@ -1,21 +1,20 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
+  Alert,
   RefreshControl,
 } from 'react-native';
-import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { Link, useFocusEffect } from 'expo-router';
 import { useAppStore } from '../src/store/appStore';
 import { InputType } from '../src/types';
 
 export default function LogsScreen() {
-  const router = useRouter();
-  const { applicationLogs, fields, refreshLogs, loading } = useAppStore();
+  const { applicationLogs, fields, refreshLogs, deleteLog, loading } = useAppStore();
   const [filterType, setFilterType] = useState<'all' | InputType>('all');
-  const [filterFieldId, setFilterFieldId] = useState<string | 'all'>('all');
 
   useFocusEffect(
     useCallback(() => {
@@ -26,34 +25,48 @@ export default function LogsScreen() {
   const fieldName = (id: string) =>
     fields.find((f) => f.id === id)?.name ?? 'Tarla';
 
-  const filteredLogs = useMemo(() => {
-    return applicationLogs.filter((l) => {
-      if (filterType !== 'all' && l.inputType !== filterType) return false;
-      if (filterFieldId !== 'all' && l.fieldId !== filterFieldId) return false;
-      return true;
-    });
-  }, [applicationLogs, filterType, filterFieldId]);
+  const filteredLogs = applicationLogs.filter((l) =>
+    filterType === 'all' ? true : l.inputType === filterType
+  );
+
+  const onDelete = (id: string, name: string) => {
+    Alert.alert('Kayıt Sil', `"${name}" kaydı silinsin mi?`, [
+      { text: 'İptal', style: 'cancel' },
+      {
+        text: 'Sil',
+        style: 'destructive',
+        onPress: () => deleteLog(id),
+      },
+    ]);
+  };
 
   return (
     <View style={styles.container}>
-      <View style={styles.filterBlock}>
-        <ScrollChips
-          options={[
-            { id: 'all', label: 'Tümü' },
-            { id: 'fertilizer', label: '🧪 Gübre' },
-            { id: 'pesticide', label: '🧴 İlaç' },
-          ]}
-          value={filterType}
-          onChange={(v) => setFilterType(v as 'all' | InputType)}
-        />
-        <ScrollChips
-          options={[
-            { id: 'all', label: 'Tüm tarlalar' },
-            ...fields.map((f) => ({ id: f.id, label: f.name })),
-          ]}
-          value={filterFieldId}
-          onChange={setFilterFieldId}
-        />
+      <View style={styles.filterRow}>
+        <TouchableOpacity
+          style={[styles.filterChip, filterType === 'all' && styles.filterActive]}
+          onPress={() => setFilterType('all')}
+        >
+          <Text style={[styles.filterText, filterType === 'all' && styles.filterTextActive]}>
+            Tümü
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterChip, filterType === 'fertilizer' && styles.filterActive]}
+          onPress={() => setFilterType('fertilizer')}
+        >
+          <Text style={[styles.filterText, filterType === 'fertilizer' && styles.filterTextActive]}>
+            🧪 Gübreler
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterChip, filterType === 'pesticide' && styles.filterActive]}
+          onPress={() => setFilterType('pesticide')}
+        >
+          <Text style={[styles.filterText, filterType === 'pesticide' && styles.filterTextActive]}>
+            🧴 İlaçlar
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -64,21 +77,10 @@ export default function LogsScreen() {
           <RefreshControl refreshing={loading} onRefresh={refreshLogs} />
         }
         ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Text style={styles.empty}>Henüz uygulama kaydı yok</Text>
-            <Link href="/add-log" asChild>
-              <TouchableOpacity style={styles.emptyBtn}>
-                <Text style={styles.emptyBtnText}>İlk kaydı ekle</Text>
-              </TouchableOpacity>
-            </Link>
-          </View>
+          <Text style={styles.empty}>Henüz uygulama kaydı bulunmuyor.</Text>
         }
         renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => router.push(`/log-detail?id=${item.id}`)}
-            activeOpacity={0.7}
-          >
+          <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>
@@ -89,81 +91,54 @@ export default function LogsScreen() {
                 {new Date(item.appliedAt).toLocaleDateString('tr-TR')}
               </Text>
             </View>
+
             <Text style={styles.productName}>{item.productName}</Text>
             <Text style={styles.details}>
               {fieldName(item.fieldId)} · {item.quantity} {item.unit}
               {item.method ? ` · ${item.method}` : ''}
             </Text>
-            {item.notes ? (
-              <Text style={styles.notes} numberOfLines={1}>
-                Not: {item.notes}
-              </Text>
-            ) : null}
-          </TouchableOpacity>
+
+            {item.notes ? <Text style={styles.notes}>Not: {item.notes}</Text> : null}
+
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              onPress={() => onDelete(item.id, item.productName)}
+            >
+              <Text style={styles.deleteText}>Sil</Text>
+            </TouchableOpacity>
+          </View>
         )}
         ListFooterComponent={
-          filteredLogs.length > 0 ? (
-            <Link href="/add-log" asChild>
-              <TouchableOpacity style={styles.addBtn}>
-                <Text style={styles.addText}>+ Yeni uygulama kaydı</Text>
-              </TouchableOpacity>
-            </Link>
-          ) : null
+          <Link href="/add-log" asChild>
+            <TouchableOpacity style={styles.addBtn}>
+              <Text style={styles.addText}>+ Yeni Uygulama Kaydı Ekle</Text>
+            </TouchableOpacity>
+          </Link>
         }
       />
     </View>
   );
 }
 
-function ScrollChips({
-  options,
-  value,
-  onChange,
-}: {
-  options: { id: string; label: string }[];
-  value: string;
-  onChange: (id: string) => void;
-}) {
-  return (
-    <View style={styles.chipRow}>
-      {options.map((o) => (
-        <TouchableOpacity
-          key={o.id}
-          style={[styles.filterChip, value === o.id && styles.filterActive]}
-          onPress={() => onChange(o.id)}
-        >
-          <Text
-            style={[
-              styles.filterText,
-              value === o.id && styles.filterTextActive,
-            ]}
-          >
-            {o.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
-  filterBlock: {
+  filterRow: {
+    flexDirection: 'row',
+    padding: 12,
     backgroundColor: '#fff',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    gap: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
-    gap: 8,
   },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   filterChip: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 16,
     backgroundColor: '#f0f0f0',
   },
-  filterActive: { backgroundColor: '#2E7D32' },
+  filterActive: {
+    backgroundColor: '#2E7D32',
+  },
   filterText: { fontSize: 13, color: '#555', fontWeight: '500' },
   filterTextActive: { color: '#fff' },
   card: {
@@ -188,17 +163,11 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 11, color: '#2E7D32', fontWeight: '600' },
   date: { fontSize: 12, color: '#888' },
   productName: { fontSize: 16, fontWeight: '700', color: '#222', marginBottom: 4 },
-  details: { fontSize: 13, color: '#555' },
+  details: { fontSize: 13, color: '#555', marginBottom: 4 },
   notes: { fontSize: 12, color: '#666', fontStyle: 'italic', marginTop: 4 },
-  emptyBox: { alignItems: 'center', marginTop: 48 },
-  empty: { textAlign: 'center', color: '#999', marginBottom: 16 },
-  emptyBtn: {
-    backgroundColor: '#2E7D32',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  emptyBtnText: { color: '#fff', fontWeight: '600' },
+  deleteBtn: { alignSelf: 'flex-end', marginTop: 6, padding: 4 },
+  deleteText: { fontSize: 12, color: '#D32F2F', fontWeight: '600' },
+  empty: { textAlign: 'center', color: '#999', marginTop: 40 },
   addBtn: {
     marginTop: 8,
     padding: 14,
@@ -207,6 +176,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderStyle: 'dashed',
     alignItems: 'center',
+    backgroundColor: '#FAFAFA',
   },
   addText: { color: '#2E7D32', fontWeight: '600' },
 });

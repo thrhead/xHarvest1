@@ -36,34 +36,31 @@ export default function TasksScreen() {
     fields.find((f) => f.id === id)?.name ?? 'Tarla';
 
   const onComplete = (item: Task) => {
-    const needsLog = item.type === 'fertilizing' || item.type === 'spraying';
-    if (!needsLog) {
-      Alert.alert('Görevi tamamla', `"${item.title}" tamamlandı mı?`, [
-        { text: 'İptal', style: 'cancel' },
-        { text: 'Tamamla', onPress: () => completeTask(item.id) },
-      ]);
-      return;
-    }
-    Alert.alert(
-      'Görevi tamamla',
-      `"${item.title}"\n\nUygulama kaydı (ne / ne kadar) da eklensin mi?`,
-      [
-        { text: 'İptal', style: 'cancel' },
-        {
-          text: 'Sadece tamamla',
-          onPress: () => completeTask(item.id),
-        },
-        {
-          text: 'Kayıt ekle',
-          onPress: async () => {
-            await completeTask(item.id);
-            router.push(
-              `/add-log?fieldId=${item.fieldId}&taskId=${item.id}&taskType=${item.type}`
+    Alert.alert('Görevi tamamla', `"${item.title}" tamamlandı mı?`, [
+      { text: 'İptal', style: 'cancel' },
+      {
+        text: 'Tamamla',
+        onPress: async () => {
+          await completeTask(item.id);
+          if (item.type === 'fertilizing' || item.type === 'spraying') {
+            Alert.alert(
+              'Uygulama Kaydı',
+              'Bu görev için ilaçlama / gübre defterine kayıt eklemek ister misiniz?',
+              [
+                { text: 'Hayır' },
+                {
+                  text: 'Evet',
+                  onPress: () =>
+                    router.push(
+                      `/add-log?fieldId=${item.fieldId}&taskId=${item.id}&taskType=${item.type}`
+                    ),
+                },
+              ]
             );
-          },
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   return (

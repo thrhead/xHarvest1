@@ -1,35 +1,33 @@
 # System Patterns
 
-## Architecture
+## Architecture Overview
+
 ```
-Expo App ──► Firebase (Auth/Firestore) [veya DEMO bellek]
-    │              ▲
-    │              │ Admin SDK
-    ├─ Open-Meteo  │
-    └─ Payload API ◄── Next.js CMS
-         Cloud Functions (HTTP) ◄── harici cron
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  React Native   │────▶│   Firebase       │◀────│  Payload CMS    │
+│  (Expo)         │     │  Auth + Firestore │     │  (İçerik)       │
+└────────┬────────┘     └────────┬─────────┘     └────────┬────────┘
+         │                       │                        │
+         │                       ▼                        │
+         │              ┌─────────────────┐               │
+         └─────────────▶│  Open-Meteo API │◀──────────────┘
+                        │  (Hava + Toprak)│
+                        └─────────────────┘
 ```
 
-## Mobile
-- **Expo Router** dosya tabanlı navigasyon (`app/`)
-- **Zustand** global state (`appStore`)
-- **DEMO_MODE**: Firebase native modül olmadan UI/akış testi
-- Servis katmanı: `firebase.ts`, `weather.ts`, `payload.ts`, `taskWeather.ts`
+## Workspace Structure
+- `/cms`: Payload CMS v3 on Next.js 15 App Router + SQLite backend (`@payloadcms/db-sqlite`, `@libsql/client`).
+  - `(payload)` route group: Admin panel routes (`/admin`) and API handlers (`/api/[...slug]`).
+  - `(frontend)` route group: Web dashboard and public portal endpoints.
+- `/mobile`: Expo React Native client application with TypeScript, Navigation, and offline support.
+- `/backend`: Firebase Cloud Functions for scheduled task triggers and weather adjustment.
+- `/docs`: Architecture specs and setup documentation.
 
-## Application logs
-- Koleksiyon: `applicationLogs`
-- Görev tamamlanınca opsiyonel log (spraying / fertilizing)
-- Filtre: fieldId, inputType, tarih aralığı, ürün adı
-- Detay: `docs/APPLICATION_LOGS_API.md`
-
-## CMS
-- Payload collections public **read** (crops, guides)
-- Route groups: `(payload)` admin/API, `(frontend)` portal
-
-## Backend triggers
-- Scheduled yok (Spark) → HTTP + secret header + harici cron
-- Firestore triggers: onCropCreated, onTaskUpdated (Spark uyumlu)
-
-## Maps
-- `react-native-maps` + OSM `UrlTile`
-- Çizim: köşe listesi → Polygon + shoelace alan (ha)
+## Key Design Patterns
+1. **Root Layout Pattern**: Top-level `cms/src/app/layout.tsx` wraps all route groups to ensure valid HTML root structure for Next.js 15 SSR/prerendering.
+2. **Weather Adjustment Rule Engine**:
+   - Compares planned task dates against 14-day Open-Meteo daily forecasts (rain mm, max wind km/h, min/max temp).
+   - Automatically reschedules tasks exceeding safety thresholds up to 7 days into the future.
+3. **Decoupled Data Architecture**:
+   - User field logs & task statuses stored in Firebase Firestore.
+   - Master crop templates & guides managed independently in Payload CMS.

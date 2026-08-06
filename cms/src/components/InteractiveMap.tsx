@@ -2,14 +2,8 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 
-export interface FieldPolygon {
-  id: string
-  name: string
-  cropName: string
-  areaDecares: number // dönüm
-  coordinates: [number, number][]
-  color: string
-}
+import { FieldPolygon } from '../types/field'
+export type { FieldPolygon }
 
 interface InteractiveMapProps {
   fields: FieldPolygon[]

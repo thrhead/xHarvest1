@@ -14,13 +14,11 @@ interface AppState {
 
   init: () => Promise<void>;
   refreshFields: () => Promise<void>;
-  refreshCrops: () => Promise<void>;
   refreshTasks: () => Promise<void>;
   refreshLogs: () => Promise<void>;
   addField: (data: Omit<Field, 'id' | 'createdAt'>) => Promise<string>;
   completeTask: (taskId: string) => Promise<void>;
   createLog: (data: Omit<ApplicationLog, 'id' | 'createdAt'>) => Promise<string>;
-  updateLog: (id: string, data: Partial<ApplicationLog>) => Promise<void>;
   deleteLog: (id: string) => Promise<void>;
   runWeatherAdjust: () => Promise<number>;
 }
@@ -40,7 +38,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       const { uid } = await fb.signInAnonymously();
       set({ uid });
       await get().refreshFields();
-      await get().refreshCrops();
       await get().refreshTasks();
       await get().refreshLogs();
     } finally {
@@ -53,13 +50,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!uid) return;
     const fields = await fb.getFields(uid);
     set({ fields });
-  },
-
-  refreshCrops: async () => {
-    const uid = get().uid;
-    if (!uid) return;
-    const crops = await fb.getCrops(uid);
-    set({ crops });
   },
 
   refreshTasks: async () => {
@@ -93,11 +83,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     const id = await fb.createApplicationLog(data);
     await get().refreshLogs();
     return id;
-  },
-
-  updateLog: async (id, data) => {
-    await fb.updateApplicationLog(id, data);
-    await get().refreshLogs();
   },
 
   deleteLog: async (id) => {

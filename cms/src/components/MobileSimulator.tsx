@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { FieldPolygon } from './InteractiveMap'
+import { FieldPolygon } from '../types/field'
 
 interface MobileSimulatorProps {
   fields: FieldPolygon[]
