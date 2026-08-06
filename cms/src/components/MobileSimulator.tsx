@@ -19,12 +19,17 @@ interface TaskItem {
   date: string
   status: 'pending' | 'completed' | 'delayed'
   weatherReason?: string
+  productName?: string
+  dosage?: string
+  targetPestOrPurpose?: string
 }
 
 export default function MobileSimulator({ fields, onAddField, onDeleteField }: MobileSimulatorProps) {
-  const [activeTab, setActiveTab] = useState<'home' | 'tasks' | 'map' | 'calendar' | 'weather'>('home')
+  const [activeTab, setActiveTab] = useState<'home' | 'tasks' | 'records' | 'map' | 'calendar' | 'weather'>('home')
+  const [taskFilter, setTaskFilter] = useState<'all' | 'spraying' | 'fertilizing' | 'irrigation' | 'planting' | 'harvesting'>('all')
+  const [recordFilter, setRecordFilter] = useState<'all' | 'spraying' | 'fertilizing'>('all')
 
-  // Sample mobile tasks state
+  // Sample mobile tasks & spraying/fertilizer records state
   const [tasks, setTasks] = useState<TaskItem[]>([
     {
       id: 't-1',
@@ -34,7 +39,10 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
       title: 'İlk Azotlu Gübreleme & Çapa',
       type: 'fertilizing',
       date: '2026-08-05',
-      status: 'pending',
+      status: 'completed',
+      productName: 'Üre %46 Azot Gübresi',
+      dosage: '15 kg / Dönüm',
+      targetPestOrPurpose: 'Kök ve Vejetatif Gövde Gelişimi',
       weatherReason: 'Uygun nem oranı (%55)',
     },
     {
@@ -42,10 +50,13 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
       fieldId: 'f-1',
       fieldName: 'Örnek Domates Tarlası',
       cropName: 'Domates',
-      title: 'Damlama Sulama (2 Saat)',
-      type: 'irrigation',
+      title: 'Damlama Sulama & Potasyum Desteği',
+      type: 'fertilizing',
       date: '2026-08-06',
       status: 'pending',
+      productName: 'Potasyum Nitrat (13-0-46)',
+      dosage: '3 kg / Dekar',
+      targetPestOrPurpose: 'Meyve Tutumu & Kalite Artırımı',
     },
     {
       id: 't-3',
@@ -56,7 +67,10 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
       type: 'spraying',
       date: '2026-08-07',
       status: 'delayed',
-      weatherReason: 'Rüzgar hızı yüksek (22 km/s), ilaçlama ertelendi',
+      productName: 'Bakır Sülfat (Fungisit Göztaşı)',
+      dosage: '250 ml / 100 LT Su',
+      targetPestOrPurpose: 'Sarı Pas ve Mildiyö Mantar Önleme',
+      weatherReason: 'Rüzgar hızı yüksek (22 km/s), sabah 06:00 ertelendi',
     },
     {
       id: 't-4',
@@ -67,6 +81,35 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
       type: 'fertilizing',
       date: '2026-08-04',
       status: 'completed',
+      productName: 'NPK 15-15-15 Taban Gübresi',
+      dosage: '20 kg / Dönüm',
+      targetPestOrPurpose: 'Sapa Kalkma Dönemi Verim Desteği',
+    },
+    {
+      id: 't-5',
+      fieldId: 'f-1',
+      fieldName: 'Örnek Domates Tarlası',
+      cropName: 'Domates',
+      title: 'Kırmızı Örümcek & Yaprak Biti İlaçlaması',
+      type: 'spraying',
+      date: '2026-08-08',
+      status: 'pending',
+      productName: 'Sistemik İnsektisit & Akarisit',
+      dosage: '150 ml / Dekar',
+      targetPestOrPurpose: 'Yaprak Biti ve Kırmızı Örümcek Zararlısı',
+    },
+    {
+      id: 't-6',
+      fieldId: 'f-2',
+      fieldName: 'Güney Buğday Parseli',
+      cropName: 'Buğday',
+      title: 'Geniş Yapraklı Ot İlaçlaması',
+      type: 'spraying',
+      date: '2026-08-02',
+      status: 'completed',
+      productName: 'Selektif Herbisit (Yabancı Ot İlacı)',
+      dosage: '100 ml / Dekar',
+      targetPestOrPurpose: 'Yabancı Ot Temizliği',
     },
   ])
 
@@ -76,12 +119,15 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
   const [newFieldCrop, setNewFieldCrop] = useState('Domates')
   const [newFieldArea, setNewFieldArea] = useState('25')
 
-  // New Task / Calendar Event Modal inside simulator
+  // New Task / Spray / Fertilizer Record Modal inside simulator
   const [showAddTaskModal, setShowAddTaskModal] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [newTaskFieldId, setNewTaskFieldId] = useState('')
-  const [newTaskType, setNewTaskType] = useState<'planting' | 'irrigation' | 'fertilizing' | 'spraying' | 'harvesting'>('fertilizing')
+  const [newTaskType, setNewTaskType] = useState<'planting' | 'irrigation' | 'fertilizing' | 'spraying' | 'harvesting'>('spraying')
   const [newTaskDate, setNewTaskDate] = useState('2026-08-08')
+  const [newTaskProduct, setNewTaskProduct] = useState('')
+  const [newTaskDosage, setNewTaskDosage] = useState('')
+  const [newTaskTarget, setNewTaskTarget] = useState('')
 
   // Weather adjust status
   const [lastWeatherCheck, setLastWeatherCheck] = useState<string | null>(null)
@@ -158,10 +204,16 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
       type: newTaskType,
       date: newTaskDate || new Date().toISOString().slice(0, 10),
       status: 'pending',
+      productName: newTaskProduct.trim() || undefined,
+      dosage: newTaskDosage.trim() || undefined,
+      targetPestOrPurpose: newTaskTarget.trim() || undefined,
     }
 
     setTasks((prev) => [newTask, ...prev])
     setNewTaskTitle('')
+    setNewTaskProduct('')
+    setNewTaskDosage('')
+    setNewTaskTarget('')
     setShowAddTaskModal(false)
   }
 
@@ -335,6 +387,16 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
                         <div className="text-[11px] opacity-80">{pendingTasksCount} Bekleyen</div>
                       </button>
                       <button
+                        onClick={() => setActiveTab('records')}
+                        className="bg-purple-600 text-white p-3 rounded-2xl text-left shadow-2xs hover:bg-purple-700 transition relative overflow-hidden"
+                      >
+                        <div className="text-xl">🛡️🧪</div>
+                        <div className="font-bold text-sm mt-1">İlaç/Gübre Kaydı</div>
+                        <div className="text-[11px] opacity-90">
+                          {tasks.filter((t) => t.type === 'spraying' || t.type === 'fertilizing').length} Kayıt
+                        </div>
+                      </button>
+                      <button
                         onClick={() => setActiveTab('map')}
                         className="bg-sky-600 text-white p-3 rounded-2xl text-left shadow-2xs hover:bg-sky-700 transition"
                       >
@@ -344,19 +406,28 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
                       </button>
                       <button
                         onClick={() => setActiveTab('calendar')}
-                        className="bg-purple-600 text-white p-3 rounded-2xl text-left shadow-2xs hover:bg-purple-700 transition"
+                        className="bg-indigo-600 text-white p-3 rounded-2xl text-left shadow-2xs hover:bg-indigo-700 transition"
                       >
                         <div className="text-xl">📅</div>
                         <div className="font-bold text-sm mt-1">Takvim</div>
                         <div className="text-[11px] opacity-80">Ekim-Hasat</div>
                       </button>
+                    </div>
+
+                    {/* Spray & Fertilizer Quick Banner */}
+                    <div className="bg-purple-50 border border-purple-200 p-3 rounded-xl flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">🛡️</span>
+                        <div>
+                          <span className="font-bold text-xs text-purple-900 block">İlaçlama & Gübreleme Takibi</span>
+                          <span className="text-[11px] text-purple-700">Dozaj, etken madde ve hava uyumu kaydı</span>
+                        </div>
+                      </div>
                       <button
-                        onClick={() => setActiveTab('weather')}
-                        className="bg-amber-600 text-white p-3 rounded-2xl text-left shadow-2xs hover:bg-amber-700 transition"
+                        onClick={() => setActiveTab('records')}
+                        className="text-[11px] bg-purple-700 hover:bg-purple-800 text-white px-2.5 py-1 rounded-lg font-bold shadow-2xs"
                       >
-                        <div className="text-xl">🌤️</div>
-                        <div className="font-bold text-sm mt-1">Hava Durumu</div>
-                        <div className="text-[11px] opacity-80">Rüzgar & Yağış</div>
+                        Defteri Aç →
                       </button>
                     </div>
 
@@ -420,47 +491,240 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
                       </button>
                     </div>
 
-                    <div className="space-y-2">
-                      {tasks.map((t) => (
-                        <div
-                          key={t.id}
-                          className={`p-3 rounded-xl border transition ${
-                            t.status === 'completed'
-                              ? 'bg-slate-100 border-slate-200 opacity-60'
-                              : t.status === 'delayed'
-                              ? 'bg-amber-50 border-amber-200'
-                              : 'bg-white border-slate-200 shadow-2xs'
+                    {/* Filter Pills */}
+                    <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[11px] no-scrollbar">
+                      {[
+                        { id: 'all', label: 'Tümü' },
+                        { id: 'spraying', label: '🛡️ İlaçlama' },
+                        { id: 'fertilizing', label: '🧪 Gübreleme' },
+                        { id: 'irrigation', label: '💧 Sulama' },
+                        { id: 'planting', label: '🌱 Ekim' },
+                        { id: 'harvesting', label: '🌾 Hasat' },
+                      ].map((f) => (
+                        <button
+                          key={f.id}
+                          onClick={() => setTaskFilter(f.id as any)}
+                          className={`px-2.5 py-1 rounded-full whitespace-nowrap font-semibold transition ${
+                            taskFilter === f.id
+                              ? 'bg-emerald-800 text-white shadow-2xs'
+                              : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                           }`}
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] bg-slate-200 text-slate-800 font-bold px-1.5 py-0.5 rounded">
-                                  {t.cropName}
-                                </span>
-                                <span className="text-[11px] font-semibold text-slate-500">{t.fieldName}</span>
-                              </div>
-                              <h5 className="text-xs font-bold text-slate-900 mt-1">{t.title}</h5>
-                              <p className="text-[11px] text-slate-500 mt-0.5">🗓️ Tarih: {t.date}</p>
-                              {t.weatherReason && (
-                                <p className="text-[10px] text-amber-700 font-medium mt-1 bg-amber-100/70 p-1 rounded">
-                                  🌤️ {t.weatherReason}
-                                </p>
-                              )}
-                            </div>
-                            <button
-                              onClick={() => toggleTaskStatus(t.id)}
-                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition ${
-                                t.status === 'completed'
-                                  ? 'bg-emerald-600 text-white'
-                                  : 'bg-slate-200 hover:bg-emerald-100 text-slate-700'
-                              }`}
-                            >
-                              {t.status === 'completed' ? '✓ Tamam' : 'Tamamla'}
-                            </button>
-                          </div>
-                        </div>
+                          {f.label}
+                        </button>
                       ))}
+                    </div>
+
+                    <div className="space-y-2">
+                      {tasks
+                        .filter((t) => (taskFilter === 'all' ? true : t.type === taskFilter))
+                        .map((t) => (
+                          <div
+                            key={t.id}
+                            className={`p-3 rounded-xl border transition ${
+                              t.status === 'completed'
+                                ? 'bg-slate-100 border-slate-200 opacity-60'
+                                : t.status === 'delayed'
+                                ? 'bg-amber-50 border-amber-200'
+                                : 'bg-white border-slate-200 shadow-2xs'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] bg-slate-200 text-slate-800 font-bold px-1.5 py-0.5 rounded">
+                                    {t.cropName}
+                                  </span>
+                                  <span className="text-[11px] font-semibold text-slate-500">{t.fieldName}</span>
+                                  {t.type === 'spraying' && (
+                                    <span className="text-[9px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded">
+                                      🛡️ İlaçlama
+                                    </span>
+                                  )}
+                                  {t.type === 'fertilizing' && (
+                                    <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">
+                                      🧪 Gübreleme
+                                    </span>
+                                  )}
+                                </div>
+                                <h5 className="text-xs font-bold text-slate-900 mt-1">{t.title}</h5>
+
+                                {t.productName && (
+                                  <p className="text-[11px] font-medium text-emerald-800 mt-0.5">
+                                    💊 <b>{t.productName}</b> {t.dosage && `(${t.dosage})`}
+                                  </p>
+                                )}
+
+                                {t.targetPestOrPurpose && (
+                                  <p className="text-[10px] text-slate-600 mt-0.5">🎯 Amaç: {t.targetPestOrPurpose}</p>
+                                )}
+
+                                <p className="text-[11px] text-slate-500 mt-0.5">🗓️ Tarih: {t.date}</p>
+                                {t.weatherReason && (
+                                  <p className="text-[10px] text-amber-700 font-medium mt-1 bg-amber-100/70 p-1 rounded">
+                                    🌤️ {t.weatherReason}
+                                  </p>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => toggleTaskStatus(t.id)}
+                                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition ${
+                                  t.status === 'completed'
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-slate-200 hover:bg-emerald-100 text-slate-700'
+                                }`}
+                              >
+                                {t.status === 'completed' ? '✓ Tamam' : 'Tamamla'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 3: SPRAYING & FERTILIZER RECORDS SCREEN */}
+                {activeTab === 'records' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900">İlaç & Gübre Defteri</h4>
+                        <p className="text-[11px] text-slate-500">Uygulanan kimyasal, besin ve dozaj kayıtları</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setNewTaskType('spraying')
+                          setShowAddTaskModal(true)
+                        }}
+                        className="text-xs bg-purple-700 hover:bg-purple-800 text-white px-2.5 py-1 rounded-lg font-bold shadow-2xs transition flex items-center gap-1"
+                      >
+                        <span>+</span> Kayıt Ekle
+                      </button>
+                    </div>
+
+                    {/* Filter Pills for Records */}
+                    <div className="flex gap-1 bg-slate-100 p-1 rounded-xl text-xs">
+                      <button
+                        onClick={() => setRecordFilter('all')}
+                        className={`flex-1 py-1 rounded-lg font-bold transition text-[11px] ${
+                          recordFilter === 'all'
+                            ? 'bg-purple-700 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Tüm Kayıtlar ({tasks.filter((t) => t.type === 'spraying' || t.type === 'fertilizing').length})
+                      </button>
+                      <button
+                        onClick={() => setRecordFilter('spraying')}
+                        className={`flex-1 py-1 rounded-lg font-bold transition text-[11px] ${
+                          recordFilter === 'spraying'
+                            ? 'bg-purple-700 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        🛡️ İlaçlama ({tasks.filter((t) => t.type === 'spraying').length})
+                      </button>
+                      <button
+                        onClick={() => setRecordFilter('fertilizing')}
+                        className={`flex-1 py-1 rounded-lg font-bold transition text-[11px] ${
+                          recordFilter === 'fertilizing'
+                            ? 'bg-purple-700 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        🧪 Gübreleme ({tasks.filter((t) => t.type === 'fertilizing').length})
+                      </button>
+                    </div>
+
+                    {/* Record Cards */}
+                    <div className="space-y-2.5">
+                      {tasks
+                        .filter((t) => {
+                          if (recordFilter === 'all') return t.type === 'spraying' || t.type === 'fertilizing'
+                          return t.type === recordFilter
+                        })
+                        .map((t) => (
+                          <div
+                            key={t.id}
+                            className={`p-3 rounded-xl border transition ${
+                              t.type === 'spraying'
+                                ? 'bg-purple-50/50 border-purple-200'
+                                : 'bg-amber-50/50 border-amber-200'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="space-y-1 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span
+                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                      t.type === 'spraying'
+                                        ? 'bg-purple-200 text-purple-900'
+                                        : 'bg-amber-200 text-amber-900'
+                                    }`}
+                                  >
+                                    {t.type === 'spraying' ? '🛡️ İLAÇLAMA' : '🧪 GÜBRELEME'}
+                                  </span>
+                                  <span className="text-[11px] font-bold text-slate-700">{t.fieldName}</span>
+                                  <span className="text-[10px] text-slate-500">({t.cropName})</span>
+                                </div>
+
+                                <h5 className="text-xs font-bold text-slate-900">{t.title}</h5>
+
+                                {t.productName && (
+                                  <div className="text-xs bg-white p-2 rounded-lg border border-slate-200 space-y-0.5 my-1">
+                                    <div className="font-bold text-slate-800 flex items-center justify-between">
+                                      <span>💊 Etken / Ürün: {t.productName}</span>
+                                    </div>
+                                    {t.dosage && (
+                                      <div className="text-[11px] text-purple-900 font-mono">
+                                        ⚖️ Dojaj: <b>{t.dosage}</b>
+                                      </div>
+                                    )}
+                                    {t.targetPestOrPurpose && (
+                                      <div className="text-[10px] text-slate-600">
+                                        🎯 Hedef Zararlı / Amaç: {t.targetPestOrPurpose}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+                                  <span>🗓️ Uygulama Tarihi: <b>{t.date}</b></span>
+                                  {t.status === 'completed' ? (
+                                    <span className="text-emerald-700 font-bold bg-emerald-100 px-1.5 py-0.5 rounded">
+                                      ✓ Uygulandı
+                                    </span>
+                                  ) : t.status === 'delayed' ? (
+                                    <span className="text-amber-700 font-bold bg-amber-100 px-1.5 py-0.5 rounded">
+                                      ⚠️ Ertelendi
+                                    </span>
+                                  ) : (
+                                    <span className="text-purple-700 font-bold bg-purple-100 px-1.5 py-0.5 rounded">
+                                      ⏳ Planlandı
+                                    </span>
+                                  )}
+                                </div>
+
+                                {t.weatherReason && (
+                                  <p className="text-[10px] text-amber-800 bg-amber-100/80 p-1.5 rounded-md font-medium">
+                                    🌤️ Hava Durumu Notu: {t.weatherReason}
+                                  </p>
+                                )}
+                              </div>
+
+                              <button
+                                onClick={() => toggleTaskStatus(t.id)}
+                                className={`text-[10px] font-bold px-2 py-1 rounded-lg transition ${
+                                  t.status === 'completed'
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-slate-200 hover:bg-emerald-100 text-slate-800'
+                                }`}
+                              >
+                                {t.status === 'completed' ? '✓ Yapıldı' : 'Tamamla'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                     </div>
                   </div>
                 )}
@@ -641,7 +905,7 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
               </div>
 
               {/* Mobile Bottom Navigation Bar */}
-              <div className="bg-white border-t border-slate-200 py-2 px-3 flex justify-around items-center z-20 shadow-lg">
+              <div className="bg-white border-t border-slate-200 py-2 px-2 flex justify-around items-center z-20 shadow-lg">
                 <button
                   onClick={() => setActiveTab('home')}
                   className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
@@ -659,6 +923,15 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
                 >
                   <span className="text-base">📋</span>
                   <span>Görevler</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('records')}
+                  className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
+                    activeTab === 'records' ? 'text-purple-700' : 'text-slate-400'
+                  }`}
+                >
+                  <span className="text-base">🛡️🧪</span>
+                  <span>Defter</span>
                 </button>
                 <button
                   onClick={() => setActiveTab('map')}
@@ -805,6 +1078,46 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
                           className="w-full px-2.5 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                         />
                       </div>
+
+                      {(newTaskType === 'spraying' || newTaskType === 'fertilizing') && (
+                        <>
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">
+                              {newTaskType === 'spraying' ? 'İlaç / Etken Madde Adı' : 'Gübre Çeşidi / Adı'}
+                            </label>
+                            <input
+                              type="text"
+                              placeholder={newTaskType === 'spraying' ? 'Örn: Bakır Sülfat Fungisit' : 'Örn: NPK 15-15-15 veya Üre'}
+                              value={newTaskProduct}
+                              onChange={(e) => setNewTaskProduct(e.target.value)}
+                              className="w-full px-2.5 py-2 border border-purple-300 rounded-lg text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none bg-purple-50/30"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block font-semibold text-slate-700 mb-1">Dozaj / Miktar</label>
+                              <input
+                                type="text"
+                                placeholder="Örn: 250 ml / dekar"
+                                value={newTaskDosage}
+                                onChange={(e) => setNewTaskDosage(e.target.value)}
+                                className="w-full px-2.5 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block font-semibold text-slate-700 mb-1">Hedef / Amaç</label>
+                              <input
+                                type="text"
+                                placeholder="Örn: Erken Yaprak Yanıklığı"
+                                value={newTaskTarget}
+                                onChange={(e) => setNewTaskTarget(e.target.value)}
+                                className="w-full px-2.5 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                        </>
+                      )}
 
                       <div className="flex gap-2 pt-2">
                         <button
