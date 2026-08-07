@@ -49,15 +49,115 @@ interface Guide {
   relatedCrop?: any[]
 }
 
+interface WebRecordItem {
+  id: string
+  fieldId: string
+  fieldName: string
+  cropName: string
+  title: string
+  type: 'spraying' | 'fertilizing'
+  productName: string
+  dosage: string
+  targetPestOrPurpose: string
+  date: string
+  status: 'completed' | 'pending' | 'delayed'
+  notes?: string
+}
+
 export default function DashboardView() {
   const [crops, setCrops] = useState<CropTemplate[]>([])
   const [guides, setGuides] = useState<Guide[]>([])
   const [loading, setLoading] = useState(true)
 
   const [selectedCropId, setSelectedCropId] = useState<string>('')
-  const [activeTab, setActiveTab] = useState<'map' | 'timeline' | 'guides' | 'mobile'>('map')
+  const [activeTab, setActiveTab] = useState<'map' | 'timeline' | 'records' | 'guides' | 'mobile'>('map')
   const [guideFilter, setGuideFilter] = useState<string>('all')
   const [selectedGuideModal, setSelectedGuideModal] = useState<Guide | null>(null)
+
+  // Web Spraying and Fertilizer Records
+  const [webRecords, setWebRecords] = useState<WebRecordItem[]>([
+    {
+      id: 'wr-1',
+      fieldId: 'f-1',
+      fieldName: 'Örnek Domates Tarlası',
+      cropName: 'Domates',
+      title: 'Pas Hastalığı Koruyucu İlaçlama',
+      type: 'spraying',
+      productName: 'Bakır Sülfat (Fungisit Göztaşı)',
+      dosage: '250 ml / 100 LT Su',
+      targetPestOrPurpose: 'Sarı Pas ve Mildiyö Önleme',
+      date: '2026-08-07',
+      status: 'delayed',
+      notes: 'Rüzgar hızı yüksek (22 km/s) olduğu için ilaçlama sabah 06:00 serinliğine ertelendi.',
+    },
+    {
+      id: 'wr-2',
+      fieldId: 'f-1',
+      fieldName: 'Örnek Domates Tarlası',
+      cropName: 'Domates',
+      title: 'İlk Azotlu Gübreleme & Taban Besleme',
+      type: 'fertilizing',
+      productName: 'Üre %46 Azot Gübresi',
+      dosage: '15 kg / Dönüm',
+      targetPestOrPurpose: 'Kök ve Gövde Vejetatif Gelişimi',
+      date: '2026-08-05',
+      status: 'completed',
+      notes: 'Toprak nemi uygun (%55), damlama sulama ile verildi.',
+    },
+    {
+      id: 'wr-3',
+      fieldId: 'f-2',
+      fieldName: 'Güney Buğday Parseli',
+      cropName: 'Buğday',
+      title: 'Üst Gübre Dağıtımı (Nitrat)',
+      type: 'fertilizing',
+      productName: 'Amonyum Nitrat %26',
+      dosage: '20 kg / Dönüm',
+      targetPestOrPurpose: 'Sapa Kalkma Dönemi Verim Desteği',
+      date: '2026-08-04',
+      status: 'completed',
+      notes: 'Traktör fırıldak mibzer ile homojen dağıtıldı.',
+    },
+    {
+      id: 'wr-4',
+      fieldId: 'f-2',
+      fieldName: 'Güney Buğday Parseli',
+      cropName: 'Buğday',
+      title: 'Yabancı Ot Temizlik İlaçlaması',
+      type: 'spraying',
+      productName: 'Selektif Geniş Yapraklı Herbisit',
+      dosage: '100 ml / Dekar',
+      targetPestOrPurpose: 'Yabancı Ot Temizliği',
+      date: '2026-08-02',
+      status: 'completed',
+      notes: 'Rüzgarsız sabah 07:00 saatinde uygulandı.',
+    },
+    {
+      id: 'wr-5',
+      fieldId: 'f-1',
+      fieldName: 'Örnek Domates Tarlası',
+      cropName: 'Domates',
+      title: 'Kırmızı Örümcek & Yaprak Biti İlaçlaması',
+      type: 'spraying',
+      productName: 'Sistemik İnsektisit & Akarisit',
+      dosage: '150 ml / Dekar',
+      targetPestOrPurpose: 'Yaprak Biti ve Kırmızı Örümcek Zararlısı',
+      date: '2026-08-09',
+      status: 'pending',
+      notes: 'Haftalık zararlı popülasyon tuzaklarına göre takvimlendi.',
+    },
+  ])
+
+  const [recordTabFilter, setRecordTabFilter] = useState<'all' | 'spraying' | 'fertilizing'>('all')
+  const [showAddWebRecordModal, setShowAddWebRecordModal] = useState(false)
+  const [newRecFieldId, setNewRecFieldId] = useState('f-1')
+  const [newRecTitle, setNewRecTitle] = useState('')
+  const [newRecType, setNewRecType] = useState<'spraying' | 'fertilizing'>('spraying')
+  const [newRecProduct, setNewRecProduct] = useState('')
+  const [newRecDosage, setNewRecDosage] = useState('')
+  const [newRecTarget, setNewRecTarget] = useState('')
+  const [newRecDate, setNewRecDate] = useState('2026-08-08')
+  const [newRecNotes, setNewRecNotes] = useState('')
 
   // Local state for user fields
   const [fields, setFields] = useState<FieldPolygon[]>([
@@ -136,6 +236,44 @@ export default function DashboardView() {
 
   const toggleTask = (taskId: string) => {
     setCompletedTasks((prev) => ({ ...prev, [taskId]: !prev[taskId] }))
+  }
+
+  const toggleWebRecordStatus = (id: string) => {
+    setWebRecords((prev) =>
+      prev.map((r) =>
+        r.id === id ? { ...r, status: r.status === 'completed' ? 'pending' : 'completed' } : r
+      )
+    )
+  }
+
+  const handleAddWebRecord = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newRecTitle.trim()) return
+
+    const targetField = fields.find((f) => f.id === newRecFieldId) || fields[0]
+
+    const newRecord: WebRecordItem = {
+      id: `wr-${Date.now()}`,
+      fieldId: targetField ? targetField.id : 'f-1',
+      fieldName: targetField ? targetField.name : 'Genel Tarla',
+      cropName: targetField ? targetField.cropName : 'Genel',
+      title: newRecTitle.trim(),
+      type: newRecType,
+      productName: newRecProduct.trim() || (newRecType === 'spraying' ? 'İlaç / Fungisit' : 'Gübre'),
+      dosage: newRecDosage.trim() || 'Standart Dozaj',
+      targetPestOrPurpose: newRecTarget.trim() || 'Koruyucu Bakım',
+      date: newRecDate || new Date().toISOString().slice(0, 10),
+      status: 'pending',
+      notes: newRecNotes.trim() || undefined,
+    }
+
+    setWebRecords((prev) => [newRecord, ...prev])
+    setNewRecTitle('')
+    setNewRecProduct('')
+    setNewRecDosage('')
+    setNewRecTarget('')
+    setNewRecNotes('')
+    setShowAddWebRecordModal(false)
   }
 
   const totalArea = fields.reduce((acc, f) => acc + f.areaDecares, 0)
@@ -265,6 +403,16 @@ export default function DashboardView() {
             }`}
           >
             <span>📅</span> Ekim - Hasat Takvimi
+          </button>
+          <button
+            onClick={() => setActiveTab('records')}
+            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 ${
+              activeTab === 'records'
+                ? 'bg-purple-700 text-white shadow-sm'
+                : 'text-purple-700 hover:bg-purple-50'
+            }`}
+          >
+            <span>🛡️🧪</span> İlaç & Gübre Kayıtları
           </button>
           <button
             onClick={() => setActiveTab('guides')}
@@ -440,7 +588,184 @@ export default function DashboardView() {
           </div>
         )}
 
-        {/* TAB 3: GUIDES */}
+        {/* TAB 3: SPRAYING & FERTILIZER RECORDS */}
+        {activeTab === 'records' && (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <span>🛡️🧪</span> Tarımsal İlaçlama ve Gübreleme Defteri
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Tarlalarınıza uygulanan zirai ilaç, bitki koruma ürünleri, taban ve üst gübrelerin dozaj ve etken madde kayıtları.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowAddWebRecordModal(true)}
+                className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-xl transition shadow-sm flex items-center gap-1.5"
+              >
+                <span>+</span> Yeni İlaç / Gübre Kaydı Ekle
+              </button>
+            </div>
+
+            {/* Filter Pills and Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-purple-50 p-4 rounded-xl border border-purple-200 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-purple-900">🛡️ Toplam İlaçlama Kaydı</p>
+                  <p className="text-xl font-black text-purple-950 mt-1">
+                    {webRecords.filter((r) => r.type === 'spraying').length} Uygulama
+                  </p>
+                </div>
+                <span className="text-2xl">🛡️</span>
+              </div>
+
+              <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-amber-900">🧪 Toplam Gübreleme Kaydı</p>
+                  <p className="text-xl font-black text-amber-950 mt-1">
+                    {webRecords.filter((r) => r.type === 'fertilizing').length} Uygulama
+                  </p>
+                </div>
+                <span className="text-2xl">🧪</span>
+              </div>
+
+              <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-slate-700">⏳ Bekleyen / Takvimli İlaç-Gübre</p>
+                  <p className="text-xl font-black text-slate-900 mt-1">
+                    {webRecords.filter((r) => r.status === 'pending' || r.status === 'delayed').length} Görev
+                  </p>
+                </div>
+                <span className="text-2xl">📋</span>
+              </div>
+            </div>
+
+            {/* Record Category Filter */}
+            <div className="flex gap-2 border-b border-slate-200 pb-3">
+              <button
+                onClick={() => setRecordTabFilter('all')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+                  recordTabFilter === 'all'
+                    ? 'bg-purple-700 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Tüm Kayıtlar ({webRecords.length})
+              </button>
+              <button
+                onClick={() => setRecordTabFilter('spraying')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+                  recordTabFilter === 'spraying'
+                    ? 'bg-purple-700 text-white shadow-xs'
+                    : 'bg-purple-50 text-purple-800 hover:bg-purple-100'
+                }`}
+              >
+                🛡️ İlaçlama Kayıtları ({webRecords.filter((r) => r.type === 'spraying').length})
+              </button>
+              <button
+                onClick={() => setRecordTabFilter('fertilizing')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+                  recordTabFilter === 'fertilizing'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                }`}
+              >
+                🧪 Gübreleme Kayıtları ({webRecords.filter((r) => r.type === 'fertilizing').length})
+              </button>
+            </div>
+
+            {/* Records Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {webRecords
+                .filter((r) => (recordTabFilter === 'all' ? true : r.type === recordTabFilter))
+                .map((r) => (
+                  <div
+                    key={r.id}
+                    className={`p-5 rounded-2xl border transition shadow-xs flex flex-col justify-between ${
+                      r.type === 'spraying'
+                        ? 'bg-purple-50/40 border-purple-200 hover:border-purple-300'
+                        : 'bg-amber-50/40 border-amber-200 hover:border-amber-300'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase ${
+                              r.type === 'spraying'
+                                ? 'bg-purple-200 text-purple-900'
+                                : 'bg-amber-200 text-amber-900'
+                            }`}
+                          >
+                            {r.type === 'spraying' ? '🛡️ İlaçlama' : '🧪 Gübreleme'}
+                          </span>
+                          <span className="text-xs font-bold text-slate-700">{r.fieldName}</span>
+                          <span className="text-xs text-slate-400">({r.cropName})</span>
+                        </div>
+
+                        <span
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                            r.status === 'completed'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : r.status === 'delayed'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}
+                        >
+                          {r.status === 'completed'
+                            ? '✓ Uygulandı'
+                            : r.status === 'delayed'
+                            ? '⚠️ Ertelendi'
+                            : '⏳ Planlandı'}
+                        </span>
+                      </div>
+
+                      <h3 className="text-base font-bold text-slate-900 mb-1">{r.title}</h3>
+
+                      <div className="bg-white p-3 rounded-xl border border-slate-200/80 space-y-1 my-3 text-xs">
+                        <div className="flex justify-between items-center text-slate-800 font-semibold">
+                          <span>💊 Ürün / Etken Madde:</span>
+                          <span className="font-bold text-slate-950">{r.productName}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-purple-900 font-medium">
+                          <span>⚖️ Uygulanan Dozaj:</span>
+                          <span className="font-bold font-mono">{r.dosage}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-slate-600">
+                          <span>🎯 Zararlı / Kullanım Amacı:</span>
+                          <span>{r.targetPestOrPurpose}</span>
+                        </div>
+                      </div>
+
+                      {r.notes && (
+                        <p className="text-xs text-slate-600 bg-white/70 p-2.5 rounded-lg border border-slate-200 italic mb-3">
+                          📝 Not: {r.notes}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs">
+                      <span className="text-slate-500 font-medium">🗓️ Uygulama Tarihi: <b>{r.date}</b></span>
+                      <button
+                        onClick={() => toggleWebRecordStatus(r.id)}
+                        className={`px-3 py-1.5 font-bold rounded-lg transition ${
+                          r.status === 'completed'
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                            : 'bg-slate-200 hover:bg-emerald-100 text-slate-800'
+                        }`}
+                      >
+                        {r.status === 'completed' ? '✓ Tamamlandı' : 'Tamamlandı Olarak İşaretle'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: GUIDES */}
         {activeTab === 'guides' && (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -584,6 +909,159 @@ export default function DashboardView() {
                 Kapat
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Web Add Chemical / Fertilizer Record Modal */}
+      {showAddWebRecordModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-700">
+                🛡️🧪 Yeni İlaç veya Gübre Kaydı
+              </span>
+              <button
+                onClick={() => setShowAddWebRecordModal(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-base"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddWebRecord} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Uygulama Türü</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewRecType('spraying')}
+                    className={`py-2 rounded-xl text-xs font-bold border transition ${
+                      newRecType === 'spraying'
+                        ? 'bg-purple-700 text-white border-purple-700 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    🛡️ İlaçlama (Pestisit/Fungisit)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewRecType('fertilizing')}
+                    className={`py-2 rounded-xl text-xs font-bold border transition ${
+                      newRecType === 'fertilizing'
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    🧪 Gübreleme (NPK/Besin)
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Uygulanacak Tarla</label>
+                <select
+                  value={newRecFieldId}
+                  onChange={(e) => setNewRecFieldId(e.target.value)}
+                  className="w-full text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                >
+                  {fields.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name} ({f.cropName} - {f.areaDecares} Dönüm)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Uygulama Başlığı / Tanımı</label>
+                <input
+                  type="text"
+                  required
+                  placeholder={
+                    newRecType === 'spraying'
+                      ? 'Örn: Sarı Pas Koruyucu İlaçlama'
+                      : 'Örn: Damlama ile Potasyum Desteği'
+                  }
+                  value={newRecTitle}
+                  onChange={(e) => setNewRecTitle(e.target.value)}
+                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {newRecType === 'spraying' ? 'İlaç / Etken Madde' : 'Gübre Çeşidi'}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={newRecType === 'spraying' ? 'Örn: Bakır Sülfat' : 'Örn: Üre %46'}
+                    value={newRecProduct}
+                    onChange={(e) => setNewRecProduct(e.target.value)}
+                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Dozaj / Miktar</label>
+                  <input
+                    type="text"
+                    placeholder="Örn: 250 ml / dekar"
+                    value={newRecDosage}
+                    onChange={(e) => setNewRecDosage(e.target.value)}
+                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Hedef Zararlı / Amaç</label>
+                  <input
+                    type="text"
+                    placeholder="Örn: Yaprak Biti Mücadelesi"
+                    value={newRecTarget}
+                    onChange={(e) => setNewRecTarget(e.target.value)}
+                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Uygulama Tarihi</label>
+                  <input
+                    type="date"
+                    value={newRecDate}
+                    onChange={(e) => setNewRecDate(e.target.value)}
+                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Hava / Alan Notları</label>
+                <textarea
+                  rows={2}
+                  placeholder="Örn: Rüzgarsız sabah serinliğinde uygulandı."
+                  value={newRecNotes}
+                  onChange={(e) => setNewRecNotes(e.target.value)}
+                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddWebRecordModal(false)}
+                  className="py-2 px-4 bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl hover:bg-slate-200 transition"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="py-2 px-4 bg-purple-700 text-white text-xs font-bold rounded-xl hover:bg-purple-800 transition shadow-xs"
+                >
+                  Kaydet
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
