@@ -89,7 +89,11 @@ export default function TasksScreen() {
           </Text>
         }
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.card}
+            activeOpacity={0.75}
+            onPress={() => router.push(`/task-detail?id=${item.id}`)}
+          >
             <View style={styles.row}>
               <Text style={styles.icon}>{TYPE_ICON[item.type] || '📋'}</Text>
               <View style={{ flex: 1 }}>
@@ -97,7 +101,9 @@ export default function TasksScreen() {
                 <Text style={styles.meta}>
                   {fieldName(item.fieldId)} ·{' '}
                   {item.plannedDate.toLocaleDateString('tr-TR')}
-                  {item.status === 'rescheduled' ? ' · kaydırıldı' : ''}
+                  {item.status === 'rescheduled' ? ' · ertelendi' : ''}
+                  {item.status === 'completed' ? ' · yapıldı' : ''}
+                  {item.status === 'skipped' ? ' · atlandı' : ''}
                 </Text>
                 {item.weatherReason ? (
                   <Text style={styles.weather}>{item.weatherReason}</Text>
@@ -110,7 +116,7 @@ export default function TasksScreen() {
                 <Text style={styles.doneText}>✓</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
       />
     </View>

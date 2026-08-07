@@ -175,7 +175,13 @@ export default function HomeScreen() {
           Hava durumuna göre görevleri güncelle
         </Text>
       </TouchableOpacity>
-    </ScrollView>
+    
+        <Link href="/weather" asChild>
+          <TouchableOpacity style={styles.secondaryBtn}>
+            <Text style={styles.secondaryBtnText}>Hava paneli (7–14 gün)</Text>
+          </TouchableOpacity>
+        </Link>
+</ScrollView>
   );
 }
 

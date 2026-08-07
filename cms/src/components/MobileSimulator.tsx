@@ -17,11 +17,13 @@ interface TaskItem {
   title: string
   type: 'planting' | 'irrigation' | 'fertilizing' | 'spraying' | 'harvesting'
   date: string
-  status: 'pending' | 'completed' | 'delayed'
+  status: 'pending' | 'completed' | 'delayed' | 'skipped'
   weatherReason?: string
   productName?: string
   dosage?: string
   targetPestOrPurpose?: string
+  notes?: string
+  photoUrls?: string[]
 }
 
 export default function MobileSimulator({ fields, onAddField, onDeleteField }: MobileSimulatorProps) {
@@ -135,6 +137,17 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
     '⚠️ Dikkat: Yarın öğleden sonra kuvvetli rüzgar bekleniyor. İlaçlama işlerini sabah erken saatlere planlayın.'
   )
 
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [taskNotes, setTaskNotes] = useState('')
+  const [taskPhotoUrl, setTaskPhotoUrl] = useState('')
+  const [weatherFieldId, setWeatherFieldId] = useState<string>('')
+  const [weatherDays, setWeatherDays] = useState<7 | 14>(7)
+  const [weatherRows, setWeatherRows] = useState<
+    { date: string; rain: number; wind: number; tMin: number; tMax: number }[]
+  >([])
+  const [weatherLoading, setWeatherLoading] = useState(false)
+  const [weatherError, setWeatherError] = useState<string | null>(null)
+
   const toggleTaskStatus = (id: string) => {
     setTasks((prev) =>
       prev.map((t) => {
@@ -215,6 +228,81 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
     setNewTaskDosage('')
     setNewTaskTarget('')
     setShowAddTaskModal(false)
+  }
+
+
+  const openTaskDetail = (id: string) => {
+    const task = tasks.find((x) => x.id === id)
+    setSelectedTaskId(id)
+    setTaskNotes(task?.notes || '')
+    setTaskPhotoUrl('')
+  }
+
+  const saveTaskDetail = (status?: 'completed' | 'delayed' | 'skipped' | 'pending') => {
+    if (!selectedTaskId) return
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== selectedTaskId) return t
+        const photos = [...(t.photoUrls || [])]
+        if (taskPhotoUrl.trim()) photos.push(taskPhotoUrl.trim())
+        return {
+          ...t,
+          notes: taskNotes.trim() || undefined,
+          photoUrls: photos.length ? photos : undefined,
+          status: status || t.status,
+          weatherReason:
+            status === 'delayed'
+              ? t.weatherReason || 'Kullanıcı tarafından ertelendi'
+              : t.weatherReason,
+        }
+      })
+    )
+    setSelectedTaskId(null)
+    setTaskPhotoUrl('')
+  }
+
+  const loadFieldWeather = async (fid?: string, days?: 7 | 14) => {
+    const id = fid || weatherFieldId || fields[0]?.id
+    const d = days || weatherDays
+    if (!id) return
+    const field = fields.find((f) => f.id === id)
+    if (!field) return
+    setWeatherFieldId(id)
+    setWeatherDays(d)
+    setWeatherLoading(true)
+    setWeatherError(null)
+    try {
+      const coords = field.coordinates?.length
+        ? field.coordinates
+        : ([[39.92, 32.85]] as [number, number][])
+      const lat =
+        coords.reduce((s, c) => s + c[0], 0) / coords.length
+      const lng =
+        coords.reduce((s, c) => s + c[1], 0) / coords.length
+      const params = new URLSearchParams({
+        latitude: String(lat),
+        longitude: String(lng),
+        daily: 'precipitation_sum,wind_speed_10m_max,temperature_2m_max,temperature_2m_min',
+        timezone: 'Europe/Istanbul',
+        forecast_days: String(d),
+      })
+      const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`)
+      if (!res.ok) throw new Error('Open-Meteo hatası')
+      const data = await res.json()
+      const rows = (data.daily?.time || []).map((date: string, i: number) => ({
+        date,
+        rain: data.daily.precipitation_sum?.[i] ?? 0,
+        wind: data.daily.wind_speed_10m_max?.[i] ?? 0,
+        tMin: data.daily.temperature_2m_min?.[i] ?? 0,
+        tMax: data.daily.temperature_2m_max?.[i] ?? 0,
+      }))
+      setWeatherRows(rows)
+    } catch (e: any) {
+      setWeatherError(e?.message || 'Veri alınamadı')
+      setWeatherRows([])
+    } finally {
+      setWeatherLoading(false)
+    }
   }
 
   const pendingTasksCount = tasks.filter((t) => t.status !== 'completed').length
@@ -576,6 +664,7 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
                               >
                                 {t.status === 'completed' ? '✓ Tamam' : 'Tamamla'}
                               </button>
+                              <button type="button" onClick={() => openTaskDetail(t.id)} className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-700 ml-1">Detay</button>
                             </div>
                           </div>
                         ))}
@@ -853,99 +942,105 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
                 {/* TAB 5: WEATHER SCREEN */}
                 {activeTab === 'weather' && (
                   <div className="space-y-3">
-                    <h4 className="font-bold text-sm text-slate-900">5 Günlük Tarım Hava Tahmini</h4>
-                    <div className="bg-gradient-to-br from-sky-600 to-sky-800 text-white p-4 rounded-2xl shadow-sm">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="text-xs opacity-90">Ankara / İç Anadolu</div>
-                          <div className="text-2xl font-black mt-1">28°C ☀️</div>
-                          <div className="text-xs mt-1 opacity-90">Rüzgar: 14 km/s NE • Nem: %45</div>
-                        </div>
-                        <div className="bg-sky-500/30 text-xs px-2.5 py-1 rounded-lg border border-sky-300/30">
-                          İlaçlamaya Uygun
-                        </div>
-                      </div>
+                    <h4 className="font-bold text-sm text-slate-900">Tarla bazlı hava paneli</h4>
+                    <p className="text-[11px] text-slate-500">Open-Meteo · 7 veya 14 günlük yağış, rüzgar, min–max</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {fields.map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => loadFieldWeather(f.id, weatherDays)}
+                          className={`text-[11px] px-2.5 py-1 rounded-full border ${
+                            weatherFieldId === f.id
+                              ? 'bg-sky-600 text-white border-sky-600'
+                              : 'bg-white text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          {f.name}
+                        </button>
+                      ))}
                     </div>
-
-                    <div className="bg-white p-3.5 rounded-xl border border-sky-200 shadow-2xs space-y-2 text-xs">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                        <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                          <span>💧</span> Akıllı Sulama Önerisi
-                        </div>
-                        <span className="text-[10px] bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded-full">
-                          Open-Meteo ET₀
-                        </span>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-2 text-[11px] my-1 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                        <div>
-                          <span className="text-slate-500 block">Evapotranspirasyon (ET₀):</span>
-                          <span className="font-bold text-slate-800">4.8 mm / gün</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-500 block">Toprak Nemi (0-7cm):</span>
-                          <span className="font-bold text-slate-800 font-mono">%18 (Düşük)</span>
-                        </div>
-                      </div>
-
-                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-amber-900 text-xs">Tavsiye: BUGÜN SULA</span>
-                          <span className="text-[10px] bg-amber-200 text-amber-900 font-extrabold px-1.5 py-0.5 rounded">
-                            Su Açığı Var
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-amber-800 mt-1 leading-tight">
-                          Görülen yüksek buharlaşma (ET₀: 4.8mm) ve düşük toprak nemi (%18) nedeniyle tarlanızı bugün akşamüstü sulamanız önerilir.
-                        </p>
-                      </div>
+                    <div className="flex gap-2">
+                      {([7, 14] as const).map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => loadFieldWeather(weatherFieldId || fields[0]?.id, d)}
+                          className={`flex-1 text-xs font-semibold py-2 rounded-lg border ${
+                            weatherDays === d
+                              ? 'bg-sky-100 border-sky-400 text-sky-900'
+                              : 'bg-white border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          {d} gün
+                        </button>
+                      ))}
                     </div>
+                    {weatherLoading && (
+                      <div className="text-xs text-slate-500 py-4 text-center">Yükleniyor…</div>
+                    )}
+                    {weatherError && (
+                      <div className="text-xs text-red-600 bg-red-50 p-2 rounded-lg">{weatherError}</div>
+                    )}
+                    {!weatherLoading && weatherRows.length > 0 && (
+                      <>
+                        <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 text-xs space-y-1">
+                          <div className="font-bold text-sky-900">Özet</div>
+                          <div>
+                            Yağış toplamı:{' '}
+                            <b>{weatherRows.reduce((s, r) => s + r.rain, 0).toFixed(1)} mm</b>
+                          </div>
+                          <div>
+                            Max rüzgar:{' '}
+                            <b>{Math.max(...weatherRows.map((r) => r.wind)).toFixed(0)} km/h</b>
+                          </div>
+                          <div>
+                            Sıcaklık:{' '}
+                            <b>
+                              {Math.min(...weatherRows.map((r) => r.tMin)).toFixed(0)}° …{' '}
+                              {Math.max(...weatherRows.map((r) => r.tMax)).toFixed(0)}°
+                            </b>
+                          </div>
+                        </div>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {weatherRows.map((r) => {
+                            const risky = r.rain >= 5 || r.wind >= 15
+                            return (
+                              <div
+                                key={r.date}
+                                className={`p-2.5 rounded-xl border text-[11px] ${
+                                  risky
+                                    ? 'bg-amber-50 border-amber-200'
+                                    : 'bg-white border-slate-100'
+                                }`}
+                              >
+                                <div className="font-bold text-slate-800">{r.date}</div>
+                                <div className="text-slate-600 mt-0.5">
+                                  🌧 {r.rain.toFixed(1)} mm · 💨 {r.wind.toFixed(0)} km/h · 🌡{' '}
+                                  {r.tMin.toFixed(0)}°/{r.tMax.toFixed(0)}°
+                                </div>
+                                <div className={`mt-1 font-semibold ${risky ? 'text-amber-700' : 'text-emerald-700'}`}>
+                                  {risky ? 'İlaç/gübre riskli olabilir' : 'Uygun görünüyor'}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </>
+                    )}
+                    {!weatherLoading && !weatherRows.length && !weatherError && (
+                      <button
+                        type="button"
+                        onClick={() => loadFieldWeather(fields[0]?.id, 7)}
+                        className="w-full py-3 text-sm font-bold bg-sky-600 text-white rounded-xl"
+                      >
+                        Tahmini yükle
+                      </button>
+                    )}
                   </div>
                 )}
-              </div>
 
-              {/* Mobile Bottom Navigation Bar */}
-              <div className="bg-white border-t border-slate-200 py-2 px-2 flex justify-around items-center z-20 shadow-lg">
-                <button
-                  onClick={() => setActiveTab('home')}
-                  className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
-                    activeTab === 'home' ? 'text-emerald-700' : 'text-slate-400'
-                  }`}
-                >
-                  <span className="text-base">🏠</span>
-                  <span>Ana Sayfa</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('tasks')}
-                  className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
-                    activeTab === 'tasks' ? 'text-emerald-700' : 'text-slate-400'
-                  }`}
-                >
-                  <span className="text-base">📋</span>
-                  <span>Görevler</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('records')}
-                  className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
-                    activeTab === 'records' ? 'text-purple-700' : 'text-slate-400'
-                  }`}
-                >
-                  <span className="text-base">🛡️🧪</span>
-                  <span>Defter</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('map')}
-                  className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
-                    activeTab === 'map' ? 'text-emerald-700' : 'text-slate-400'
-                  }`}
-                >
-                  <span className="text-base">🗺️</span>
-                  <span>Tarlalar</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('calendar')}
-                  className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
-                    activeTab === 'calendar' ? 'text-emerald-700' : 'text-slate-400'
+                activeTab === 'calendar' ? 'text-emerald-700' : 'text-slate-400'
                   }`}
                 >
                   <span className="text-base">📅</span>
@@ -1143,5 +1238,69 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
         </div>
       </div>
     </div>
+
+      {selectedTaskId && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-3">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-4 shadow-xl space-y-3 max-h-[85vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-slate-900 text-sm">Görev detayı</h3>
+              <button type="button" className="text-slate-400 text-lg" onClick={() => setSelectedTaskId(null)}>
+                ×
+              </button>
+            </div>
+            {(() => {
+              const task = tasks.find((x) => x.id === selectedTaskId)
+              if (!task) return null
+              return (
+                <>
+                  <div className="text-sm font-semibold text-slate-800">{task.title}</div>
+                  <div className="text-[11px] text-slate-500">
+                    {task.fieldName} · {task.date} · {task.status}
+                  </div>
+                  <label className="block text-[11px] font-semibold text-slate-700">Not</label>
+                  <textarea
+                    value={taskNotes}
+                    onChange={(e) => setTaskNotes(e.target.value)}
+                    rows={3}
+                    className="w-full border border-slate-200 rounded-lg p-2 text-xs"
+                    placeholder="Gözlem, uygulama notu…"
+                  />
+                  <label className="block text-[11px] font-semibold text-slate-700">Foto URL</label>
+                  <input
+                    value={taskPhotoUrl}
+                    onChange={(e) => setTaskPhotoUrl(e.target.value)}
+                    className="w-full border border-slate-200 rounded-lg p-2 text-xs"
+                    placeholder="https://…"
+                  />
+                  {task.photoUrls && task.photoUrls.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {task.photoUrls.map((u) => (
+                        <a key={u} href={u} target="_blank" rel="noreferrer" className="text-[10px] text-sky-700 underline truncate max-w-[140px]">
+                          foto
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 gap-2 pt-1">
+                    <button type="button" onClick={() => saveTaskDetail('completed')} className="py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold">
+                      ✓ Yapıldı
+                    </button>
+                    <button type="button" onClick={() => saveTaskDetail('delayed')} className="py-2.5 rounded-xl bg-amber-100 text-amber-900 text-xs font-bold">
+                      🕒 Ertelendi
+                    </button>
+                    <button type="button" onClick={() => saveTaskDetail('skipped')} className="py-2.5 rounded-xl bg-red-50 text-red-700 text-xs font-bold">
+                      ⏭ Atlandı
+                    </button>
+                    <button type="button" onClick={() => saveTaskDetail()} className="py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600">
+                      Sadece not / foto kaydet
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        </div>
+      )}
+
   )
 }

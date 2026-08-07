@@ -70,9 +70,56 @@ export default function DashboardView() {
   const [loading, setLoading] = useState(true)
 
   const [selectedCropId, setSelectedCropId] = useState<string>('')
-  const [activeTab, setActiveTab] = useState<'map' | 'timeline' | 'records' | 'guides' | 'mobile'>('map')
+  const [activeTab, setActiveTab] = useState<'map' | 'timeline' | 'records' | 'weather' | 'guides' | 'mobile'>('map')
   const [guideFilter, setGuideFilter] = useState<string>('all')
   const [selectedGuideModal, setSelectedGuideModal] = useState<Guide | null>(null)
+  const [dashWeatherFieldId, setDashWeatherFieldId] = useState('')
+  const [dashWeatherDays, setDashWeatherDays] = useState<7 | 14>(7)
+  const [dashWeatherRows, setDashWeatherRows] = useState<
+    { date: string; rain: number; wind: number; tMin: number; tMax: number }[]
+  >([])
+  const [dashWeatherLoading, setDashWeatherLoading] = useState(false)
+  const [dashWeatherError, setDashWeatherError] = useState<string | null>(null)
+
+  const loadDashWeather = async (fieldId?: string, days?: 7 | 14) => {
+    const id = fieldId || dashWeatherFieldId || fields[0]?.id
+    const d = days || dashWeatherDays
+    const field = fields.find((f) => f.id === id)
+    if (!field) return
+    setDashWeatherFieldId(id)
+    setDashWeatherDays(d)
+    setDashWeatherLoading(true)
+    setDashWeatherError(null)
+    try {
+      const coords = field.coordinates?.length ? field.coordinates : [[39.92, 32.85] as [number, number]]
+      const lat = coords.reduce((s, c) => s + c[0], 0) / coords.length
+      const lng = coords.reduce((s, c) => s + c[1], 0) / coords.length
+      const params = new URLSearchParams({
+        latitude: String(lat),
+        longitude: String(lng),
+        daily: 'precipitation_sum,wind_speed_10m_max,temperature_2m_max,temperature_2m_min',
+        timezone: 'Europe/Istanbul',
+        forecast_days: String(d),
+      })
+      const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`)
+      if (!res.ok) throw new Error('Open-Meteo hatası')
+      const data = await res.json()
+      setDashWeatherRows(
+        (data.daily?.time || []).map((date: string, i: number) => ({
+          date,
+          rain: data.daily.precipitation_sum?.[i] ?? 0,
+          wind: data.daily.wind_speed_10m_max?.[i] ?? 0,
+          tMin: data.daily.temperature_2m_min?.[i] ?? 0,
+          tMax: data.daily.temperature_2m_max?.[i] ?? 0,
+        }))
+      )
+    } catch (e: any) {
+      setDashWeatherError(e?.message || 'Veri alınamadı')
+      setDashWeatherRows([])
+    } finally {
+      setDashWeatherLoading(false)
+    }
+  }
 
   // Web Spraying and Fertilizer Records
   const [webRecords, setWebRecords] = useState<WebRecordItem[]>([
@@ -413,6 +460,17 @@ export default function DashboardView() {
             }`}
           >
             <span>🛡️🧪</span> İlaç & Gübre Kayıtları
+          </button>
+
+          <button
+            onClick={() => setActiveTab('weather')}
+            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 ${
+              activeTab === 'weather'
+                ? 'bg-sky-700 text-white shadow-sm'
+                : 'text-sky-800 hover:bg-sky-50'
+            }`}
+          >
+            <span>🌤️</span> Hava Paneli
           </button>
           <button
             onClick={() => setActiveTab('guides')}
@@ -839,6 +897,115 @@ export default function DashboardView() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+
+        {activeTab === 'weather' && (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Tarla bazlı hava paneli</h3>
+              <p className="text-sm text-slate-500">Open-Meteo · 7–14 gün yağış, rüzgar, min–max sıcaklık</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {fields.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => loadDashWeather(f.id, dashWeatherDays)}
+                  className={`px-3 py-1.5 rounded-full text-sm border ${
+                    dashWeatherFieldId === f.id
+                      ? 'bg-sky-600 text-white border-sky-600'
+                      : 'bg-white text-slate-700 border-slate-200'
+                  }`}
+                >
+                  {f.name}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 max-w-xs">
+              {([7, 14] as const).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => loadDashWeather(dashWeatherFieldId || fields[0]?.id, d)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold border ${
+                    dashWeatherDays === d
+                      ? 'bg-sky-100 border-sky-400 text-sky-900'
+                      : 'bg-white border-slate-200'
+                  }`}
+                >
+                  {d} gün
+                </button>
+              ))}
+            </div>
+            {dashWeatherLoading && <p className="text-sm text-slate-500">Yükleniyor…</p>}
+            {dashWeatherError && <p className="text-sm text-red-600">{dashWeatherError}</p>}
+            {dashWeatherRows.length > 0 && (
+              <>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  <div className="bg-sky-50 rounded-xl p-4 border border-sky-100">
+                    <div className="text-xs text-sky-700">Yağış toplamı</div>
+                    <div className="text-xl font-black text-sky-900">
+                      {dashWeatherRows.reduce((s, r) => s + r.rain, 0).toFixed(1)} mm
+                    </div>
+                  </div>
+                  <div className="bg-sky-50 rounded-xl p-4 border border-sky-100">
+                    <div className="text-xs text-sky-700">Max rüzgar</div>
+                    <div className="text-xl font-black text-sky-900">
+                      {Math.max(...dashWeatherRows.map((r) => r.wind)).toFixed(0)} km/h
+                    </div>
+                  </div>
+                  <div className="bg-sky-50 rounded-xl p-4 border border-sky-100">
+                    <div className="text-xs text-sky-700">Min – Max</div>
+                    <div className="text-xl font-black text-sky-900">
+                      {Math.min(...dashWeatherRows.map((r) => r.tMin)).toFixed(0)}° …{' '}
+                      {Math.max(...dashWeatherRows.map((r) => r.tMax)).toFixed(0)}°
+                    </div>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-slate-500 border-b">
+                        <th className="py-2">Tarih</th>
+                        <th>Yağış</th>
+                        <th>Rüzgar</th>
+                        <th>Min</th>
+                        <th>Max</th>
+                        <th>Not</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dashWeatherRows.map((r) => {
+                        const risky = r.rain >= 5 || r.wind >= 15
+                        return (
+                          <tr key={r.date} className="border-b border-slate-100">
+                            <td className="py-2 font-medium">{r.date}</td>
+                            <td>{r.rain.toFixed(1)} mm</td>
+                            <td>{r.wind.toFixed(0)} km/h</td>
+                            <td>{r.tMin.toFixed(0)}°</td>
+                            <td>{r.tMax.toFixed(0)}°</td>
+                            <td className={risky ? 'text-amber-700 font-semibold' : 'text-emerald-700'}>
+                              {risky ? 'Riskli' : 'Uygun'}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+            {!dashWeatherLoading && !dashWeatherRows.length && (
+              <button
+                type="button"
+                onClick={() => loadDashWeather(fields[0]?.id, 7)}
+                className="px-4 py-2.5 bg-sky-600 text-white rounded-xl text-sm font-bold"
+              >
+                Tahmini yükle
+              </button>
+            )}
           </div>
         )}
 

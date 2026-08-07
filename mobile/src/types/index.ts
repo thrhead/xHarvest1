@@ -68,6 +68,13 @@ export interface Task {
   weatherCheckedAt?: Date;
   weatherReason?: string;
   completedAt?: Date;
+  /** Kullanıcı notu */
+  notes?: string;
+  /** Yerel veya uzak foto URI listesi */
+  photoUris?: string[];
+  /** Ertelendiğinde yeni hedef tarih */
+  postponedUntil?: Date;
+  skippedAt?: Date;
 }
 
 export interface DailyWeather {

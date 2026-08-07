@@ -18,6 +18,10 @@ interface AppState {
   refreshLogs: () => Promise<void>;
   addField: (data: Omit<Field, 'id' | 'createdAt'>) => Promise<string>;
   completeTask: (taskId: string) => Promise<void>;
+  updateTask: (taskId: string, data: Partial<Task>) => Promise<void>;
+  skipTask: (taskId: string) => Promise<void>;
+  postponeTask: (taskId: string, until: Date) => Promise<void>;
+  getTaskById: (taskId: string) => Task | undefined;
   createLog: (data: Omit<ApplicationLog, 'id' | 'createdAt'>) => Promise<string>;
   deleteLog: (id: string) => Promise<void>;
   runWeatherAdjust: () => Promise<number>;
@@ -56,7 +60,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const uid = get().uid;
     if (!uid) return;
     const tasks = await fb.getTasks(uid, {
-      status: ['pending', 'rescheduled'],
+      status: ['pending', 'rescheduled', 'completed', 'skipped'],
     });
     set({ tasks });
   },
@@ -78,6 +82,31 @@ export const useAppStore = create<AppState>((set, get) => ({
     await fb.completeTask(taskId);
     await get().refreshTasks();
   },
+
+  updateTask: async (taskId, data) => {
+    await fb.updateTask(taskId, data);
+    await get().refreshTasks();
+  },
+
+  skipTask: async (taskId) => {
+    await fb.updateTask(taskId, {
+      status: 'skipped',
+      skippedAt: new Date(),
+    });
+    await get().refreshTasks();
+  },
+
+  postponeTask: async (taskId, until) => {
+    await fb.updateTask(taskId, {
+      status: 'rescheduled',
+      plannedDate: until,
+      postponedUntil: until,
+      weatherReason: undefined,
+    });
+    await get().refreshTasks();
+  },
+
+  getTaskById: (taskId) => get().tasks.find((x) => x.id === taskId),
 
   createLog: async (data) => {
     const id = await fb.createApplicationLog(data);

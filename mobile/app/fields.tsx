@@ -7,10 +7,11 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import { Link, useFocusEffect } from 'expo-router';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useAppStore } from '../src/store/appStore';
 
 export default function FieldsScreen() {
+  const router = useRouter();
   const { fields, refreshFields, loading } = useAppStore();
 
   useFocusEffect(
@@ -38,6 +39,12 @@ export default function FieldsScreen() {
             <Text style={styles.coords}>
               {item.location.lat.toFixed(4)}, {item.location.lng.toFixed(4)}
             </Text>
+            <TouchableOpacity
+              style={styles.weatherBtn}
+              onPress={() => router.push(`/weather?fieldId=${item.id}`)}
+            >
+              <Text style={styles.weatherBtnText}>🌤 Hava paneli</Text>
+            </TouchableOpacity>
           </View>
         )}
         ListFooterComponent={
@@ -78,4 +85,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addText: { color: '#2E7D32', fontWeight: '500' },
+  weatherBtn: {
+    marginTop: 10,
+    paddingVertical: 8,
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    borderRadius: 8,
+  },
+  weatherBtnText: { color: '#1565C0', fontWeight: '600', fontSize: 13 },
 });
