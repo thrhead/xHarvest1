@@ -1,0 +1,544 @@
+/**
+ * Firebase servis katmanı
+ *
+ * DEMO_MODE=true  → bellek içi veri (Expo Go ile UI test)
+ * DEMO_MODE=false → gerçek @react-native-firebase (EAS Build)
+ */
+
+import {
+  Field,
+  Crop,
+  Task,
+  UserSettings,
+  TaskStatus,
+  ApplicationLog,
+  StockItem,
+  Farm,
+  FarmMember,
+  DiseaseDetectionResult,
+} from '../types';
+
+export const DEMO_MODE = process.env.EXPO_PUBLIC_DEMO_MODE !== 'false';
+
+const plantC1 = new Date();
+plantC1.setDate(plantC1.getDate() - 40);
+const plantC2 = new Date();
+plantC2.setDate(plantC2.getDate() - 15);
+
+const demo = {
+  uid: 'demo-user-id',
+  fields: [
+    {
+      id: 'f1',
+      userId: 'demo-user-id',
+      name: 'Kuzey Tarla',
+      type: 'field' as const,
+      location: { lat: 39.92, lng: 32.85 },
+      areaHectare: 2.5,
+      soilType: 'killi-tınlı',
+      createdAt: new Date(),
+    },
+    {
+      id: 'f2',
+      userId: 'demo-user-id',
+      name: 'Sera 1',
+      type: 'greenhouse' as const,
+      location: { lat: 39.925, lng: 32.86 },
+      areaHectare: 0.3,
+      createdAt: new Date(),
+    },
+  ] as Field[],
+  // Görevlerdeki cropId (c1/c2) ile eşleşen ekim kayıtları — Takvim listesi için zorunlu
+  crops: [
+    {
+      id: 'c1',
+      userId: 'demo-user-id',
+      fieldId: 'f1',
+      cropTemplateId: 'tomato',
+      cropName: 'Domates',
+      plantingDate: plantC1,
+      status: 'active' as const,
+      notes: 'Demo ekim kaydı',
+    },
+    {
+      id: 'c2',
+      userId: 'demo-user-id',
+      fieldId: 'f2',
+      cropTemplateId: 'tomato',
+      cropName: 'Domates (sera)',
+      plantingDate: plantC2,
+      status: 'active' as const,
+    },
+  ] as Crop[],
+  tasks: [
+    {
+      id: 't1',
+      userId: 'demo-user-id',
+      fieldId: 'f1',
+      cropId: 'c1',
+      type: 'spraying' as const,
+      title: 'Koruyucu ilaçlama',
+      description: 'Mildiyöye karşı bakırlı ilaç',
+      plannedDate: new Date(),
+      originalDate: new Date(),
+      status: 'pending' as const,
+    },
+    {
+      id: 't2',
+      userId: 'demo-user-id',
+      fieldId: 'f1',
+      cropId: 'c1',
+      type: 'fertilizing' as const,
+      title: 'Üst gübre (üre)',
+      plannedDate: new Date(Date.now() + 86400000 * 2),
+      originalDate: new Date(Date.now() + 86400000 * 2),
+      status: 'pending' as const,
+    },
+    {
+      id: 't3',
+      userId: 'demo-user-id',
+      fieldId: 'f2',
+      cropId: 'c2',
+      type: 'irrigation' as const,
+      title: 'Damla sulama',
+      plannedDate: new Date(Date.now() + 86400000),
+      originalDate: new Date(Date.now() + 86400000),
+      status: 'pending' as const,
+    },
+  ] as Task[],
+  applicationLogs: [
+    {
+      id: 'log1',
+      userId: 'demo-user-id',
+      fieldId: 'f1',
+      inputType: 'fertilizer' as const,
+      productName: 'Üre 46',
+      quantity: 50,
+      unit: 'kg' as const,
+      method: 'broadcast' as const,
+      appliedAt: new Date(Date.now() - 86400000 * 3),
+      notes: 'Taban gübresi uygulandı',
+      unitCostTry: 18,
+      totalCostTry: 900,
+      createdAt: new Date(Date.now() - 86400000 * 3),
+    },
+    {
+      id: 'log2',
+      userId: 'demo-user-id',
+      fieldId: 'f1',
+      inputType: 'pesticide' as const,
+      productName: 'Bakır Sülfat',
+      quantity: 2.5,
+      unit: 'L' as const,
+      method: 'spray' as const,
+      appliedAt: new Date(Date.now() - 86400000),
+      notes: 'Rüzgarsız havada püskürtüldü',
+      phiDays: 14,
+      harvestSafeDate: new Date(Date.now() - 86400000 + 14 * 86400000),
+      unitCostTry: 120,
+      totalCostTry: 300,
+      createdAt: new Date(Date.now() - 86400000),
+    },
+  ] as ApplicationLog[],
+};
+
+function genId(prefix: string) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+// ── AUTH ──
+
+export async function signInAnonymously(): Promise<{ uid: string }> {
+  if (DEMO_MODE) return { uid: demo.uid };
+  throw new Error('DEMO_MODE=false: @react-native-firebase/auth ekleyin');
+}
+
+export async function signInWithEmail(
+  email: string,
+  password: string
+): Promise<{ uid: string; email: string }> {
+  if (DEMO_MODE) return { uid: demo.uid, email };
+  throw new Error('DEMO_MODE=false: Firebase Auth aktif edin');
+}
+
+export async function signOut(): Promise<void> {
+  if (DEMO_MODE) return;
+}
+
+export function onAuthStateChanged(
+  callback: (user: { uid: string } | null) => void
+): () => void {
+  if (DEMO_MODE) {
+    callback({ uid: demo.uid });
+    return () => {};
+  }
+  callback(null);
+  return () => {};
+}
+
+export function getCurrentUid(): string | null {
+  return DEMO_MODE ? demo.uid : null;
+}
+
+// ── FIELDS ──
+
+export async function getFields(userId: string): Promise<Field[]> {
+  if (DEMO_MODE) return demo.fields.filter((f) => f.userId === userId);
+  return [];
+}
+
+export async function createField(
+  data: Omit<Field, 'id' | 'createdAt'>
+): Promise<string> {
+  if (DEMO_MODE) {
+    const id = genId('f');
+    demo.fields.push({ ...data, id, createdAt: new Date() });
+    return id;
+  }
+  throw new Error('Firebase aktif değil');
+}
+
+export async function updateField(
+  fieldId: string,
+  data: Partial<Field>
+): Promise<void> {
+  if (DEMO_MODE) {
+    const i = demo.fields.findIndex((f) => f.id === fieldId);
+    if (i >= 0) demo.fields[i] = { ...demo.fields[i], ...data };
+  }
+}
+
+export async function deleteField(fieldId: string): Promise<void> {
+  if (DEMO_MODE) {
+    demo.fields = demo.fields.filter((f) => f.id !== fieldId);
+  }
+}
+
+// ── CROPS ──
+
+export async function getCrops(userId: string): Promise<Crop[]> {
+  if (DEMO_MODE) return demo.crops.filter((c) => c.userId === userId);
+  return [];
+}
+
+export async function createCrop(data: Omit<Crop, 'id'>): Promise<string> {
+  if (DEMO_MODE) {
+    const id = genId('c');
+    demo.crops.push({ ...data, id });
+    return id;
+  }
+  throw new Error('Firebase aktif değil');
+}
+
+// ── TASKS ──
+
+export async function getTasks(
+  userId: string,
+  opts?: { status?: TaskStatus[]; from?: Date; to?: Date }
+): Promise<Task[]> {
+  if (DEMO_MODE) {
+    let list = demo.tasks.filter((t) => t.userId === userId);
+    if (opts?.status?.length) {
+      list = list.filter((t) => opts.status!.includes(t.status));
+    }
+    if (opts?.from) list = list.filter((t) => t.plannedDate >= opts.from!);
+    if (opts?.to) list = list.filter((t) => t.plannedDate <= opts.to!);
+    return list.sort(
+      (a, b) => a.plannedDate.getTime() - b.plannedDate.getTime()
+    );
+  }
+  return [];
+}
+
+export async function createTasks(
+  tasks: Omit<Task, 'id'>[]
+): Promise<string[]> {
+  if (DEMO_MODE) {
+    const ids: string[] = [];
+    for (const t of tasks) {
+      const id = genId('t');
+      demo.tasks.push({ ...t, id });
+      ids.push(id);
+    }
+    return ids;
+  }
+  throw new Error('Firebase aktif değil');
+}
+
+export async function updateTask(
+  taskId: string,
+  data: Partial<Task>
+): Promise<void> {
+  if (DEMO_MODE) {
+    const i = demo.tasks.findIndex((t) => t.id === taskId);
+    if (i >= 0) demo.tasks[i] = { ...demo.tasks[i], ...data };
+  }
+}
+
+export async function completeTask(taskId: string): Promise<void> {
+  await updateTask(taskId, { status: 'completed', completedAt: new Date() });
+}
+
+// ── SETTINGS + FCM ──
+
+export async function getUserSettings(_userId: string): Promise<UserSettings> {
+  return {
+    language: 'tr',
+    notificationHour: 7,
+    weatherThresholds: {
+      rainMm: 5,
+      windKmh: 15,
+      minTemp: 5,
+      maxTemp: 35,
+    },
+  };
+}
+
+export async function saveFcmToken(userId: string, token: string): Promise<void> {
+  if (DEMO_MODE) {
+    console.log('[demo] FCM token', userId, token.slice(0, 12) + '...');
+  }
+}
+
+/** Demo'da Cloud Function yokken ürün + görevleri birlikte yazar */
+export async function createCropWithTasks(
+  cropData: Omit<Crop, 'id'>,
+  taskList: Omit<Task, 'id'>[]
+): Promise<{ cropId: string; taskIds: string[] }> {
+  const cropId = await createCrop(cropData);
+  const tasksWithCrop = taskList.map((t) => ({ ...t, cropId }));
+  const taskIds = await createTasks(tasksWithCrop);
+  return { cropId, taskIds };
+}
+
+// ── APPLICATION LOGS ──
+
+export async function getApplicationLogs(
+  userId: string,
+  fieldId?: string
+): Promise<ApplicationLog[]> {
+  if (DEMO_MODE) {
+    let list = demo.applicationLogs.filter((l) => l.userId === userId);
+    if (fieldId) {
+      list = list.filter((l) => l.fieldId === fieldId);
+    }
+    return list.sort((a, b) => b.appliedAt.getTime() - a.appliedAt.getTime());
+  }
+  return [];
+}
+
+export async function createApplicationLog(
+  data: Omit<ApplicationLog, 'id' | 'createdAt'>
+): Promise<string> {
+  if (DEMO_MODE) {
+    const id = genId('log');
+    let harvestSafeDate = data.harvestSafeDate;
+    if (data.phiDays && data.phiDays > 0 && data.appliedAt) {
+      const d = new Date(data.appliedAt);
+      d.setDate(d.getDate() + data.phiDays);
+      harvestSafeDate = d;
+    }
+    let totalCostTry = data.totalCostTry;
+    if (totalCostTry == null && data.unitCostTry != null) {
+      totalCostTry = data.unitCostTry * data.quantity;
+    }
+    const newLog: ApplicationLog = {
+      ...data,
+      harvestSafeDate,
+      totalCostTry,
+      id,
+      createdAt: new Date(),
+    };
+    demo.applicationLogs.unshift(newLog);
+    return id;
+  }
+  throw new Error('Firebase aktif değil — DEMO_MODE=false ve Firestore bağlayın');
+}
+
+export async function updateApplicationLog(
+  id: string,
+  data: Partial<ApplicationLog>
+): Promise<void> {
+  if (DEMO_MODE) {
+    const i = demo.applicationLogs.findIndex((l) => l.id === id);
+    if (i >= 0) {
+      demo.applicationLogs[i] = { ...demo.applicationLogs[i], ...data };
+    }
+  }
+}
+
+export async function deleteApplicationLog(id: string): Promise<void> {
+  if (DEMO_MODE) {
+    demo.applicationLogs = demo.applicationLogs.filter((l) => l.id !== id);
+  }
+}
+
+// ── STOCK ──
+const demoStock: StockItem[] = [
+  {
+    id: 's1',
+    userId: 'demo-user-id',
+    name: 'Üre 46',
+    category: 'fertilizer',
+    quantity: 200,
+    unit: 'kg',
+    minQuantity: 50,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+  {
+    id: 's2',
+    userId: 'demo-user-id',
+    name: 'Bakır Sülfat',
+    category: 'pesticide',
+    quantity: 12,
+    unit: 'L',
+    minQuantity: 5,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+];
+
+const demoFarm: Farm = {
+  id: 'farm1',
+  name: 'Demo Çiftlik',
+  ownerId: 'demo-user-id',
+  inviteCode: 'EKIM2026',
+  createdAt: new Date(),
+};
+
+const demoMembers: FarmMember[] = [
+  {
+    id: 'm1',
+    farmId: 'farm1',
+    userId: 'demo-user-id',
+    displayName: 'Siz (Sahip)',
+    role: 'owner',
+    joinedAt: new Date(),
+  },
+  {
+    id: 'm2',
+    farmId: 'farm1',
+    userId: 'worker-demo',
+    displayName: 'Ahmet (İşçi)',
+    role: 'worker',
+    joinedAt: new Date(),
+  },
+];
+
+const demoDetections: DiseaseDetectionResult[] = [];
+
+export async function getStock(userId: string): Promise<StockItem[]> {
+  if (DEMO_MODE) return demoStock.filter((s) => s.userId === userId);
+  return [];
+}
+
+export async function createStockItem(
+  data: Omit<StockItem, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<string> {
+  if (DEMO_MODE) {
+    const id = genId('stk');
+    demoStock.unshift({
+      ...data,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    return id;
+  }
+  throw new Error('Firebase aktif değil');
+}
+
+export async function updateStockItem(
+  id: string,
+  data: Partial<StockItem>
+): Promise<void> {
+  if (DEMO_MODE) {
+    const i = demoStock.findIndex((s) => s.id === id);
+    if (i >= 0)
+      demoStock[i] = { ...demoStock[i], ...data, updatedAt: new Date() };
+  }
+}
+
+export async function deleteStockItem(id: string): Promise<void> {
+  if (DEMO_MODE) {
+    const i = demoStock.findIndex((s) => s.id === id);
+    if (i >= 0) demoStock.splice(i, 1);
+  }
+}
+
+export async function getFarm(_userId: string): Promise<Farm | null> {
+  if (DEMO_MODE) return demoFarm;
+  return null;
+}
+
+export async function getFarmMembers(farmId: string): Promise<FarmMember[]> {
+  if (DEMO_MODE) return demoMembers.filter((m) => m.farmId === farmId);
+  return [];
+}
+
+export async function joinFarmByCode(
+  userId: string,
+  code: string,
+  displayName: string
+): Promise<boolean> {
+  if (DEMO_MODE) {
+    if (code.trim().toUpperCase() !== demoFarm.inviteCode) return false;
+    if (!demoMembers.some((m) => m.userId === userId)) {
+      demoMembers.push({
+        id: genId('m'),
+        farmId: demoFarm.id,
+        userId,
+        displayName,
+        role: 'worker',
+        joinedAt: new Date(),
+      });
+    }
+    return true;
+  }
+  return false;
+}
+
+/** Stub AI — gerçek TFLite model ile değiştirilecek */
+export async function runDiseaseDetectionStub(
+  userId: string,
+  imageUri: string,
+  fieldId?: string
+): Promise<DiseaseDetectionResult> {
+  const labels = [
+    {
+      label: 'Mildiyö (şüphe)',
+      advice: 'Bakırlı ilaçlama ve havalandırma önerilir. Laboratuvar teyidi alın.',
+    },
+    {
+      label: 'Külleme (şüphe)',
+      advice: 'Kükürt içeren preparat ve nem kontrolü düşünülebilir.',
+    },
+    {
+      label: 'Sağlıklı görünüm',
+      advice: 'Belirgin hastalık belirtisi yok. Takibe devam edin.',
+    },
+  ];
+  const pick = labels[Math.floor(Math.random() * labels.length)];
+  const conf = 0.55 + Math.random() * 0.35;
+  const result: DiseaseDetectionResult = {
+    id: genId('ai'),
+    userId,
+    fieldId,
+    imageUri,
+    predictedLabel: pick.label,
+    confidence: conf,
+    adviceTr: pick.advice,
+    createdAt: new Date(),
+    modelVersion: 'stub-v0',
+  };
+  if (DEMO_MODE) demoDetections.unshift(result);
+  return result;
+}
+
+export async function getDiseaseDetections(
+  userId: string
+): Promise<DiseaseDetectionResult[]> {
+  if (DEMO_MODE) return demoDetections.filter((d) => d.userId === userId);
+  return [];
+}
