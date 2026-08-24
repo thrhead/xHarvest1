@@ -1,0 +1,24 @@
+{
+  "name": "ekim-hasat-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "cms",
+    "mobile"
+  ],
+  "scripts": {
+    "dev": "npm --prefix cms run dev",
+    "build": "npm --prefix cms run build",
+    "start": "npm --prefix cms run start",
+    "seed": "npm --prefix cms run seed",
+    "lint": "npm --prefix cms run lint"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.17.4"
+  },
+  "overrides": {
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  }
+}
