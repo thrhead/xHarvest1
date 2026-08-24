@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppStore } from '../src/store/appStore';
@@ -50,6 +51,7 @@ export default function CropPlanScreen() {
   const fields = useAppStore((s) => s.fields);
   const tasks = useAppStore((s) => s.tasks);
   const completeTask = useAppStore((s) => (s as any).completeTask);
+  const deleteCrop = useAppStore((s) => s.deleteCrop);
 
   const [templates, setTemplates] = useState<CropTemplate[]>(LOCAL_CROP_TEMPLATES);
   const [loading, setLoading] = useState(true);
@@ -300,6 +302,36 @@ export default function CropPlanScreen() {
         );
       })}
 
+      <View style={styles.deleteSection}>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => {
+            const doDelete = async () => {
+              if (cropId) {
+                await deleteCrop(cropId);
+                router.back();
+              }
+            };
+            if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+              if (window.confirm(`"${crop.cropName}" ekim kaydını silmek istediğinizden emin misiniz?`)) {
+                doDelete();
+              }
+            } else {
+              Alert.alert(
+                'Ekim Kaydını Sil',
+                `"${crop.cropName}" ekim kaydını silmek istediğinizden emin misiniz?`,
+                [
+                  { text: 'Vazgeç', style: 'cancel' },
+                  { text: 'Sil', style: 'destructive', onPress: doDelete },
+                ]
+              );
+            }
+          }}
+        >
+          <Text style={styles.deleteButtonText}>🗑️ Bu Ekim Kaydını Sil</Text>
+        </TouchableOpacity>
+      </View>
+
       <Text style={styles.footerNote}>
         Bu plan web’deki «Ekim → Hasat planı» ile aynı mantıktadır. Ekim tarihi
         kayda özeldir; görevler şablon aşamalarından gelir.
@@ -309,6 +341,24 @@ export default function CropPlanScreen() {
 }
 
 const styles = StyleSheet.create({
+  deleteSection: {
+    marginHorizontal: 12,
+    marginTop: 20,
+  },
+  deleteButton: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButtonText: {
+    color: '#DC2626',
+    fontWeight: '700',
+    fontSize: 14,
+  },
   container: { flex: 1, backgroundColor: '#f8fafc' },
   content: { paddingBottom: 40 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },

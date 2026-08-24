@@ -194,6 +194,7 @@ export default function CropCalendar({
   crops: apiCrops,
   records,
   onAddRecord,
+  onDeleteRecord,
   onSelectRecord,
   onTaskToggle,
   focus,
@@ -201,6 +202,7 @@ export default function CropCalendar({
   crops: CalCrop[]
   records?: PlantingRecord[]
   onAddRecord?: () => void
+  onDeleteRecord?: (recordId: string) => void
   onSelectRecord?: (record: PlantingRecord) => void
   onTaskToggle?: (recordId: string, taskId: string, done: boolean) => void
   focus?: 'stages' | 'tasks' | 'done' | 'pick' | 'duration' | null
@@ -291,12 +293,13 @@ export default function CropCalendar({
                   <th className="text-left px-4 py-3">Ekim tarihi</th>
                   <th className="text-left px-4 py-3">Tahmini hasat</th>
                   <th className="text-left px-4 py-3">Durum</th>
+                  <th className="text-right px-4 py-3">İşlem</th>
                 </tr>
               </thead>
               <tbody>
                 {(records?.length ?? 0) === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">
+                    <td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-sm">
                       Henüz ekim kaydı yok. «+ Yeni ekim kaydı» ile ekleyin.
                     </td>
                   </tr>
@@ -338,6 +341,25 @@ export default function CropCalendar({
                         <span className={`text-xs font-bold px-2 py-1 rounded-full ${statusColors[rec.status]}`}>
                           {statusLabels[rec.status]}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {onDeleteRecord && (
+                          <button
+                            type="button"
+                            title="Ekim kaydını sil"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (confirm(`"${rec.fieldName} - ${rec.cropNameTr}" ekim kaydını silmek istediğinizden emin misiniz?`)) {
+                                onDeleteRecord(rec.id)
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors inline-flex items-center"
+                          >
+                            <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )
@@ -398,13 +420,32 @@ export default function CropCalendar({
                 </div>
               )}
               {isRecordMode && selectedRecord && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedRecordId(null)}
-                  className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold rounded-lg transition"
-                >
-                  ← Listeye dön
-                </button>
+                <div className="flex items-center gap-2">
+                  {onDeleteRecord && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`"${selectedRecord.fieldName} - ${selectedRecord.cropNameTr}" ekim kaydını silmek istediğinizden emin misiniz?`)) {
+                          onDeleteRecord(selectedRecord.id)
+                          setSelectedRecordId(null)
+                        }
+                      }}
+                      className="px-3 py-2 bg-red-600/80 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition flex items-center gap-1.5"
+                    >
+                      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <span>Kaydı Sil</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRecordId(null)}
+                    className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold rounded-lg transition"
+                  >
+                    ← Listeye dön
+                  </button>
+                </div>
               )}
             </div>
 

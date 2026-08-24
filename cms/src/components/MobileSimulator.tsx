@@ -514,17 +514,44 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
                           <button type="button" onClick={() => setShowAddTaskModal(true)} className="text-xs bg-emerald-600 text-white px-2.5 py-1 rounded-lg font-semibold">+ Yeni ekim kaydı</button>
                         </div>
                         <p className="text-[10px] text-slate-500">Kayıda dokunun → Ekim → Hasat planı</p>
-                        {[
-                          { name: 'Domates', field: 'Örnek Domates Tarlası', plantDate: '2026-06-20' },
-                          { name: 'Buğday', field: 'Güney Buğday Parseli', plantDate: '2026-03-15' },
-                          { name: 'Domates (sera)', field: 'Sera 1', plantDate: '2026-07-01' },
-                        ].map((c) => (
-                          <button key={c.name + c.field} type="button" onClick={() => { setPlanCrop(c); setCalendarView('plan') }} className="w-full text-left bg-emerald-50 border border-emerald-200 rounded-xl p-3 hover:bg-emerald-100">
-                            <p className="text-sm font-bold text-emerald-900">{c.name}</p>
-                            <p className="text-[11px] text-slate-600 mt-0.5">{c.field} · Ekim {new Date(c.plantDate + 'T12:00:00').toLocaleDateString('tr-TR')}</p>
-                            <p className="text-[11px] font-bold text-emerald-700 mt-1">Ekim → Hasat planını aç →</p>
-                          </button>
-                        ))}
+                        {fields.map((f) => {
+                          const cropInfo = {
+                            id: f.id,
+                            name: f.cropName || 'Genel Ekim',
+                            field: f.name,
+                            plantDate: f.createdAt ? String(f.createdAt).slice(0, 10) : '2026-06-20',
+                          }
+                          return (
+                            <div key={f.id} className="w-full bg-emerald-50 border border-emerald-200 rounded-xl p-3 hover:bg-emerald-100 flex items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => { setPlanCrop(cropInfo); setCalendarView('plan') }}
+                                className="flex-1 text-left"
+                              >
+                                <p className="text-sm font-bold text-emerald-900">{cropInfo.name}</p>
+                                <p className="text-[11px] text-slate-600 mt-0.5">{cropInfo.field} · {f.areaDecares} da</p>
+                                <p className="text-[11px] font-bold text-emerald-700 mt-1">Ekim → Hasat planını aç →</p>
+                              </button>
+                              <button
+                                type="button"
+                                title="Ekim kaydını sil"
+                                onClick={() => {
+                                  if (confirm(`"${cropInfo.name} - ${cropInfo.field}" ekim kaydını silmek istiyor musunuz?`)) {
+                                    onDeleteField(f.id)
+                                  }
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg shrink-0"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          )
+                        })}
+                        {fields.length === 0 && (
+                          <div className="p-4 text-center text-slate-400 text-xs bg-slate-50 rounded-xl">
+                            Henüz ekim kaydı yok.
+                          </div>
+                        )}
                         <div className="bg-white p-3 rounded-2xl border border-slate-200 space-y-2">
                           <div className="flex justify-between pb-1 border-b border-slate-100">
                             <span className="text-xs font-bold text-slate-800">Görev listesi</span>

@@ -405,6 +405,14 @@ export async function createCrop(data: Omit<Crop, 'id'>): Promise<string> {
   throw new Error('Firebase aktif değil');
 }
 
+export async function deleteCrop(cropId: string): Promise<void> {
+  if (DEMO_MODE) {
+    demo.crops = demo.crops.filter((c) => c.id !== cropId);
+    demo.tasks = demo.tasks.filter((t) => t.cropId !== cropId);
+    persistDemo();
+  }
+}
+
 // ── TASKS ──
 
 export async function getTasks(

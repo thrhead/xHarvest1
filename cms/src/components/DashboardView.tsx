@@ -689,6 +689,9 @@ export default function DashboardView() {
                     setNewPlantDate(new Date().toISOString().slice(0, 10))
                     setShowAddPlantingModal(true)
                   }}
+                  onDeleteRecord={(recordId) => {
+                    setPlantingRecords((prev) => prev.filter((r) => r.id !== recordId))
+                  }}
                   onTaskToggle={(recordId, taskId, doneFlag) => {
                     setPlantingRecords((prev) =>
                       prev.map((r) =>

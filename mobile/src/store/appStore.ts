@@ -36,6 +36,7 @@ interface AppState {
   refreshFarm: () => Promise<void>;
   refreshDetections: () => Promise<void>;
   addField: (data: Omit<Field, 'id' | 'createdAt'>) => Promise<string>;
+  deleteCrop: (cropId: string) => Promise<void>;
   completeTask: (taskId: string) => Promise<void>;
   updateTask: (taskId: string, data: Partial<Task>) => Promise<void>;
   skipTask: (taskId: string) => Promise<void>;
@@ -142,6 +143,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     const id = await fb.createField(data);
     await get().refreshFields();
     return id;
+  },
+  deleteCrop: async (cropId) => {
+    await fb.deleteCrop(cropId);
+    await get().refreshCrops();
+    await get().refreshTasks();
   },
   completeTask: async (taskId) => {
     await fb.completeTask(taskId);
