@@ -76,11 +76,7 @@ export default function AddFieldScreen() {
       Alert.alert('Eksik bilgi', 'İsim ve alan zorunlu');
       return;
     }
-    const uid = getCurrentUid();
-    if (!uid) {
-      Alert.alert('Hata', 'Oturum yok');
-      return;
-    }
+    const uid = getCurrentUid() || useAppStore.getState().uid || 'demo-user-id';
     setSaving(true);
     try {
       await addField({
@@ -92,11 +88,16 @@ export default function AddFieldScreen() {
           lng: parseFloat(lng) || 32.85,
         },
         polygon: polygon && polygon.length >= 3 ? polygon : undefined,
-        areaHectare: parseFloat(area.replace(',', '.')),
+        areaHectare: parseFloat(area.replace(',', '.')) || 1.0,
       });
-      Alert.alert('Kaydedildi', 'Tarla eklendi', [
+      
+      Alert.alert('Kaydedildi', 'Tarla başarıyla eklendi', [
         { text: 'Tamam', onPress: () => router.back() },
       ]);
+      // Also navigate back for environments where Alert callback is not triggered
+      setTimeout(() => {
+        router.back();
+      }, 600);
     } catch (e: any) {
       Alert.alert('Hata', e?.message || 'Kayıt başarısız');
     } finally {

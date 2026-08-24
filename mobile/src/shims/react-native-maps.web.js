@@ -145,7 +145,22 @@ function MapView({
     const L = window.L;
     layersGroup.clearLayers();
 
-    React.Children.forEach(children, (child) => {
+    function flatten(nodes) {
+      const flat = [];
+      React.Children.forEach(nodes, (node) => {
+        if (!node) return;
+        if (Array.isArray(node)) {
+          flat.push(...flatten(node));
+        } else if (React.isValidElement(node)) {
+          flat.push(node);
+        }
+      });
+      return flat;
+    }
+
+    const flatChildren = flatten(children);
+
+    flatChildren.forEach((child) => {
       if (!child || !child.props) return;
 
       // Polygon
@@ -162,7 +177,7 @@ function MapView({
           const poly = L.polygon(pts, {
             color: child.props.strokeColor || '#2E7D32',
             fillColor: child.props.fillColor || 'rgba(46, 125, 50, 0.25)',
-            weight: child.props.strokeWidth || 2,
+            weight: child.props.strokeWidth || 3,
           });
           layersGroup.addLayer(poly);
         }
@@ -179,7 +194,7 @@ function MapView({
         const desc = child.props.description;
 
         const marker = L.circleMarker([latitude, longitude], {
-          radius: 8,
+          radius: 9,
           color: '#ffffff',
           fillColor: color,
           fillOpacity: 0.95,
@@ -193,8 +208,8 @@ function MapView({
               ${desc ? `<p style="font-size: 11px; color: #64748b; margin-top: 2px;">${desc}</p>` : ''}
             </div>
           `);
-          if (title && title.length <= 4) {
-            marker.bindTooltip(title, { permanent: true, direction: 'top', offset: [0, -7] });
+          if (title && (title.length <= 4 || !isNaN(Number(title)))) {
+            marker.bindTooltip(String(title), { permanent: true, direction: 'top', offset: [0, -7] });
           }
         }
         layersGroup.addLayer(marker);

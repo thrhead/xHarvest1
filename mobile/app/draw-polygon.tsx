@@ -18,6 +18,18 @@ export default function DrawPolygonScreen() {
   const router = useRouter();
   const [vertices, setVertices] = useState<GeoPoint[]>([]);
 
+  const addSampleCorners = () => {
+    const lat = 39.92;
+    const lng = 32.85;
+    const offset = 0.004;
+    setVertices([
+      { lat: lat + offset, lng: lng - offset },
+      { lat: lat + offset, lng: lng + offset },
+      { lat: lat - offset, lng: lng + offset },
+      { lat: lat - offset, lng: lng - offset },
+    ]);
+  };
+
   const undo = () => {
     setVertices((v) => v.slice(0, -1));
   };
@@ -59,6 +71,14 @@ export default function DrawPolygonScreen() {
             ? ` · Alan ≈ ${area.toFixed(2)} ha`
             : ' · en az 3 köşe'}
         </Text>
+        {vertices.length === 0 && (
+          <TouchableOpacity
+            style={styles.sampleBtn}
+            onPress={addSampleCorners}
+          >
+            <Text style={styles.sampleBtnText}>🎯 Örnek 4 Köşe Yerleştir</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.actions}>
@@ -94,8 +114,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
   },
-  info: { padding: 8, alignItems: 'center' },
+  info: { padding: 8, alignItems: 'center', gap: 6 },
   infoText: { fontSize: 14, fontWeight: '500', color: '#333' },
+  sampleBtn: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#C8E6C9',
+  },
+  sampleBtnText: { color: '#2E7D32', fontSize: 12, fontWeight: '600' },
   actions: {
     flexDirection: 'row',
     gap: 8,

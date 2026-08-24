@@ -147,6 +147,11 @@ export default function DashboardView() {
   ])
 
   const [showAddPlantingModal, setShowAddPlantingModal] = useState(false)
+  const [showAddWebFieldModal, setShowAddWebFieldModal] = useState(false)
+  const [newFieldName, setNewFieldName] = useState('')
+  const [newFieldCrop, setNewFieldCrop] = useState('Domates')
+  const [newFieldArea, setNewFieldArea] = useState('25')
+  const [newFieldRegion, setNewFieldRegion] = useState('ankara')
   const [newPlantFieldId, setNewPlantFieldId] = useState('f-1')
   const [newPlantCropId, setNewPlantCropId] = useState('')
   const [newPlantDate, setNewPlantDate] = useState(() => new Date().toISOString().slice(0, 10))
@@ -396,7 +401,7 @@ export default function DashboardView() {
                       </p>
                     </div>
 
-                    {/* Filter Pills */}
+                    {/* Filter Pills & Add Button */}
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -408,6 +413,15 @@ export default function DashboardView() {
                         }`}
                       >
                         Tüm Tarlalar ({fields.length})
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowAddWebFieldModal(true)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1"
+                      >
+                        <Plus size={14} />
+                        <span>Yeni Tarla Ekle</span>
                       </button>
                     </div>
                   </div>
@@ -1460,6 +1474,150 @@ export default function DashboardView() {
                 className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-xs"
               >
                 Takvimi Başlat
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Add New Field Modal */}
+      {showAddWebFieldModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!newFieldName.trim()) return
+
+              let centerLat = 39.92
+              let centerLng = 32.85
+              if (newFieldRegion === 'cukurova') { centerLat = 36.99; centerLng = 35.32 }
+              else if (newFieldRegion === 'konya') { centerLat = 37.87; centerLng = 32.48 }
+              else if (newFieldRegion === 'izmir') { centerLat = 38.42; centerLng = 27.14 }
+              else if (newFieldRegion === 'antalya') { centerLat = 36.88; centerLng = 30.70 }
+              else if (newFieldRegion === 'bursa') { centerLat = 40.18; centerLng = 29.06 }
+
+              const offset = 0.005
+              const coords: [number, number][] = [
+                [centerLat + offset, centerLng - offset],
+                [centerLat + offset, centerLng + offset],
+                [centerLat - offset, centerLng + offset],
+                [centerLat - offset, centerLng - offset],
+              ]
+
+              const newField = {
+                id: `f-${Date.now()}`,
+                name: newFieldName.trim(),
+                cropName: newFieldCrop,
+                areaDecares: parseFloat(newFieldArea) || 20,
+                coordinates: coords,
+                color: '#2E7D32',
+              }
+
+              setFields((p) => [...p, newField])
+              setNewFieldName('')
+              setShowAddWebFieldModal(false)
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                <MapPin size={18} className="text-emerald-600" />
+                Yeni Tarla & Parsel Ekle
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAddWebFieldModal(false)}
+                className="size-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-900"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Tarla / Parsel Adı</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Örn: Kuzey Parsel / Dereboyu"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600"
+                  value={newFieldName}
+                  onChange={(e) => setNewFieldName(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Ekili Ürün</label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600"
+                    value={newFieldCrop}
+                    onChange={(e) => setNewFieldCrop(e.target.value)}
+                  >
+                    {crops.map((c) => (
+                      <option key={String(c.id)} value={c.nameTr}>
+                        {c.nameTr}
+                      </option>
+                    ))}
+                    {crops.length === 0 && (
+                      <>
+                        <option value="Domates">Domates</option>
+                        <option value="Buğday">Buğday</option>
+                        <option value="Biber">Biber</option>
+                        <option value="Salatalık (Hıyar)">Salatalık (Hıyar)</option>
+                        <option value="Mısır">Mısır</option>
+                        <option value="Zeytin">Zeytin</option>
+                        <option value="Elma">Elma</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Alan (Dönüm / Da)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    required
+                    placeholder="25"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600"
+                    value={newFieldArea}
+                    onChange={(e) => setNewFieldArea(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Bölge & Koordinat Konumu</label>
+                <select
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600"
+                  value={newFieldRegion}
+                  onChange={(e) => setNewFieldRegion(e.target.value as any)}
+                >
+                  <option value="ankara">📍 Ankara (İç Anadolu - Polatlı/Haymana)</option>
+                  <option value="cukurova">📍 Adana / Çukurova Tarım Havzası</option>
+                  <option value="konya">📍 Konya Ovası</option>
+                  <option value="izmir">📍 İzmir / Ege (Menderes Havzası)</option>
+                  <option value="antalya">📍 Antalya (Sera & Narenciye)</option>
+                  <option value="bursa">📍 Bursa / Marmara (İnegöl/Yenişehir)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddWebFieldModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700"
+              >
+                İptal
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-xs"
+              >
+                ✓ Tarlayı Kaydet & Haritaya Ekle
               </button>
             </div>
           </form>
