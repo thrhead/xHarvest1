@@ -144,6 +144,7 @@ const initialDemo = {
 };
 
 const STORAGE_KEY = 'eh_mobile_demo_state_v2';
+const WEB_FIELDS_KEY = 'eh_web_fields';
 
 function parseStoredData(stored: string) {
   try {
@@ -182,17 +183,102 @@ function parseStoredData(stored: string) {
   }
 }
 
+function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const webStr = window.localStorage.getItem(WEB_FIELDS_KEY);
+    if (webStr) {
+      const webFields = JSON.parse(webStr);
+      if (Array.isArray(webFields) && webFields.length > 0) {
+        webFields.forEach((wf: any) => {
+          const existingIdx = targetDemo.fields.findIndex((f) => f.id === wf.id);
+          const coords = wf.coordinates || [];
+          const loc = coords.length > 0 ? { lat: coords[0][0], lng: coords[0][1] } : { lat: 39.92, lng: 32.85 };
+          const poly = coords.length >= 3 ? coords.map((c: [number, number]) => ({ lat: c[0], lng: c[1] })) : undefined;
+          
+          const convertedField: Field = {
+            id: wf.id,
+            userId: 'demo-user-id',
+            name: wf.name || 'Tarla',
+            type: (wf.cropName?.toLowerCase().includes('sera') ? 'greenhouse' : 'field') as FieldType,
+            location: loc,
+            polygon: poly,
+            areaHectare: (wf.areaDecares || 10) / 10,
+            soilType: 'killi-tınlı',
+            createdAt: new Date(wf.createdAt || Date.now()),
+          };
+
+          if (existingIdx >= 0) {
+            targetDemo.fields[existingIdx] = { ...targetDemo.fields[existingIdx], ...convertedField };
+          } else {
+            targetDemo.fields.push(convertedField);
+          }
+
+          // Ensure matching crop entry
+          const cropName = wf.cropName || 'Domates';
+          const existingCrop = targetDemo.crops.find((c) => c.fieldId === wf.id);
+          if (!existingCrop) {
+            targetDemo.crops.push({
+              id: `c_${wf.id}`,
+              userId: 'demo-user-id',
+              fieldId: wf.id,
+              cropTemplateId: cropName.toLowerCase(),
+              cropName: cropName,
+              plantingDate: new Date(),
+              status: 'active',
+            });
+          }
+        });
+      }
+    }
+  } catch {}
+}
+
+function syncDemoFieldsToWeb() {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const webFields: any[] = demo.fields.map((mf) => {
+      const matchingCrop = demo.crops.find((c) => c.fieldId === mf.id);
+      const coords = mf.polygon && mf.polygon.length >= 3
+        ? mf.polygon.map((p) => [p.lat, p.lng])
+        : [
+            [mf.location.lat, mf.location.lng],
+            [mf.location.lat + 0.004, mf.location.lng + 0.005],
+            [mf.location.lat - 0.003, mf.location.lng + 0.006],
+          ];
+
+      return {
+        id: mf.id,
+        name: mf.name,
+        cropName: matchingCrop?.cropName || (mf.type === 'greenhouse' ? 'Domates (Sera)' : 'Genel Tarla'),
+        areaDecares: Math.round((mf.areaHectare || 1) * 10),
+        color: '#10b981',
+        coordinates: coords,
+        createdAt: mf.createdAt?.toISOString ? mf.createdAt.toISOString() : new Date().toISOString(),
+      };
+    });
+
+    window.localStorage.setItem(WEB_FIELDS_KEY, JSON.stringify(webFields));
+    window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'mobile', fields: webFields } }));
+  } catch {}
+}
+
 function loadInitialSync(): typeof initialDemo {
+  const defaultDemo = JSON.parse(JSON.stringify(initialDemo));
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       const s = window.localStorage.getItem(STORAGE_KEY) || window.localStorage.getItem('eh_mobile_demo_state');
       if (s) {
         const p = parseStoredData(s);
-        if (p) return p;
+        if (p) {
+          syncWebFieldsIntoDemo(p);
+          return p;
+        }
       }
     } catch {}
+    syncWebFieldsIntoDemo(defaultDemo);
   }
-  return JSON.parse(JSON.stringify(initialDemo));
+  return defaultDemo;
 }
 
 let demo = loadInitialSync();
@@ -204,6 +290,7 @@ let demo = loadInitialSync();
     if (stored) {
       const parsed = parseStoredData(stored);
       if (parsed) {
+        syncWebFieldsIntoDemo(parsed);
         Object.assign(demo, parsed);
       }
     }
@@ -215,6 +302,7 @@ function persistDemo() {
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       window.localStorage.setItem(STORAGE_KEY, json);
+      syncDemoFieldsToWeb();
     } catch {}
   }
   AsyncStorage.setItem(STORAGE_KEY, json).catch(() => {});
@@ -261,7 +349,10 @@ export function getCurrentUid(): string | null {
 // ── FIELDS ──
 
 export async function getFields(userId: string): Promise<Field[]> {
-  if (DEMO_MODE) return demo.fields.filter((f) => f.userId === userId);
+  if (DEMO_MODE) {
+    syncWebFieldsIntoDemo(demo);
+    return demo.fields;
+  }
   return [];
 }
 

@@ -161,16 +161,49 @@ export default function DashboardView() {
   const [newPlantDate, setNewPlantDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [mounted, setMounted] = useState(false)
 
-  // LocalStorage yükleme
+  // LocalStorage yükleme & Çift Taraflı Senkronizasyon (Web <-> Mobil)
   useEffect(() => {
     setMounted(true)
     if (typeof window !== 'undefined') {
       try {
         const savedFields = localStorage.getItem('eh_web_fields')
+        let initialList: FieldPolygon[] = []
         if (savedFields) {
           const parsed = JSON.parse(savedFields)
-          if (Array.isArray(parsed) && parsed.length > 0) setFields(parsed)
+          if (Array.isArray(parsed) && parsed.length > 0) initialList = parsed
         }
+
+        // Mobil hafızasındaki tarlaları kontrol et ve web listesiyle birleştir
+        const mobStr = localStorage.getItem('eh_mobile_demo_state_v2') || localStorage.getItem('eh_mobile_demo_state')
+        if (mobStr) {
+          const mobState = JSON.parse(mobStr)
+          if (mobState && Array.isArray(mobState.fields)) {
+            mobState.fields.forEach((mf: any) => {
+              if (!initialList.some((wf) => wf.id === mf.id)) {
+                const matchingCrop = mobState.crops?.find((c: any) => c.fieldId === mf.id)
+                const coords: [number, number][] = mf.polygon && mf.polygon.length >= 3
+                  ? mf.polygon.map((p: any) => [p.lat, p.lng])
+                  : [
+                      [mf.location?.lat || 39.92, mf.location?.lng || 32.85],
+                      [(mf.location?.lat || 39.92) + 0.004, (mf.location?.lng || 32.85) + 0.005],
+                      [(mf.location?.lat || 39.92) - 0.003, (mf.location?.lng || 32.85) + 0.006],
+                    ]
+                initialList.push({
+                  id: mf.id,
+                  name: mf.name,
+                  cropName: matchingCrop?.cropName || (mf.type === 'greenhouse' ? 'Domates (Sera)' : 'Genel Tarla'),
+                  areaDecares: Math.round((mf.areaHectare || 1) * 10),
+                  color: '#10b981',
+                  coordinates: coords,
+                  createdAt: mf.createdAt || new Date().toISOString(),
+                })
+              }
+            })
+          }
+        }
+
+        if (initialList.length > 0) setFields(initialList)
+
         const savedRecs = localStorage.getItem('eh_web_records')
         if (savedRecs) {
           const parsed = JSON.parse(savedRecs)
@@ -192,11 +225,84 @@ export default function DashboardView() {
     }
   }, [])
 
-  // LocalStorage otomatik kaydetme
+  // Mobil uygulamayla canlı senkronizasyon dinleyicisi
+  useEffect(() => {
+    const handleSync = () => {
+      if (typeof window === 'undefined') return
+      try {
+        const savedFields = localStorage.getItem('eh_web_fields')
+        if (savedFields) {
+          const parsed = JSON.parse(savedFields)
+          if (Array.isArray(parsed)) {
+            setFields(parsed)
+          }
+        }
+      } catch {}
+    }
+    window.addEventListener('eh_fields_sync', handleSync)
+    window.addEventListener('storage', handleSync)
+    return () => {
+      window.removeEventListener('eh_fields_sync', handleSync)
+      window.removeEventListener('storage', handleSync)
+    }
+  }, [])
+
+  // LocalStorage ve Mobil hafıza senkronizasyonu
   useEffect(() => {
     if (mounted && typeof window !== 'undefined') {
       try {
         localStorage.setItem('eh_web_fields', JSON.stringify(fields))
+
+        // Mobil hafızasını da anlık güncelle
+        const mobStr = localStorage.getItem('eh_mobile_demo_state_v2') || localStorage.getItem('eh_mobile_demo_state')
+        let mobState = mobStr ? JSON.parse(mobStr) : { uid: 'demo-user-id', fields: [], crops: [], tasks: [], applicationLogs: [] }
+        if (!mobState.fields) mobState.fields = []
+        if (!mobState.crops) mobState.crops = []
+
+        fields.forEach((wf) => {
+          const existingIdx = mobState.fields.findIndex((f: any) => f.id === wf.id)
+          const coords = wf.coordinates || []
+          const loc = coords.length > 0 ? { lat: coords[0][0], lng: coords[0][1] } : { lat: 39.92, lng: 32.85 }
+          const poly = coords.length >= 3 ? coords.map((c) => ({ lat: c[0], lng: c[1] })) : undefined
+
+          const converted: any = {
+            id: wf.id,
+            userId: 'demo-user-id',
+            name: wf.name || 'Tarla',
+            type: wf.cropName?.toLowerCase().includes('sera') ? 'greenhouse' : 'field',
+            location: loc,
+            polygon: poly,
+            areaHectare: (wf.areaDecares || 10) / 10,
+            soilType: 'killi-tınlı',
+            createdAt: wf.createdAt || new Date().toISOString(),
+          }
+
+          if (existingIdx >= 0) {
+            mobState.fields[existingIdx] = { ...mobState.fields[existingIdx], ...converted }
+          } else {
+            mobState.fields.push(converted)
+          }
+
+          const cropName = wf.cropName || 'Domates'
+          const existingCrop = mobState.crops.find((c: any) => c.fieldId === wf.id)
+          if (!existingCrop) {
+            mobState.crops.push({
+              id: `c_${wf.id}`,
+              userId: 'demo-user-id',
+              fieldId: wf.id,
+              cropTemplateId: cropName.toLowerCase(),
+              cropName: cropName,
+              plantingDate: new Date().toISOString(),
+              status: 'active',
+            })
+          }
+        })
+
+        const validIds = new Set(fields.map((f) => f.id))
+        mobState.fields = mobState.fields.filter((f: any) => validIds.has(f.id))
+        mobState.crops = mobState.crops.filter((c: any) => validIds.has(c.fieldId))
+
+        localStorage.setItem('eh_mobile_demo_state_v2', JSON.stringify(mobState))
       } catch {}
     }
   }, [fields, mounted])
@@ -466,7 +572,7 @@ export default function DashboardView() {
                     </div>
 
                     {/* Filter Pills & Add Button */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() => setSelectedCropId('all')}
@@ -479,10 +585,29 @@ export default function DashboardView() {
                         Tüm Tarlalar ({fields.length})
                       </button>
 
+                      {Array.from(new Set(fields.map((f) => f.cropName).filter(Boolean))).map((cropName) => {
+                        const count = fields.filter((f) => f.cropName === cropName).length
+                        const isSelected = selectedCropId === cropName
+                        return (
+                          <button
+                            key={cropName}
+                            type="button"
+                            onClick={() => setSelectedCropId(isSelected ? 'all' : cropName)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                              isSelected
+                                ? 'bg-emerald-700 text-white shadow-2xs'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            🌱 {cropName} ({count})
+                          </button>
+                        )
+                      })}
+
                       <button
                         type="button"
                         onClick={() => setShowAddWebFieldModal(true)}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1"
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1 ml-auto"
                       >
                         <Plus size={14} />
                         <span>Yeni Tarla Ekle</span>
@@ -501,8 +626,20 @@ export default function DashboardView() {
                       onUpdateFieldCrop={(id, crop) =>
                         setFields((p) => p.map((x) => (x.id === id ? { ...x, cropName: crop } : x)))
                       }
-                      selectedCrop={selectedCropId === 'all' ? 'all' : selectedCrop?.nameTr || 'all'}
-                      availableCrops={crops.map((c) => c.nameTr)}
+                      selectedCrop={selectedCropId === 'all' ? 'all' : selectedCropId || 'all'}
+                      availableCrops={Array.from(
+                        new Set([
+                          ...crops.map((c) => c.nameTr),
+                          'Domates',
+                          'Buğday',
+                          'Biber',
+                          'Salatalık (Hıyar)',
+                          'Mısır',
+                          'Zeytin',
+                          'Pamuk',
+                          'Elma',
+                        ]),
+                      )}
                     />
                   ) : (
                     <div className="w-full h-[460px] bg-slate-100/80 animate-pulse rounded-xl flex items-center justify-center text-slate-400 text-xs font-semibold">

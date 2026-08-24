@@ -58,8 +58,7 @@ export default function InteractiveMap({
   const [currentPoints, setCurrentPoints] = useState<[number, number][]>([])
   const [hoverPoint, setHoverPoint] = useState<[number, number] | null>(null)
   const [fieldName, setFieldName] = useState('')
-  const [drawingCrop, setDrawingCrop] = useState<string>('')
-  const [filterOnlyActive, setFilterOnlyActive] = useState<boolean>(false)
+  const [cropFilter, setCropFilter] = useState<string>('all')
   const [mapLoaded, setMapLoaded] = useState(false)
   const [showQuickModal, setShowQuickModal] = useState(false)
   const [quickName, setQuickName] = useState('')
@@ -67,14 +66,26 @@ export default function InteractiveMap({
   const [quickArea, setQuickArea] = useState('20')
   const [quickRegion, setQuickRegion] = useState('ankara')
 
-  // Update drawing crop when selectedCrop changes or availableCrops loads
+  // Sync crop filter with incoming selectedCrop prop
   useEffect(() => {
     if (selectedCrop && selectedCrop !== 'all') {
+      setCropFilter(selectedCrop)
       setDrawingCrop(selectedCrop)
-    } else if (availableCrops.length > 0 && !drawingCrop) {
-      setDrawingCrop(availableCrops[0])
+    } else {
+      setCropFilter('all')
+      if (availableCrops.length > 0 && !drawingCrop) {
+        setDrawingCrop(availableCrops[0])
+      }
     }
   }, [selectedCrop, availableCrops])
+
+  // Extract all unique crops from fields + available templates
+  const allUniqueCrops = Array.from(
+    new Set([
+      ...availableCrops,
+      ...fields.map((f) => f.cropName).filter(Boolean),
+    ]),
+  )
 
   // Change cursor when drawing
   useEffect(() => {
@@ -218,25 +229,22 @@ export default function InteractiveMap({
 
     const bounds = L.latLngBounds([])
     const allBounds = L.latLngBounds([])
-    const isAllSelected = !selectedCrop || selectedCrop === 'all'
+    const isAllSelected = !cropFilter || cropFilter === 'all'
 
     fields.forEach((field, idx) => {
       if (!field.coordinates || field.coordinates.length < 3) return
 
       const isMatch =
         isAllSelected ||
-        field.cropName.toLowerCase().includes(selectedCrop.toLowerCase()) ||
-        selectedCrop.toLowerCase().includes(field.cropName.toLowerCase())
-
-      // If user toggled filterOnlyActive, skip non-matching fields
-      if (filterOnlyActive && !isMatch) return
+        field.cropName.toLowerCase().includes(cropFilter.toLowerCase()) ||
+        cropFilter.toLowerCase().includes(field.cropName.toLowerCase())
 
       const cropColor = getCropColor(field.cropName, idx)
 
-      const strokeColor = isMatch ? cropColor : '#64748b'
-      const fillColor = isMatch ? cropColor : '#94a3b8'
-      const fillOpacity = isMatch ? (isAllSelected ? 0.35 : 0.6) : 0.25
-      const weight = isMatch ? (isAllSelected ? 3 : 4) : 2
+      const strokeColor = isMatch ? cropColor : '#94a3b8'
+      const fillColor = isMatch ? cropColor : '#cbd5e1'
+      const fillOpacity = isMatch ? (isAllSelected ? 0.35 : 0.65) : 0.15
+      const weight = isMatch ? (isAllSelected ? 3 : 4) : 1.5
 
       const polygon = L.polygon(field.coordinates, {
         color: strokeColor,
@@ -287,7 +295,7 @@ export default function InteractiveMap({
     if (targetBounds.isValid() && fields.length > 0 && !isDrawing) {
       map.fitBounds(targetBounds, { padding: [50, 50], maxZoom: 15 })
     }
-  }, [fields, selectedCrop, filterOnlyActive, mapLoaded, isDrawing])
+  }, [fields, cropFilter, mapLoaded, isDrawing])
 
   // Calculate area in dönüm (1 dönüm = 1000 m2)
   const calculateAreaInDecares = (pts: [number, number][]): number => {
@@ -568,19 +576,32 @@ export default function InteractiveMap({
 
           {/* Saved fields list */}
           <div className="mt-6">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Kayıtlı Tarlalar</h3>
-              {selectedCrop && selectedCrop !== 'all' && (
-                <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={filterOnlyActive}
-                    onChange={(e) => setFilterOnlyActive(e.target.checked)}
-                    className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
-                  />
-                  <span>Sadece {selectedCrop}</span>
-                </label>
-              )}
+            <div className="space-y-2 mb-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Kayıtlı Tarlalar ({fields.filter(f => !cropFilter || cropFilter === 'all' || f.cropName.toLowerCase().includes(cropFilter.toLowerCase())).length}/{fields.length})
+                </h3>
+              </div>
+
+              {/* Dynamic Multi-Crop Selector */}
+              <div className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                <span className="text-[11px] font-bold text-slate-500 shrink-0">Ürün:</span>
+                <select
+                  value={cropFilter}
+                  onChange={(e) => setCropFilter(e.target.value)}
+                  className="w-full bg-white border border-slate-200 text-slate-800 text-xs font-bold rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-emerald-600 cursor-pointer"
+                >
+                  <option value="all">🌾 Tüm Ürünler ({fields.length} Tarla)</option>
+                  {allUniqueCrops.map((c) => {
+                    const count = fields.filter((f) => f.cropName?.toLowerCase().includes(c.toLowerCase())).length
+                    return (
+                      <option key={c} value={c}>
+                        🌱 {c} {count > 0 ? `(${count} Tarla)` : ''}
+                      </option>
+                    )
+                  })}
+                </select>
+              </div>
             </div>
 
             {fields.length === 0 ? (
@@ -592,9 +613,10 @@ export default function InteractiveMap({
                 {fields.map((f, idx) => {
                   const cropColor = getCropColor(f.cropName, idx)
                   const isMatching =
-                    !selectedCrop ||
-                    selectedCrop === 'all' ||
-                    f.cropName.toLowerCase().includes(selectedCrop.toLowerCase())
+                    !cropFilter ||
+                    cropFilter === 'all' ||
+                    f.cropName.toLowerCase().includes(cropFilter.toLowerCase()) ||
+                    cropFilter.toLowerCase().includes(f.cropName.toLowerCase())
 
                   return (
                     <div
@@ -602,7 +624,7 @@ export default function InteractiveMap({
                       className={`p-3 rounded-xl border transition ${
                         isMatching
                           ? 'bg-white border-slate-200 shadow-2xs hover:border-emerald-300'
-                          : 'bg-slate-100/60 border-slate-200 opacity-60'
+                          : 'bg-slate-100/60 border-slate-200 opacity-50'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
