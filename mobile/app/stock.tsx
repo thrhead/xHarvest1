@@ -25,14 +25,18 @@ export default function StockScreen() {
   useFocusEffect(useCallback(() => { refreshStock(); }, []));
 
   const onAdd = async () => {
-    if (!uid || !name.trim()) return;
+    const currentUid = uid || useAppStore.getState().uid || 'demo-user-id';
+    if (!name.trim()) {
+      Alert.alert('İsim gerekli');
+      return;
+    }
     const q = parseFloat(qty.replace(',', '.'));
     if (isNaN(q) || q < 0) {
       Alert.alert('Geçerli miktar girin');
       return;
     }
     await createStock({
-      userId: uid,
+      userId: currentUid,
       name: name.trim(),
       category: cat,
       quantity: q,

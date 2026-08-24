@@ -35,11 +35,7 @@ export default function AddCropScreen() {
       Alert.alert('Seçim gerekli', 'Ürün ve tarla seçin');
       return;
     }
-    const uid = getCurrentUid();
-    if (!uid) {
-      Alert.alert('Hata', 'Oturum bulunamadı');
-      return;
-    }
+    const uid = getCurrentUid() || useAppStore.getState().uid || 'demo-user-id';
 
     const template =
       templates.find((t) => t.id === selectedTemplate) ||

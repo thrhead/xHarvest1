@@ -5,6 +5,7 @@
  * DEMO_MODE=false → gerçek @react-native-firebase (EAS Build)
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Field,
   Crop,
@@ -25,7 +26,7 @@ plantC1.setDate(plantC1.getDate() - 40);
 const plantC2 = new Date();
 plantC2.setDate(plantC2.getDate() - 15);
 
-const demo = {
+const initialDemo = {
   uid: 'demo-user-id',
   fields: [
     {
@@ -142,6 +143,83 @@ const demo = {
   ] as ApplicationLog[],
 };
 
+const STORAGE_KEY = 'eh_mobile_demo_state_v2';
+
+function parseStoredData(stored: string) {
+  try {
+    const parsed = JSON.parse(stored);
+    if (parsed.fields) {
+      parsed.fields = parsed.fields.map((f: any) => ({
+        ...f,
+        createdAt: new Date(f.createdAt || Date.now()),
+      }));
+    }
+    if (parsed.crops) {
+      parsed.crops = parsed.crops.map((c: any) => ({
+        ...c,
+        plantingDate: new Date(c.plantingDate || Date.now()),
+      }));
+    }
+    if (parsed.tasks) {
+      parsed.tasks = parsed.tasks.map((t: any) => ({
+        ...t,
+        plannedDate: new Date(t.plannedDate || Date.now()),
+        originalDate: new Date(t.originalDate || Date.now()),
+        completedAt: t.completedAt ? new Date(t.completedAt) : undefined,
+      }));
+    }
+    if (parsed.applicationLogs) {
+      parsed.applicationLogs = parsed.applicationLogs.map((l: any) => ({
+        ...l,
+        appliedAt: new Date(l.appliedAt || Date.now()),
+        createdAt: new Date(l.createdAt || Date.now()),
+        harvestSafeDate: l.harvestSafeDate ? new Date(l.harvestSafeDate) : undefined,
+      }));
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function loadInitialSync(): typeof initialDemo {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const s = window.localStorage.getItem(STORAGE_KEY) || window.localStorage.getItem('eh_mobile_demo_state');
+      if (s) {
+        const p = parseStoredData(s);
+        if (p) return p;
+      }
+    } catch {}
+  }
+  return JSON.parse(JSON.stringify(initialDemo));
+}
+
+let demo = loadInitialSync();
+
+// Asynchronous hydration from AsyncStorage for React Native / Expo environment
+(async () => {
+  try {
+    const stored = await AsyncStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = parseStoredData(stored);
+      if (parsed) {
+        Object.assign(demo, parsed);
+      }
+    }
+  } catch {}
+})();
+
+function persistDemo() {
+  const json = JSON.stringify(demo);
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, json);
+    } catch {}
+  }
+  AsyncStorage.setItem(STORAGE_KEY, json).catch(() => {});
+}
+
 function genId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -193,6 +271,7 @@ export async function createField(
   if (DEMO_MODE) {
     const id = genId('f');
     demo.fields.push({ ...data, id, createdAt: new Date() });
+    persistDemo();
     return id;
   }
   throw new Error('Firebase aktif değil');
@@ -204,13 +283,17 @@ export async function updateField(
 ): Promise<void> {
   if (DEMO_MODE) {
     const i = demo.fields.findIndex((f) => f.id === fieldId);
-    if (i >= 0) demo.fields[i] = { ...demo.fields[i], ...data };
+    if (i >= 0) {
+      demo.fields[i] = { ...demo.fields[i], ...data };
+      persistDemo();
+    }
   }
 }
 
 export async function deleteField(fieldId: string): Promise<void> {
   if (DEMO_MODE) {
     demo.fields = demo.fields.filter((f) => f.id !== fieldId);
+    persistDemo();
   }
 }
 
@@ -225,6 +308,7 @@ export async function createCrop(data: Omit<Crop, 'id'>): Promise<string> {
   if (DEMO_MODE) {
     const id = genId('c');
     demo.crops.push({ ...data, id });
+    persistDemo();
     return id;
   }
   throw new Error('Firebase aktif değil');
@@ -260,6 +344,7 @@ export async function createTasks(
       demo.tasks.push({ ...t, id });
       ids.push(id);
     }
+    persistDemo();
     return ids;
   }
   throw new Error('Firebase aktif değil');
@@ -271,7 +356,10 @@ export async function updateTask(
 ): Promise<void> {
   if (DEMO_MODE) {
     const i = demo.tasks.findIndex((t) => t.id === taskId);
-    if (i >= 0) demo.tasks[i] = { ...demo.tasks[i], ...data };
+    if (i >= 0) {
+      demo.tasks[i] = { ...demo.tasks[i], ...data };
+      persistDemo();
+    }
   }
 }
 
@@ -350,6 +438,7 @@ export async function createApplicationLog(
       createdAt: new Date(),
     };
     demo.applicationLogs.unshift(newLog);
+    persistDemo();
     return id;
   }
   throw new Error('Firebase aktif değil — DEMO_MODE=false ve Firestore bağlayın');
@@ -363,6 +452,7 @@ export async function updateApplicationLog(
     const i = demo.applicationLogs.findIndex((l) => l.id === id);
     if (i >= 0) {
       demo.applicationLogs[i] = { ...demo.applicationLogs[i], ...data };
+      persistDemo();
     }
   }
 }
@@ -370,6 +460,7 @@ export async function updateApplicationLog(
 export async function deleteApplicationLog(id: string): Promise<void> {
   if (DEMO_MODE) {
     demo.applicationLogs = demo.applicationLogs.filter((l) => l.id !== id);
+    persistDemo();
   }
 }
 

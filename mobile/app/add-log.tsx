@@ -58,13 +58,13 @@ export default function AddLogScreen() {
       Alert.alert('Hata', 'Lütfen geçerli bir miktar girin.');
       return;
     }
-    if (!uid) return;
+    const currentUid = uid || useAppStore.getState().uid || 'demo-user-id';
 
     try {
       const phi = phiDays.trim() === '' ? undefined : parseInt(phiDays, 10);
       const cost = unitCost.trim() === '' ? undefined : parseFloat(unitCost.replace(',', '.'));
       await createLog({
-        userId: uid,
+        userId: currentUid,
         fieldId,
         taskId: params.taskId,
         inputType,
@@ -83,6 +83,9 @@ export default function AddLogScreen() {
       Alert.alert('Başarılı', 'Uygulama kaydı oluşturuldu.', [
         { text: 'Tamam', onPress: () => router.back() },
       ]);
+      setTimeout(() => {
+        router.back();
+      }, 600);
     } catch (e: any) {
       Alert.alert('Hata', e.message || 'Kayıt eklenemedi.');
     }

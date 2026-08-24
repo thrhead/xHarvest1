@@ -95,6 +95,10 @@ export default function DashboardView() {
   const [newRecDosage, setNewRecDosage] = useState('')
   const [newRecType, setNewRecType] = useState<'spraying' | 'fertilizing'>('spraying')
   const [newRecFieldId, setNewRecFieldId] = useState('f-1')
+  const [newRecDate, setNewRecDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [newRecPhi, setNewRecPhi] = useState('7')
+  const [newRecNotes, setNewRecNotes] = useState('')
+  const [newRecStatus, setNewRecStatus] = useState<'completed' | 'pending'>('completed')
   const [inviteCopied, setInviteCopied] = useState(false)
   const [aiSelectedDemo, setAiSelectedDemo] = useState<string | null>(null)
   const [stockList, setStockList] = useState([
@@ -157,9 +161,69 @@ export default function DashboardView() {
   const [newPlantDate, setNewPlantDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [mounted, setMounted] = useState(false)
 
+  // LocalStorage yükleme
   useEffect(() => {
     setMounted(true)
+    if (typeof window !== 'undefined') {
+      try {
+        const savedFields = localStorage.getItem('eh_web_fields')
+        if (savedFields) {
+          const parsed = JSON.parse(savedFields)
+          if (Array.isArray(parsed) && parsed.length > 0) setFields(parsed)
+        }
+        const savedRecs = localStorage.getItem('eh_web_records')
+        if (savedRecs) {
+          const parsed = JSON.parse(savedRecs)
+          if (Array.isArray(parsed) && parsed.length > 0) setWebRecords(parsed)
+        }
+        const savedPlantings = localStorage.getItem('eh_web_plantings')
+        if (savedPlantings) {
+          const parsed = JSON.parse(savedPlantings)
+          if (Array.isArray(parsed) && parsed.length > 0) setPlantingRecords(parsed)
+        }
+        const savedStocks = localStorage.getItem('eh_web_stocks')
+        if (savedStocks) {
+          const parsed = JSON.parse(savedStocks)
+          if (Array.isArray(parsed) && parsed.length > 0) setStockList(parsed)
+        }
+      } catch (e) {
+        console.error('Storage parse error:', e)
+      }
+    }
   }, [])
+
+  // LocalStorage otomatik kaydetme
+  useEffect(() => {
+    if (mounted && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('eh_web_fields', JSON.stringify(fields))
+      } catch {}
+    }
+  }, [fields, mounted])
+
+  useEffect(() => {
+    if (mounted && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('eh_web_records', JSON.stringify(webRecords))
+      } catch {}
+    }
+  }, [webRecords, mounted])
+
+  useEffect(() => {
+    if (mounted && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('eh_web_plantings', JSON.stringify(plantingRecords))
+      } catch {}
+    }
+  }, [plantingRecords, mounted])
+
+  useEffect(() => {
+    if (mounted && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('eh_web_stocks', JSON.stringify(stockList))
+      } catch {}
+    }
+  }, [stockList, mounted])
 
   useEffect(() => {
     fetch('/api/portal-data')
@@ -557,7 +621,11 @@ export default function DashboardView() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setShowAddWebRecordModal(true)}
+                      onClick={() => {
+                        setNewRecType(recordTabFilter === 'fertilizing' ? 'fertilizing' : 'spraying')
+                        if (fields.length > 0) setNewRecFieldId(fields[0].id)
+                        setShowAddWebRecordModal(true)
+                      }}
                       className="px-3.5 py-1.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-2xs shrink-0"
                     >
                       <Plus size={14} className="stroke-[3]" />
@@ -569,8 +637,20 @@ export default function DashboardView() {
                 {/* Records List Table / Cards */}
                 <div className="space-y-2.5">
                   {filteredRecords.length === 0 ? (
-                    <div className="bg-white border border-slate-200/80 rounded-2xl p-8 text-center text-slate-400 text-xs font-medium">
-                      Eşleşen kayıt bulunamadı.
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-8 text-center text-slate-400 text-xs font-medium space-y-2">
+                      <p>Henüz bu kriterde ilaçlama veya gübreleme kaydı bulunamadı.</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewRecType(recordTabFilter === 'fertilizing' ? 'fertilizing' : 'spraying')
+                          if (fields.length > 0) setNewRecFieldId(fields[0].id)
+                          setShowAddWebRecordModal(true)
+                        }}
+                        className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1"
+                      >
+                        <Plus size={13} />
+                        <span>Yeni Uygulama Kaydı Ekle</span>
+                      </button>
                     </div>
                   ) : (
                     filteredRecords.map((r) => (
@@ -619,15 +699,38 @@ export default function DashboardView() {
                               <span className="text-[10px] text-slate-400">Bekleme Yok</span>
                             )}
                           </div>
-                          <span
-                            className={`text-[10px] font-bold px-2 py-1 rounded-lg ${
+
+                          <button
+                            type="button"
+                            title="Durumu Değiştir"
+                            onClick={() => {
+                              setWebRecords((prev) =>
+                                prev.map((item) =>
+                                  item.id === r.id
+                                    ? { ...item, status: item.status === 'completed' ? 'pending' : 'completed' }
+                                    : item,
+                                ),
+                              )
+                            }}
+                            className={`text-[10px] font-bold px-2 py-1 rounded-lg transition-all cursor-pointer ${
                               r.status === 'completed'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-slate-100 text-slate-700'
+                                ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                             }`}
                           >
-                            {r.status === 'completed' ? '✓ Yapıldı' : 'Planlandı'}
-                          </span>
+                            {r.status === 'completed' ? '✓ Yapıldı' : '⏳ Planlandı'}
+                          </button>
+
+                          <button
+                            type="button"
+                            title="Kaydı Sil"
+                            onClick={() => {
+                              setWebRecords((prev) => prev.filter((item) => item.id !== r.id))
+                            }}
+                            className="size-7 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all"
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         </div>
                       </div>
                     ))
@@ -1618,6 +1721,238 @@ export default function DashboardView() {
                 className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-xs"
               >
                 ✓ Tarlayı Kaydet & Haritaya Ekle
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Add New Application Log Modal (İlaçlama & Gübreleme) */}
+      {showAddWebRecordModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            className="bg-white rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!newRecProduct.trim()) return
+
+              const targetField = fields.find((f) => f.id === newRecFieldId) || fields[0]
+              const title = newRecTitle.trim() || `${targetField?.cropName || ''} ${newRecType === 'spraying' ? 'İlaçlama' : 'Gübreleme'} Uygulaması`
+
+              const newRecord = {
+                id: `wr-${Date.now()}`,
+                fieldName: targetField?.name || 'Kuzey Parsel',
+                title,
+                type: newRecType,
+                productName: newRecProduct.trim(),
+                dosage: newRecDosage.trim() || (newRecType === 'spraying' ? '200 ml / da' : '15 kg / da'),
+                date: newRecDate || new Date().toISOString().slice(0, 10),
+                status: newRecStatus,
+                phiDays: newRecType === 'spraying' ? (parseInt(newRecPhi, 10) || 0) : 0,
+                notes: newRecNotes.trim() || undefined,
+              }
+
+              setWebRecords((prev) => [newRecord, ...prev])
+              setNewRecTitle('')
+              setNewRecProduct('')
+              setNewRecDosage('')
+              setNewRecNotes('')
+              setShowAddWebRecordModal(false)
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                {newRecType === 'spraying' ? (
+                  <Shield size={20} className="text-blue-600" />
+                ) : (
+                  <Droplets size={20} className="text-emerald-600" />
+                )}
+                Yeni {newRecType === 'spraying' ? 'Zirai İlaçlama' : 'Gübreleme'} Kaydı Ekle
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAddWebRecordModal(false)}
+                className="size-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-900"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Type Selector Toggle */}
+            <div className="flex rounded-xl bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewRecType('spraying')
+                  setNewRecPhi('7')
+                }}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  newRecType === 'spraying'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Shield size={14} />
+                <span>🧴 Zirai İlaçlama</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewRecType('fertilizing')
+                  setNewRecPhi('0')
+                }}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  newRecType === 'fertilizing'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Droplets size={14} />
+                <span>🧪 Gübreleme</span>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Uygulama / İşlem Başlığı</label>
+                <input
+                  type="text"
+                  placeholder={newRecType === 'spraying' ? 'Örn: Mildiyö Koruyucu İlaçlama, Kırmızı Örümcek' : 'Örn: Taban Gübreleme, Azot Desteği, Damla Sulama'}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600"
+                  value={newRecTitle}
+                  onChange={(e) => setNewRecTitle(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Uygulanan Tarla / Parsel *</label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600"
+                    value={newRecFieldId}
+                    onChange={(e) => setNewRecFieldId(e.target.value)}
+                  >
+                    {fields.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name} ({f.cropName || 'Genel'} - {f.areaDecares} da)
+                      </option>
+                    ))}
+                    {fields.length === 0 && <option value="f-1">Varsayılan Tarla</option>}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Uygulama Tarihi *</label>
+                  <input
+                    type="date"
+                    required
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600"
+                    value={newRecDate}
+                    onChange={(e) => setNewRecDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Kullanılan Ürün / Etken Madde *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={newRecType === 'spraying' ? 'Örn: Bakır Oksiklorür, Deltamethrin, Mancozeb' : 'Örn: Üre %46, 15-15-15, Potasyum Nitrat, DAP'}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600"
+                  value={newRecProduct}
+                  onChange={(e) => setNewRecProduct(e.target.value)}
+                />
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  <span className="text-[10px] text-slate-400 font-semibold self-center">Hızlı Seç:</span>
+                  {(newRecType === 'spraying'
+                    ? ['Bakır Oksiklorür', 'Deltamethrin', 'Mancozeb', 'Kükürt (Fungisit)', 'Abamectin']
+                    : ['Üre %46', 'Potasyum Nitrat', 'DAP 18-46', 'Kompoze 15-15-15', 'Demir Sülfat']
+                  ).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setNewRecProduct(p)}
+                      className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-purple-100 hover:text-purple-900 text-[10px] font-medium text-slate-600 transition-colors"
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Dozaj / Miktar</label>
+                  <input
+                    type="text"
+                    placeholder={newRecType === 'spraying' ? '250 ml / da' : '15 kg / da'}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600"
+                    value={newRecDosage}
+                    onChange={(e) => setNewRecDosage(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Durum</label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600"
+                    value={newRecStatus}
+                    onChange={(e) => setNewRecStatus(e.target.value as any)}
+                  >
+                    <option value="completed">✓ Uygulandı / Tamamlandı</option>
+                    <option value="pending">⏳ İleri Tarihe Planlandı</option>
+                  </select>
+                </div>
+              </div>
+
+              {newRecType === 'spraying' && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Hasat Öncesi Bekleme Süresi (PHI - Gün)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="90"
+                      placeholder="7"
+                      className="w-32 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600"
+                      value={newRecPhi}
+                      onChange={(e) => setNewRecPhi(e.target.value)}
+                    />
+                    <span className="text-[11px] text-slate-500">gün sonra hasat güvenli</span>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Uygulama Notları & Gözlemler</label>
+                <textarea
+                  rows={2}
+                  placeholder="Hava şartları, pülverizatör basıncı, yaprak altı ıslatma veya ek notlar..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600 resize-none"
+                  value={newRecNotes}
+                  onChange={(e) => setNewRecNotes(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowAddWebRecordModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700"
+              >
+                İptal
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1"
+              >
+                ✓ Kaydı Oluştur & Listeye Ekle
               </button>
             </div>
           </form>
