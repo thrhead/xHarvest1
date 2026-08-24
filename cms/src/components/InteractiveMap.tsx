@@ -58,6 +58,7 @@ export default function InteractiveMap({
   const [currentPoints, setCurrentPoints] = useState<[number, number][]>([])
   const [hoverPoint, setHoverPoint] = useState<[number, number] | null>(null)
   const [fieldName, setFieldName] = useState('')
+  const [drawingCrop, setDrawingCrop] = useState<string>('')
   const [cropFilter, setCropFilter] = useState<string>('all')
   const [mapLoaded, setMapLoaded] = useState(false)
   const [showQuickModal, setShowQuickModal] = useState(false)
