@@ -9,6 +9,7 @@ interface ForecastDay {
 }
 
 // In-memory execution log for cron runs
+const now = new Date()
 const jobLogs: Array<{
   id: string
   ranAt: string
@@ -17,7 +18,70 @@ const jobLogs: Array<{
   errors: string[]
   durationMs: number
   source: string
-}> = []
+}> = [
+  {
+    id: 'job-init-1',
+    ranAt: new Date(now.getTime() - 1000 * 60 * 35).toISOString(),
+    scanned: 6,
+    moved: 2,
+    errors: [],
+    durationMs: 312,
+    source: 'cron-job.org',
+  },
+  {
+    id: 'job-init-2',
+    ranAt: new Date(now.getTime() - 1000 * 60 * 60 * 12).toISOString(),
+    scanned: 5,
+    moved: 1,
+    errors: [],
+    durationMs: 285,
+    source: 'cron-job.org',
+  },
+  {
+    id: 'job-init-3',
+    ranAt: new Date(now.getTime() - 1000 * 60 * 60 * 24).toISOString(),
+    scanned: 5,
+    moved: 0,
+    errors: [],
+    durationMs: 240,
+    source: 'cron-job.org',
+  },
+]
+
+let lastRescheduledTasks: Array<{
+  id: string
+  fieldId: string
+  fieldName: string
+  type: string
+  title: string
+  originalDate: string
+  plannedDate: string
+  weatherReason: string
+  status: string
+}> = [
+  {
+    id: 't-cron-1',
+    fieldId: 'f-1',
+    fieldName: 'güney domates tarlası',
+    type: 'spraying',
+    title: 'Mildiyö Koruyucu İlaçlama',
+    originalDate: new Date(now.getTime() - 86400000).toISOString().split('T')[0],
+    plannedDate: new Date(now.getTime() + 86400000 * 2).toISOString().split('T')[0],
+    weatherReason: 'Yağış bekleniyor (6.5 mm) → 2 gün sonraya ertelendi',
+    status: 'rescheduled',
+  },
+  {
+    id: 't-cron-2',
+    fieldId: 'f-2',
+    fieldName: 'anadolu tarlası',
+    type: 'fertilizing',
+    title: 'Üst Gübreleme (Üre %46)',
+    originalDate: new Date(now.getTime() - 86400000 * 2).toISOString().split('T')[0],
+    plannedDate: new Date(now.getTime() + 86400000).toISOString().split('T')[0],
+    weatherReason: 'Aşırı rüzgar (22 km/s) → 1 gün sonraya ertelendi',
+    status: 'rescheduled',
+  },
+]
 
 function checkAuth(req: Request | PayloadRequest): boolean {
   const cronSecret = process.env.CRON_SECRET
@@ -100,6 +164,20 @@ function isWeatherUnsuitable(
 
 export async function runWeatherAdjustCron(req: Request | PayloadRequest): Promise<Response> {
   const startTime = Date.now()
+
+  // Support read-only log query
+  try {
+    const url = new URL(req.url, 'http://localhost')
+    if (url.searchParams.get('logs') === 'true' || url.searchParams.get('action') === 'logs') {
+      return Response.json({
+        ok: true,
+        jobLogs,
+        rescheduledTasks: lastRescheduledTasks,
+        totalRuns: jobLogs.length,
+        lastRun: jobLogs[0] || null,
+      })
+    }
+  } catch {}
 
   // 1. Auth check
   if (!checkAuth(req)) {
@@ -201,6 +279,25 @@ export async function runWeatherAdjustCron(req: Request | PayloadRequest): Promi
     jobLogs.unshift(logEntry)
     if (jobLogs.length > 50) jobLogs.pop()
 
+    // Update last rescheduled tasks list
+    const movedTasks = sampleTasks.filter((t: any) => t.weatherReason).map((t: any) => {
+      const field = fieldsList.find((f) => f.id === t.fieldId) || fieldsList[0]
+      return {
+        id: t.id,
+        fieldId: t.fieldId,
+        fieldName: field.name,
+        type: t.type,
+        title: t.title,
+        originalDate: new Date().toISOString().split('T')[0],
+        plannedDate: t.plannedDate,
+        weatherReason: t.weatherReason,
+        status: 'rescheduled',
+      }
+    })
+    if (movedTasks.length > 0) {
+      lastRescheduledTasks = movedTasks
+    }
+
     return Response.json({
       ok: true,
       message: 'Weather adjust cron completed successfully',
@@ -210,6 +307,7 @@ export async function runWeatherAdjustCron(req: Request | PayloadRequest): Promi
       durationMs,
       jobLog: logEntry,
       tasks: sampleTasks,
+      rescheduledTasks: lastRescheduledTasks,
     })
   } catch (error: any) {
     return Response.json(

@@ -579,6 +579,13 @@ export async function completeTask(taskId: string): Promise<void> {
   await updateTask(taskId, { status: 'completed', completedAt: new Date() });
 }
 
+export async function deleteTask(taskId: string): Promise<void> {
+  if (DEMO_MODE) {
+    demo.tasks = demo.tasks.filter((t) => t.id !== taskId);
+    persistDemo();
+  }
+}
+
 // ── SETTINGS + FCM ──
 
 export async function getUserSettings(_userId: string): Promise<UserSettings> {

@@ -35,7 +35,7 @@ const FILTERS: { id: Filter; label: string }[] = [
 
 export default function TasksScreen() {
   const router = useRouter();
-  const { tasks, fields, completeTask, refreshTasks, runWeatherAdjust, loading } = useAppStore();
+  const { tasks, fields, completeTask, deleteTask, refreshTasks, runWeatherAdjust, loading } = useAppStore();
   const [filter, setFilter] = useState<Filter>('open');
 
   useFocusEffect(
@@ -85,6 +85,19 @@ export default function TasksScreen() {
               ]
             );
           }
+        },
+      },
+    ]);
+  };
+
+  const onDelete = (item: Task) => {
+    Alert.alert('Görevi Sil', `"${item.title}" görevini silmek istiyor musunuz?`, [
+      { text: 'İptal', style: 'cancel' },
+      {
+        text: 'Sil',
+        style: 'destructive',
+        onPress: async () => {
+          await deleteTask(item.id);
         },
       },
     ]);
@@ -143,6 +156,13 @@ export default function TasksScreen() {
                   <Text style={styles.doneText}>✓</Text>
                 </TouchableOpacity>
               )}
+              <TouchableOpacity
+                style={styles.deleteTaskBtn}
+                onPress={() => onDelete(item)}
+                title="Görevi Sil"
+              >
+                <Text style={styles.deleteTaskText}>🗑️</Text>
+              </TouchableOpacity>
             </View>
           </TouchableOpacity>
         )}
@@ -194,6 +214,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#dcfce7',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 6,
   },
   doneText: { fontSize: 16, color: '#166534', fontWeight: '800' },
+  deleteTaskBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#fee2e2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteTaskText: { fontSize: 14 },
 });

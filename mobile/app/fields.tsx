@@ -1,18 +1,31 @@
 import { useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, Alert } from 'react-native';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useAppStore } from '../src/store/appStore';
 import { webRefreshControl } from '../src/components/SafeRefreshControl';
 
 export default function FieldsScreen() {
   const router = useRouter();
-  const { fields, refreshFields, loading } = useAppStore();
+  const { fields, refreshFields, deleteField, loading } = useAppStore();
 
   useFocusEffect(
     useCallback(() => {
       refreshFields();
     }, [])
   );
+
+  const handleDelete = (id: string, name: string) => {
+    Alert.alert('Tarlayı Sil', `"${name}" tarlasını silmek istediğinize emin misiniz?`, [
+      { text: 'İptal', style: 'cancel' },
+      {
+        text: 'Sil',
+        style: 'destructive',
+        onPress: async () => {
+          await deleteField(id);
+        },
+      },
+    ]);
+  };
 
   const listProps =
     Platform.OS === 'web'
@@ -49,12 +62,21 @@ export default function FieldsScreen() {
                 {(item as any).location.lat?.toFixed?.(4)}, {(item as any).location.lng?.toFixed?.(4)}
               </Text>
             ) : null}
-            <TouchableOpacity
-              style={styles.weatherBtn}
-              onPress={() => router.push(`/weather?fieldId=${item.id}`)}
-            >
-              <Text style={styles.weatherBtnText}>🌤 Hava özeti</Text>
-            </TouchableOpacity>
+            <View style={styles.cardActions}>
+              <TouchableOpacity
+                style={styles.weatherBtn}
+                onPress={() => router.push(`/weather?fieldId=${item.id}`)}
+              >
+                <Text style={styles.weatherBtnText}>🌤 Hava özeti</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteFieldBtn}
+                onPress={() => handleDelete(item.id, item.name)}
+                title="Tarlayı Sil"
+              >
+                <Text style={styles.deleteFieldText}>🗑️ Sil</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
         ListFooterComponent={
@@ -112,12 +134,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   addText: { color: '#047857', fontWeight: '800', fontSize: 13 },
-  weatherBtn: {
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginTop: 10,
+  },
+  weatherBtn: {
+    flex: 1,
     paddingVertical: 8,
     alignItems: 'center',
     backgroundColor: '#e0f2fe',
     borderRadius: 10,
   },
   weatherBtnText: { color: '#0369a1', fontWeight: '800', fontSize: 12 },
+  deleteFieldBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+    backgroundColor: '#fee2e2',
+    borderRadius: 10,
+  },
+  deleteFieldText: { color: '#dc2626', fontWeight: '800', fontSize: 12 },
 });

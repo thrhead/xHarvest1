@@ -17,7 +17,7 @@ import { TaskStatus } from '../src/types';
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { tasks, fields, updateTask } = useAppStore();
+  const { tasks, fields, updateTask, deleteTask } = useAppStore();
   const task = useMemo(() => tasks.find((t) => t.id === id), [tasks, id]);
 
   const [currentStatus, setCurrentStatus] = useState<TaskStatus>(task?.status ?? 'pending');
@@ -68,6 +68,27 @@ export default function TaskDetailScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDelete = () => {
+    Alert.alert('Görevi Sil', `"${task.title}" görevini silmek istediğinize emin misiniz?`, [
+      { text: 'İptal', style: 'cancel' },
+      {
+        text: 'Sil',
+        style: 'destructive',
+        onPress: async () => {
+          setSaving(true);
+          try {
+            await deleteTask(task.id);
+            router.back();
+          } catch {
+            Alert.alert('Hata', 'Görev silinemedi');
+          } finally {
+            setSaving(false);
+          }
+        },
+      },
+    ]);
   };
 
   return (
@@ -183,6 +204,16 @@ export default function TaskDetailScreen() {
         activeOpacity={0.8}
       >
         <Text style={s.saveBtnText}>{saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'}</Text>
+      </TouchableOpacity>
+
+      {/* Delete Button */}
+      <TouchableOpacity
+        style={s.deleteBtn}
+        onPress={handleDelete}
+        disabled={saving}
+        activeOpacity={0.8}
+      >
+        <Text style={s.deleteBtnText}>🗑️ Bu Görevi Sil</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -307,5 +338,15 @@ const s = StyleSheet.create({
     marginTop: 12,
   },
   saveBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 13 },
+  deleteBtn: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  deleteBtnText: { color: '#dc2626', fontWeight: '800', fontSize: 13 },
 });
 
