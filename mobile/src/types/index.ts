@@ -34,6 +34,7 @@ export interface Field {
   userId: string;
   name: string;
   type: FieldType;
+  cropName?: string;
   location: GeoPoint;
   polygon?: GeoPoint[];
   areaHectare: number;

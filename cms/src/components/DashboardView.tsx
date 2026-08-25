@@ -196,6 +196,7 @@ export default function DashboardView() {
   const [showAddWebFieldModal, setShowAddWebFieldModal] = useState(false)
   const [newFieldName, setNewFieldName] = useState('')
   const [newFieldCrop, setNewFieldCrop] = useState('Domates')
+  const [newFieldType, setNewFieldType] = useState('field')
   const [newFieldPlantDate, setNewFieldPlantDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [newFieldArea, setNewFieldArea] = useState('25')
   const [newFieldRegion, setNewFieldRegion] = useState('ankara')
@@ -227,7 +228,7 @@ export default function DashboardView() {
     setCronRunning(true)
     setCronStatusMsg('Hava durumu verileri taranıyor ve görevler analiz ediliyor...')
     try {
-      const res = await fetch('/api/cron/weather-adjust', { method: 'POST' })
+      const res = await fetch('/api/cron/weather-adjust?test=true', { method: 'POST' })
       const data = await res.json()
       if (data.ok) {
         setCronStatusMsg(
@@ -2075,6 +2076,7 @@ export default function DashboardView() {
                 id: `f-${Date.now()}`,
                 name: newFieldName.trim(),
                 cropName: newFieldCrop,
+                type: newFieldType as any,
                 areaDecares: parseFloat(newFieldArea) || 20,
                 coordinates: coords,
                 color: '#2E7D32',
@@ -2131,6 +2133,17 @@ export default function DashboardView() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Tarla Tipi</label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600"
+                    value={newFieldType}
+                    onChange={(e) => setNewFieldType(e.target.value)}
+                  >
+                    <option value="field">Açık Tarla</option>
+                    <option value="greenhouse">Sera</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">Ekili Ürün</label>
                   <select

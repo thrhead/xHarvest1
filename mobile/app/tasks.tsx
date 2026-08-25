@@ -90,6 +90,15 @@ export default function TasksScreen() {
     ]);
   };
 
+  const handleCron = async () => {
+    try {
+      const shifted = await runWeatherAdjust();
+      Alert.alert('Hava Durumu Kontrolü', `${shifted} görev ertelendi.`);
+    } catch (e: any) {
+      Alert.alert('Hata', e?.message || 'Kontrol yapılamadı.');
+    }
+  };
+
   const onDelete = (item: Task) => {
     Alert.alert('Görevi Sil', `"${item.title}" görevini silmek istiyor musunuz?`, [
       { text: 'İptal', style: 'cancel' },
@@ -119,15 +128,20 @@ export default function TasksScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.filters}>
-        {FILTERS.map((f) => (
-          <TouchableOpacity
-            key={f.id}
-            style={[styles.chip, filter === f.id && styles.chipOn]}
-            onPress={() => setFilter(f.id)}
-          >
-            <Text style={[styles.chipT, filter === f.id && styles.chipTOn]}>{f.label}</Text>
-          </TouchableOpacity>
-        ))}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', flex: 1 }}>
+          {FILTERS.map((f) => (
+            <TouchableOpacity
+              key={f.id}
+              style={[styles.chip, filter === f.id && styles.chipOn]}
+              onPress={() => setFilter(f.id)}
+            >
+              <Text style={[styles.chipT, filter === f.id && styles.chipTOn]}>{f.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <TouchableOpacity style={styles.cronBtn} onPress={handleCron}>
+          <Text style={styles.cronText}>⚡ Test Çalıştır</Text>
+        </TouchableOpacity>
       </View>
       <FlatList
         data={filtered}
@@ -226,4 +240,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   deleteTaskText: { fontSize: 14 },
+  cronBtn: {
+    backgroundColor: '#047857',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  cronText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
 });

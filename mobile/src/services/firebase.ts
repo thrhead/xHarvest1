@@ -462,7 +462,8 @@ export async function createField(
             field: {
               id: newField.id,
               name: newField.name,
-              cropName: newField.type === 'greenhouse' ? 'Domates (Sera)' : 'Genel Tarla',
+              cropName: newField.cropName || (newField.type === 'greenhouse' ? 'Domates (Sera)' : 'Genel Tarla'),
+              type: newField.type,
               areaDecares: Math.round(newField.areaHectare * 10),
               coordinates: coords,
             },

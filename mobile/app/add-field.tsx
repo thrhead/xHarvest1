@@ -21,6 +21,7 @@ export default function AddFieldScreen() {
   const router = useRouter();
   const addField = useAppStore((s) => s.addField);
   const [name, setName] = useState('');
+  const [cropName, setCropName] = useState('Domates');
   const [area, setArea] = useState('');
   const [type, setType] = useState<'field' | 'greenhouse'>('field');
   const [lat, setLat] = useState('39.92');
@@ -82,6 +83,7 @@ export default function AddFieldScreen() {
       await addField({
         userId: uid,
         name: name.trim(),
+        cropName: cropName.trim(),
         type,
         location: {
           lat: parseFloat(lat) || 39.92,
@@ -113,6 +115,14 @@ export default function AddFieldScreen() {
         value={name}
         onChangeText={setName}
         placeholder="Örn: Kuzey Tarla"
+      />
+
+      <Text style={styles.label}>Ekili / Aktif Ürün</Text>
+      <TextInput
+        style={styles.input}
+        value={cropName}
+        onChangeText={setCropName}
+        placeholder="Örn: Domates"
       />
 
       <Text style={styles.label}>Alan (hektar)</Text>
