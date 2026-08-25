@@ -41,6 +41,8 @@ import {
   History,
   CalendarClock,
   Zap,
+  Pencil,
+  FileText,
 } from 'lucide-react'
 import { FieldPolygon } from '../types/field'
 import MobileSimulator from './MobileSimulator'
@@ -103,7 +105,30 @@ export default function DashboardView() {
   const [newRecDate, setNewRecDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [newRecPhi, setNewRecPhi] = useState('7')
   const [newRecNotes, setNewRecNotes] = useState('')
-  const [newRecStatus, setNewRecStatus] = useState<'completed' | 'pending'>('completed')
+  const [newRecStatus, setNewRecStatus] = useState<'completed' | 'pending' | 'postponed'>('completed')
+  const [editingRecord, setEditingRecord] = useState<any | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editFieldName, setEditFieldName] = useState('')
+  const [editType, setEditType] = useState<'spraying' | 'fertilizing'>('spraying')
+  const [editProduct, setEditProduct] = useState('')
+  const [editDosage, setEditDosage] = useState('')
+  const [editDate, setEditDate] = useState('')
+  const [editStatus, setEditStatus] = useState<'completed' | 'pending' | 'postponed'>('completed')
+  const [editPhi, setEditPhi] = useState('0')
+  const [editNotes, setEditNotes] = useState('')
+
+  const openEditRecordModal = (r: any) => {
+    setEditingRecord(r)
+    setEditTitle(r.title || '')
+    setEditFieldName(r.fieldName || fields[0]?.name || 'Tarla')
+    setEditType(r.type || 'spraying')
+    setEditProduct(r.productName || '')
+    setEditDosage(r.dosage || '')
+    setEditDate(r.date || new Date().toISOString().slice(0, 10))
+    setEditStatus(r.status || 'completed')
+    setEditPhi(String(r.phiDays ?? (r.type === 'spraying' ? 7 : 0)))
+    setEditNotes(r.notes || '')
+  }
   const [inviteCopied, setInviteCopied] = useState(false)
   const [aiSelectedDemo, setAiSelectedDemo] = useState<string | null>(null)
   const [stockList, setStockList] = useState([
@@ -867,87 +892,113 @@ export default function DashboardView() {
                       </button>
                     </div>
                   ) : (
-                    filteredRecords.map((r) => (
-                      <div
-                        key={r.id}
-                        className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-purple-300 transition-all"
-                      >
-                        <div className="flex items-start gap-3">
+                    filteredRecords.map((r) => {
+                      const getStatusColor = (st: string) => {
+                        if (st === 'completed') return 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                        if (st === 'postponed' || st === 'ertelendi' || st === 'rescheduled') return 'bg-amber-100 text-amber-800 border-amber-200'
+                        return 'bg-blue-100 text-blue-800 border-blue-200'
+                      }
+
+                      return (
+                        <div
+                          key={r.id}
+                          className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-purple-300 transition-all"
+                        >
                           <div
-                            className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${
-                              r.type === 'spraying'
-                                ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
-                                : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                            }`}
+                            className="flex items-start gap-3 cursor-pointer flex-1"
+                            onClick={() => openEditRecordModal(r)}
                           >
-                            {r.type === 'spraying' ? <Shield size={18} /> : <Droplets size={18} />}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="text-xs font-bold text-slate-900">{r.title}</h4>
-                              <span
-                                className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md ${
-                                  r.type === 'spraying'
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : 'bg-emerald-100 text-emerald-800'
-                                }`}
-                              >
-                                {r.type === 'spraying' ? 'İLAÇLAMA' : 'GÜBRELEME'}
-                              </span>
+                            <div
+                              className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${
+                                r.type === 'spraying'
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
+                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                              }`}
+                            >
+                              {r.type === 'spraying' ? <Shield size={18} /> : <Droplets size={18} />}
                             </div>
-                            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                              📍 {r.fieldName} · <strong>{r.productName}</strong> ({r.dosage})
-                            </p>
-                            {r.notes && <p className="text-[10px] text-slate-400 mt-1 italic">{r.notes}</p>}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="text-xs font-bold text-slate-900 hover:text-purple-700 transition-colors">
+                                  {r.title}
+                                </h4>
+                                <span
+                                  className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md ${
+                                    r.type === 'spraying'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-emerald-100 text-emerald-800'
+                                  }`}
+                                >
+                                  {r.type === 'spraying' ? 'İLAÇLAMA' : 'GÜBRELEME'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                                📍 {r.fieldName} · <strong>{r.productName}</strong> ({r.dosage})
+                              </p>
+                              {r.notes ? (
+                                <p className="text-[10px] text-slate-600 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 mt-1.5 font-medium flex items-center gap-1.5">
+                                  <FileText size={12} className="text-purple-600 shrink-0" />
+                                  <span>{r.notes}</span>
+                                </p>
+                              ) : (
+                                <p className="text-[10px] text-purple-600 font-semibold mt-1 hover:underline flex items-center gap-1">
+                                  <Pencil size={10} />
+                                  <span>+ Not & Detay Ekle</span>
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                            <div className="text-right">
+                              <span className="text-[11px] font-bold text-slate-700 block">{r.date}</span>
+                              {r.phiDays > 0 ? (
+                                <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded">
+                                  PHI: {r.phiDays} Gün
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400">Bekleme Yok</span>
+                              )}
+                            </div>
+
+                            <select
+                              value={r.status || 'completed'}
+                              onChange={(e) => {
+                                const newSt = e.target.value as 'completed' | 'pending' | 'postponed'
+                                setWebRecords((prev) =>
+                                  prev.map((item) => (item.id === r.id ? { ...item, status: newSt } : item)),
+                                )
+                              }}
+                              className={`text-[10px] font-bold px-2 py-1 rounded-lg transition-all border outline-none cursor-pointer ${getStatusColor(r.status)}`}
+                            >
+                              <option value="completed">✓ Yapıldı</option>
+                              <option value="pending">⏳ Planlandı</option>
+                              <option value="postponed">⏸ Ertelendi</option>
+                            </select>
+
+                            <button
+                              type="button"
+                              title="Kaydı & Notları Düzenle"
+                              onClick={() => openEditRecordModal(r)}
+                              className="size-7 rounded-lg bg-slate-50 hover:bg-purple-50 text-slate-500 hover:text-purple-700 flex items-center justify-center transition-all border border-slate-200/60"
+                            >
+                              <Pencil size={12} />
+                            </button>
+
+                            <button
+                              type="button"
+                              title="Kaydı Sil"
+                              onClick={() => {
+                                setWebRecords((prev) => prev.filter((item) => item.id !== r.id))
+                              }}
+                              className="size-7 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all border border-slate-200/60"
+                            >
+                              <Trash2 size={13} />
+                            </button>
                           </div>
                         </div>
-
-                        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                          <div className="text-right">
-                            <span className="text-[11px] font-bold text-slate-700 block">{r.date}</span>
-                            {r.phiDays > 0 ? (
-                              <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded">
-                                PHI: {r.phiDays} Gün
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-slate-400">Bekleme Yok</span>
-                            )}
-                          </div>
-
-                          <button
-                            type="button"
-                            title="Durumu Değiştir"
-                            onClick={() => {
-                              setWebRecords((prev) =>
-                                prev.map((item) =>
-                                  item.id === r.id
-                                    ? { ...item, status: item.status === 'completed' ? 'pending' : 'completed' }
-                                    : item,
-                                ),
-                              )
-                            }}
-                            className={`text-[10px] font-bold px-2 py-1 rounded-lg transition-all cursor-pointer ${
-                              r.status === 'completed'
-                                ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800'
-                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                            }`}
-                          >
-                            {r.status === 'completed' ? '✓ Yapıldı' : '⏳ Planlandı'}
-                          </button>
-
-                          <button
-                            type="button"
-                            title="Kaydı Sil"
-                            onClick={() => {
-                              setWebRecords((prev) => prev.filter((item) => item.id !== r.id))
-                            }}
-                            className="size-7 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
-                    ))
+                      )
+                    })
                   )}
                 </div>
               </div>
@@ -2411,6 +2462,7 @@ export default function DashboardView() {
                   >
                     <option value="completed">✓ Uygulandı / Tamamlandı</option>
                     <option value="pending">⏳ İleri Tarihe Planlandı</option>
+                    <option value="postponed">⏸️ Ertelendi</option>
                   </select>
                 </div>
               </div>
@@ -2461,6 +2513,220 @@ export default function DashboardView() {
               >
                 ✓ Kaydı Oluştur & Listeye Ekle
               </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Edit Record Modal */}
+      {editingRecord && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            className="bg-white rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!editProduct.trim()) return
+
+              setWebRecords((prev) =>
+                prev.map((item) =>
+                  item.id === editingRecord.id
+                    ? {
+                        ...item,
+                        title: editTitle.trim() || item.title,
+                        fieldName: editFieldName,
+                        type: editType,
+                        productName: editProduct.trim(),
+                        dosage: editDosage.trim() || item.dosage,
+                        date: editDate || item.date,
+                        status: editStatus,
+                        phiDays: editType === 'spraying' ? (parseInt(editPhi, 10) || 0) : 0,
+                        notes: editNotes.trim() || undefined,
+                      }
+                    : item,
+                ),
+              )
+              setEditingRecord(null)
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                <Pencil size={18} className="text-purple-600" />
+                Uygulama Kaydını Düzenle & Notlar
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingRecord(null)}
+                className="size-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-900"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Type Selector Toggle */}
+            <div className="flex rounded-xl bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setEditType('spraying')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  editType === 'spraying'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Shield size={14} />
+                <span>🧴 Zirai İlaçlama</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditType('fertilizing')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  editType === 'fertilizing'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Droplets size={14} />
+                <span>🧪 Gübreleme</span>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Uygulama / İşlem Başlığı
+                </label>
+                <input
+                  type="text"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Uygulanan Tarla / Parsel
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600"
+                    value={editFieldName}
+                    onChange={(e) => setEditFieldName(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Uygulama Tarihi *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Kullanılan Ürün / Etken Madde *
+                </label>
+                <input
+                  type="text"
+                  required
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600"
+                  value={editProduct}
+                  onChange={(e) => setEditProduct(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Dozaj / Miktar</label>
+                  <input
+                    type="text"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600"
+                    value={editDosage}
+                    onChange={(e) => setEditDosage(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Durum *</label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600 font-bold"
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as any)}
+                  >
+                    <option value="completed">✓ Yapıldı / Uygulandı</option>
+                    <option value="pending">⏳ Planlandı</option>
+                    <option value="postponed">⏸ Ertelendi</option>
+                  </select>
+                </div>
+              </div>
+
+              {editType === 'spraying' && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Son İlaçlama ile Hasat Arası Süre (PHI - Gün)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600"
+                    value={editPhi}
+                    onChange={(e) => setEditPhi(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Uygulama Notları & Detaylı Açıklama</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Saha gözlemleri, hava durumu vb.</span>
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Örn: Yaprak altları dahil pülverizasyon yapıldı. Rüzgar hızı düşüktü (4 km/h), hava sıcaklığı 24°C civarındaydı."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-purple-600 resize-none"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between gap-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setWebRecords((prev) => prev.filter((item) => item.id !== editingRecord.id))
+                  setEditingRecord(null)
+                }}
+                className="px-3 py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+              >
+                <Trash2 size={14} />
+                <span>Kaydı Sil</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingRecord(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
+                >
+                  <Check size={14} />
+                  <span>Güncelle & Kaydet</span>
+                </button>
+              </div>
             </div>
           </form>
         </div>
