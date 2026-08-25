@@ -36,6 +36,7 @@ import {
   Info,
   TrendingUp,
   FileSpreadsheet,
+  Trash2,
 } from 'lucide-react'
 import { FieldPolygon } from '../types/field'
 import MobileSimulator from './MobileSimulator'
