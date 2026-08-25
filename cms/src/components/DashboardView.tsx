@@ -155,6 +155,7 @@ export default function DashboardView() {
   const [showAddWebFieldModal, setShowAddWebFieldModal] = useState(false)
   const [newFieldName, setNewFieldName] = useState('')
   const [newFieldCrop, setNewFieldCrop] = useState('Domates')
+  const [newFieldPlantDate, setNewFieldPlantDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [newFieldArea, setNewFieldArea] = useState('25')
   const [newFieldRegion, setNewFieldRegion] = useState('ankara')
   const [newPlantFieldId, setNewPlantFieldId] = useState('f-1')
@@ -1694,14 +1695,45 @@ export default function DashboardView() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">Ekim / Dikim Tarihi</label>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">Ekim / Dikim Tarihi (Takvimden Seçim)</label>
                 <input
                   type="date"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-semibold outline-none focus:ring-2 focus:ring-emerald-600"
                   value={newPlantDate}
                   onChange={(e) => setNewPlantDate(e.target.value)}
                   required
                 />
+                {/* Hızlı Seçim Butonları */}
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {[
+                    { label: 'Bugün', offset: 0 },
+                    { label: 'Dün', offset: 1 },
+                    { label: '1 Hafta Önce', offset: 7 },
+                    { label: '1 Ay Önce', offset: 30 },
+                    { label: 'Sezon Başı (15 Mart)', custom: `${new Date().getFullYear()}-03-15` },
+                  ].map((preset) => {
+                    const targetDateStr = preset.custom || (() => {
+                      const d = new Date()
+                      d.setDate(d.getDate() - (preset.offset || 0))
+                      return d.toISOString().slice(0, 10)
+                    })()
+                    const isActive = newPlantDate === targetDateStr
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setNewPlantDate(targetDateStr)}
+                        className={`text-[10px] font-bold px-2 py-1 rounded-lg transition ${
+                          isActive
+                            ? 'bg-emerald-700 text-white'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             </div>
 
@@ -1756,9 +1788,27 @@ export default function DashboardView() {
                 areaDecares: parseFloat(newFieldArea) || 20,
                 coordinates: coords,
                 color: '#2E7D32',
+                createdAt: newFieldPlantDate,
               }
 
               setFields((p) => [...p, newField])
+
+              // Otomatik Ekim Kaydı ekle
+              setPlantingRecords((p) => [
+                {
+                  id: `pr-${Date.now()}`,
+                  fieldId: newField.id,
+                  fieldName: newField.name,
+                  cropTemplateId: newFieldCrop.toLowerCase().includes('buğday') ? 'demo-bugday' : 'demo-domates',
+                  cropNameTr: newFieldCrop,
+                  plantingDate: newFieldPlantDate,
+                  status: 'planlandi',
+                  areaDa: newField.areaDecares,
+                  taskProgress: {},
+                },
+                ...p,
+              ])
+
               setNewFieldName('')
               setShowAddWebFieldModal(false)
             }}
@@ -1818,6 +1868,19 @@ export default function DashboardView() {
                 </div>
 
                 <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Ekim Tarihi</label>
+                  <input
+                    type="date"
+                    required
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600 font-semibold"
+                    value={newFieldPlantDate}
+                    onChange={(e) => setNewFieldPlantDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">Alan (Dönüm / Da)</label>
                   <input
                     type="number"
@@ -1830,22 +1893,22 @@ export default function DashboardView() {
                     onChange={(e) => setNewFieldArea(e.target.value)}
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Bölge & Koordinat Konumu</label>
-                <select
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600"
-                  value={newFieldRegion}
-                  onChange={(e) => setNewFieldRegion(e.target.value as any)}
-                >
-                  <option value="ankara">📍 Ankara (İç Anadolu - Polatlı/Haymana)</option>
-                  <option value="cukurova">📍 Adana / Çukurova Tarım Havzası</option>
-                  <option value="konya">📍 Konya Ovası</option>
-                  <option value="izmir">📍 İzmir / Ege (Menderes Havzası)</option>
-                  <option value="antalya">📍 Antalya (Sera & Narenciye)</option>
-                  <option value="bursa">📍 Bursa / Marmara (İnegöl/Yenişehir)</option>
-                </select>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Bölge & Koordinat Konumu</label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600"
+                    value={newFieldRegion}
+                    onChange={(e) => setNewFieldRegion(e.target.value as any)}
+                  >
+                    <option value="ankara">📍 Ankara (İç Anadolu - Polatlı/Haymana)</option>
+                    <option value="cukurova">📍 Adana / Çukurova Tarım Havzası</option>
+                    <option value="konya">📍 Konya Ovası</option>
+                    <option value="izmir">📍 İzmir / Ege (Menderes Havzası)</option>
+                    <option value="antalya">📍 Antalya (Sera & Narenciye)</option>
+                    <option value="bursa">📍 Bursa / Marmara (İnegöl/Yenişehir)</option>
+                  </select>
+                </div>
               </div>
             </div>
 
