@@ -9,6 +9,7 @@ import { Users } from './collections/Users'
 import { Media } from './collections/Media'
 import { Crops } from './collections/Crops'
 import { Guides } from './collections/Guides'
+import { runWeatherAdjustCron } from './endpoints/weatherCron'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -46,6 +47,18 @@ export default buildConfig({
     dateFormat: 'dd.MM.yyyy HH:mm',
   },
   collections: [Users, Media, Crops, Guides],
+  endpoints: [
+    {
+      path: '/cron/weather-adjust',
+      method: 'get',
+      handler: async (req) => runWeatherAdjustCron(req),
+    },
+    {
+      path: '/cron/weather-adjust',
+      method: 'post',
+      handler: async (req) => runWeatherAdjustCron(req),
+    },
+  ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || 'ekim-hasat-payload-secret-key-32chars-min-safe!!',
   typescript: {

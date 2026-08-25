@@ -21,6 +21,16 @@ export default function FieldsScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.topBar}>
+        <Text style={styles.title}>Kayıtlı Tarlalar ({fields.length})</Text>
+        <TouchableOpacity
+          onPress={() => refreshFields()}
+          style={styles.syncBtn}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.syncBtnText}>🔄 Web ile Eşitle</Text>
+        </TouchableOpacity>
+      </View>
       <FlatList
         data={fields}
         keyExtractor={(f) => f.id}
@@ -62,6 +72,24 @@ export default function FieldsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  title: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
+  syncBtn: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  syncBtnText: { color: '#334155', fontWeight: '700', fontSize: 11 },
   card: {
     backgroundColor: '#ffffff',
     padding: 16,

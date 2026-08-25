@@ -122,8 +122,45 @@ export default function DashboardView() {
   ])
 
   const [fields, setFields] = useState<FieldPolygon[]>([
-    { id: 'f-1', name: 'Örnek Domates Tarlası', cropName: 'Domates', areaDecares: 24.5, color: '#10b981', coordinates: [[39.925, 32.85], [39.928, 32.855], [39.923, 32.86]] },
-    { id: 'f-2', name: 'Güney Buğday Parseli', cropName: 'Buğday', areaDecares: 85.0, color: '#3b82f6', coordinates: [[39.91, 32.83], [39.915, 32.838], [39.905, 32.842]] },
+    {
+      id: 'f-1',
+      name: 'güney domates tarlası',
+      cropName: 'Salatalık (Hıyar)',
+      areaDecares: 191407.3,
+      color: '#06b6d4',
+      coordinates: [
+        [39.88, 32.80],
+        [39.89, 32.82],
+        [39.87, 32.84],
+      ],
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'f-2',
+      name: 'anadolu tarlası',
+      cropName: 'Domates',
+      areaDecares: 20.0,
+      color: '#ef4444',
+      coordinates: [
+        [39.925, 32.85],
+        [39.928, 32.855],
+        [39.923, 32.86],
+      ],
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'f-3',
+      name: 'salatalık tarlası',
+      cropName: 'Salatalık (Hıyar)',
+      areaDecares: 415084.9,
+      color: '#06b6d4',
+      coordinates: [
+        [39.95, 32.78],
+        [39.96, 32.81],
+        [39.94, 32.83],
+      ],
+      createdAt: new Date().toISOString(),
+    },
   ])
 
   const [plantingRecords, setPlantingRecords] = useState<PlantingRecord[]>([
@@ -175,36 +212,18 @@ export default function DashboardView() {
           if (Array.isArray(parsed) && parsed.length > 0) initialList = parsed
         }
 
-        // Mobil hafızasındaki tarlaları kontrol et ve web listesiyle birleştir
-        const mobStr = localStorage.getItem('eh_mobile_demo_state_v2') || localStorage.getItem('eh_mobile_demo_state')
-        if (mobStr) {
-          const mobState = JSON.parse(mobStr)
-          if (mobState && Array.isArray(mobState.fields)) {
-            mobState.fields.forEach((mf: any) => {
-              if (!initialList.some((wf) => wf.id === mf.id)) {
-                const matchingCrop = mobState.crops?.find((c: any) => c.fieldId === mf.id)
-                const coords: [number, number][] = mf.polygon && mf.polygon.length >= 3
-                  ? mf.polygon.map((p: any) => [p.lat, p.lng])
-                  : [
-                      [mf.location?.lat || 39.92, mf.location?.lng || 32.85],
-                      [(mf.location?.lat || 39.92) + 0.004, (mf.location?.lng || 32.85) + 0.005],
-                      [(mf.location?.lat || 39.92) - 0.003, (mf.location?.lng || 32.85) + 0.006],
-                    ]
-                initialList.push({
-                  id: mf.id,
-                  name: mf.name,
-                  cropName: matchingCrop?.cropName || (mf.type === 'greenhouse' ? 'Domates (Sera)' : 'Genel Tarla'),
-                  areaDecares: Math.round((mf.areaHectare || 1) * 10),
-                  color: '#10b981',
-                  coordinates: coords,
-                  createdAt: mf.createdAt || new Date().toISOString(),
-                })
+        if (initialList.length > 0) {
+          setFields(initialList)
+        } else {
+          fetch('/api/fields')
+            .then((r) => r.json())
+            .then((d) => {
+              if (d.success && Array.isArray(d.fields) && d.fields.length > 0) {
+                setFields(d.fields)
               }
             })
-          }
+            .catch(() => {})
         }
-
-        if (initialList.length > 0) setFields(initialList)
 
         const savedRecs = localStorage.getItem('eh_web_records')
         if (savedRecs) {
@@ -254,6 +273,13 @@ export default function DashboardView() {
     if (mounted && typeof window !== 'undefined') {
       try {
         localStorage.setItem('eh_web_fields', JSON.stringify(fields))
+
+        // API'ye de kaydet
+        fetch('/api/fields', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields }),
+        }).catch(() => {})
 
         // Mobil hafızasını da anlık güncelle
         const mobStr = localStorage.getItem('eh_mobile_demo_state_v2') || localStorage.getItem('eh_mobile_demo_state')

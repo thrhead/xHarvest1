@@ -6,6 +6,12 @@
 - Planting Date selector functionality across web and mobile.
 
 ## Recent Architectural & Feature Fixes
+- **Dev Server & Build Recovery**: Restarted the development server and verified successful zero-error compilation across all Next.js App Router and Payload CMS route handlers.
+- **cron-job.org Weather Adjustment Route (`/api/cron/weather-adjust`)**:
+  - Implemented the secure endpoint handling both `GET` and `POST` methods from cron-job.org.
+  - Added secret verification supporting `Authorization: Bearer <CRON_SECRET>` and `X-Cron-Secret: <CRON_SECRET>`.
+  - Configured Open-Meteo 14-day forecast analysis per field, adjusting pending spraying/fertilizing tasks if rain (≥5 mm), wind (≥15 km/h), or temperature limits are breached.
+  - Implemented JobLog history and structured JSON summary response (`{ ok, scanned, moved, errors }`).
 - **Web <-> Mobile Field Synchronization**: Harmonized `syncWebFieldsIntoDemo` in `/mobile/src/services/firebase.ts` and `DashboardView.tsx` so fields created or updated in the Web dashboard are consistently mirrored into the mobile demo state and simulator.
 - **Click-to-Focus Map Interaction**:
   - In `MobileSimulator.tsx` (web simulator): Clicking on a field card in the live map view triggers `flyToBounds` on the Leaflet map instance, opens the field popup, and highlights the polygon.

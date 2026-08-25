@@ -33,7 +33,22 @@ const initialDemo = {
     {
       id: 'f-1',
       userId: 'demo-user-id',
-      name: 'Örnek Domates Tarlası',
+      name: 'güney domates tarlası',
+      type: 'field' as const,
+      location: { lat: 39.88, lng: 32.80 },
+      polygon: [
+        { lat: 39.88, lng: 32.80 },
+        { lat: 39.89, lng: 32.82 },
+        { lat: 39.87, lng: 32.84 },
+      ],
+      areaHectare: 191.4,
+      soilType: 'killi-tınlı',
+      createdAt: new Date(),
+    },
+    {
+      id: 'f-2',
+      userId: 'demo-user-id',
+      name: 'anadolu tarlası',
       type: 'field' as const,
       location: { lat: 39.925, lng: 32.85 },
       polygon: [
@@ -41,22 +56,22 @@ const initialDemo = {
         { lat: 39.928, lng: 32.855 },
         { lat: 39.923, lng: 32.86 },
       ],
-      areaHectare: 2.45,
+      areaHectare: 2.0,
       soilType: 'killi-tınlı',
       createdAt: new Date(),
     },
     {
-      id: 'f-2',
+      id: 'f-3',
       userId: 'demo-user-id',
-      name: 'Güney Buğday Parseli',
+      name: 'salatalık tarlası',
       type: 'field' as const,
-      location: { lat: 39.91, lng: 32.83 },
+      location: { lat: 39.95, lng: 32.78 },
       polygon: [
-        { lat: 39.91, lng: 32.83 },
-        { lat: 39.915, lng: 32.838 },
-        { lat: 39.905, lng: 32.842 },
+        { lat: 39.95, lng: 32.78 },
+        { lat: 39.96, lng: 32.81 },
+        { lat: 39.94, lng: 32.83 },
       ],
-      areaHectare: 8.5,
+      areaHectare: 415.0,
       soilType: 'killi-tınlı',
       createdAt: new Date(),
     },
@@ -67,21 +82,31 @@ const initialDemo = {
       id: 'c1',
       userId: 'demo-user-id',
       fieldId: 'f-1',
-      cropTemplateId: 'tomato',
-      cropName: 'Domates',
+      cropTemplateId: 'cucumber',
+      cropName: 'Salatalık (Hıyar)',
       plantingDate: plantC1,
       status: 'active' as const,
-      notes: 'Örnek Domates ekim kaydı',
+      notes: 'Güney domates tarlası ekim kaydı',
     },
     {
       id: 'c2',
       userId: 'demo-user-id',
       fieldId: 'f-2',
-      cropTemplateId: 'wheat',
-      cropName: 'Buğday',
+      cropTemplateId: 'tomato',
+      cropName: 'Domates',
       plantingDate: plantC2,
       status: 'active' as const,
-      notes: 'Güney Buğday ekim kaydı',
+      notes: 'Anadolu tarlası ekim kaydı',
+    },
+    {
+      id: 'c3',
+      userId: 'demo-user-id',
+      fieldId: 'f-3',
+      cropTemplateId: 'cucumber',
+      cropName: 'Salatalık (Hıyar)',
+      plantingDate: plantC1,
+      status: 'active' as const,
+      notes: 'Salatalık tarlası ekim kaydı',
     },
   ] as Crop[],
   tasks: [
@@ -360,6 +385,42 @@ export function getCurrentUid(): string | null {
 
 export async function getFields(userId: string): Promise<Field[]> {
   if (DEMO_MODE) {
+    if (typeof fetch !== 'undefined') {
+      try {
+        const res = await fetch('/api/fields');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.fields) && data.fields.length > 0) {
+            demo.fields = data.fields.map((wf: any) => {
+              const coords = wf.coordinates || [];
+              const loc =
+                coords.length > 0
+                  ? { lat: coords[0][0], lng: coords[0][1] }
+                  : { lat: 39.92, lng: 32.85 };
+              const poly =
+                coords.length >= 3
+                  ? coords.map((c: [number, number]) => ({ lat: c[0], lng: c[1] }))
+                  : undefined;
+              return {
+                id: wf.id,
+                userId: 'demo-user-id',
+                name: wf.name || 'Tarla',
+                type: (wf.cropName?.toLowerCase().includes('sera')
+                  ? 'greenhouse'
+                  : 'field') as FieldType,
+                location: loc,
+                polygon: poly,
+                areaHectare: (wf.areaDecares || 10) / 10,
+                soilType: 'killi-tınlı',
+                createdAt: new Date(wf.createdAt || Date.now()),
+              };
+            });
+            persistDemo();
+            return demo.fields;
+          }
+        }
+      } catch {}
+    }
     syncWebFieldsIntoDemo(demo);
     return demo.fields;
   }
@@ -371,8 +432,35 @@ export async function createField(
 ): Promise<string> {
   if (DEMO_MODE) {
     const id = genId('f');
-    demo.fields.push({ ...data, id, createdAt: new Date() });
+    const newField: Field = { ...data, id, createdAt: new Date() };
+    demo.fields.push(newField);
     persistDemo();
+
+    if (typeof fetch !== 'undefined') {
+      try {
+        const coords = newField.polygon && newField.polygon.length >= 3
+          ? newField.polygon.map((p) => [p.lat, p.lng])
+          : [
+              [newField.location.lat, newField.location.lng],
+              [newField.location.lat + 0.004, newField.location.lng + 0.005],
+              [newField.location.lat - 0.003, newField.location.lng + 0.006],
+            ];
+        await fetch('/api/fields', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            field: {
+              id: newField.id,
+              name: newField.name,
+              cropName: newField.type === 'greenhouse' ? 'Domates (Sera)' : 'Genel Tarla',
+              areaDecares: Math.round(newField.areaHectare * 10),
+              coordinates: coords,
+            },
+          }),
+        });
+      } catch {}
+    }
+
     return id;
   }
   throw new Error('Firebase aktif değil');
@@ -395,6 +483,11 @@ export async function deleteField(fieldId: string): Promise<void> {
   if (DEMO_MODE) {
     demo.fields = demo.fields.filter((f) => f.id !== fieldId);
     persistDemo();
+    if (typeof fetch !== 'undefined') {
+      try {
+        await fetch(`/api/fields?id=${fieldId}`, { method: 'DELETE' });
+      } catch {}
+    }
   }
 }
 

@@ -79,11 +79,20 @@ export default function MapScreen() {
             <Text style={styles.listTitle}>Tarlalar ({fields.length})</Text>
             <Text style={styles.listSubtitle}>Tarlaya dokununca haritada odaklanır</Text>
           </View>
-          <Link href="/add-field" asChild>
-            <TouchableOpacity style={styles.addButton}>
-              <Text style={styles.link}>+ Yeni Tarla</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity
+              onPress={() => refreshFields()}
+              style={styles.syncButton}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.syncText}>🔄 Eşitle</Text>
             </TouchableOpacity>
-          </Link>
+            <Link href="/add-field" asChild>
+              <TouchableOpacity style={styles.addButton}>
+                <Text style={styles.link}>+ Yeni Tarla</Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
         </View>
 
         <FlatList
@@ -159,6 +168,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#A7F3D0',
   },
+  syncButton: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  syncText: { color: '#334155', fontWeight: '700', fontSize: 11 },
   link: { color: '#059669', fontWeight: '700', fontSize: 12 },
   empty: { color: '#94A3B8', paddingHorizontal: 16, fontSize: 13 },
   card: {
