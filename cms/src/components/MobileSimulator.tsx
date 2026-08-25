@@ -26,10 +26,18 @@ interface TaskItem {
   photos?: string[]
 }
 
-function SimulatorMap({ fields }: { fields: FieldPolygon[] }) {
+function SimulatorMap({
+  fields,
+  selectedFieldId,
+  onSelectField,
+}: {
+  fields: FieldPolygon[]
+  selectedFieldId?: string | null
+  onSelectField?: (id: string) => void
+}) {
   const mapContainerRef = React.useRef<HTMLDivElement>(null)
   const mapInstanceRef = React.useRef<any>(null)
-  const layersRef = React.useRef<any>({})
+  const layersRef = React.useRef<{ [key: string]: any }>({})
 
   React.useEffect(() => {
     let isMounted = true
@@ -54,13 +62,16 @@ function SimulatorMap({ fields }: { fields: FieldPolygon[] }) {
       mapInstanceRef.current = map
 
       const bounds = L.latLngBounds([])
+      layersRef.current = {}
+
       fields.forEach((f) => {
         if (!f.coordinates || f.coordinates.length < 3) return
+        const isSelected = selectedFieldId === f.id
         const poly = L.polygon(f.coordinates, {
-          color: f.color || '#10b981',
+          color: isSelected ? '#047857' : f.color || '#10b981',
           fillColor: f.color || '#10b981',
-          fillOpacity: 0.4,
-          weight: 3,
+          fillOpacity: isSelected ? 0.65 : 0.4,
+          weight: isSelected ? 4 : 2.5,
         })
         poly.bindPopup(`
           <div style="font-family: system-ui, sans-serif; padding: 2px;">
@@ -69,12 +80,15 @@ function SimulatorMap({ fields }: { fields: FieldPolygon[] }) {
             <span style="font-size: 11px; color: #64748b;">${f.areaDecares} Dönüm</span>
           </div>
         `)
+        poly.on('click', () => {
+          if (onSelectField) onSelectField(f.id)
+        })
         poly.addTo(map)
         layersRef.current[f.id] = poly
         bounds.extend(poly.getBounds())
       })
 
-      if (bounds.isValid() && fields.length > 0) {
+      if (bounds.isValid() && fields.length > 0 && !selectedFieldId) {
         map.fitBounds(bounds, { padding: [20, 20], maxZoom: 15 })
       }
     }
@@ -90,8 +104,21 @@ function SimulatorMap({ fields }: { fields: FieldPolygon[] }) {
     }
   }, [fields])
 
+  // Fly to selected field when selectedFieldId changes
+  React.useEffect(() => {
+    if (!selectedFieldId || !mapInstanceRef.current) return
+    const poly = layersRef.current[selectedFieldId]
+    if (poly) {
+      try {
+        const b = poly.getBounds()
+        mapInstanceRef.current.flyToBounds(b, { padding: [30, 30], maxZoom: 16, duration: 0.8 })
+        poly.openPopup()
+      } catch {}
+    }
+  }, [selectedFieldId])
+
   return (
-    <div className="relative w-full h-52 rounded-xl overflow-hidden border border-slate-200 shadow-xs bg-slate-100 mb-2">
+    <div className="relative w-full h-56 rounded-xl overflow-hidden border border-slate-200 shadow-xs bg-slate-100 mb-2">
       <div ref={mapContainerRef} className="w-full h-full" />
     </div>
   )
@@ -105,6 +132,7 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
   const [editingNotes, setEditingNotes] = useState('')
   const [editingPhotos, setEditingPhotos] = useState<string[]>([])
   const [selectedWeatherFieldId, setSelectedWeatherFieldId] = useState<string>('f-1')
+  const [selectedMapFieldId, setSelectedMapFieldId] = useState<string | null>(null)
   const [calendarView, setCalendarView] = useState<'list' | 'plan'>('list')
   const [planCrop, setPlanCrop] = useState<{ name: string; field: string; plantDate: string } | null>(null)
 
@@ -464,42 +492,85 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
                     </div>
 
                     {/* Interactive Leaflet Map for Mobile Simulator */}
-                    <SimulatorMap fields={fields} />
+                    <SimulatorMap
+                      fields={fields}
+                      selectedFieldId={selectedMapFieldId}
+                      onSelectField={(id) => setSelectedMapFieldId(id)}
+                    />
 
                     <div className="space-y-2">
-                      <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Kayıtlı Parseller ({fields.length})</h5>
-                      {fields.map((f) => (
-                        <div key={f.id} className="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs hover:border-emerald-300 transition">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: f.color || '#10b981' }} />
-                              <h5 className="text-xs font-bold text-slate-900">{f.name}</h5>
+                      <div className="flex items-center justify-between">
+                        <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Kayıtlı Parseller ({fields.length})</h5>
+                        <span className="text-[10px] text-slate-400">Tarlaya bas → Haritada odaklan</span>
+                      </div>
+                      {fields.map((f) => {
+                        const isSelected = selectedMapFieldId === f.id
+                        return (
+                          <div
+                            key={f.id}
+                            onClick={() => setSelectedMapFieldId(f.id)}
+                            className={`p-3 rounded-xl border flex items-center justify-between shadow-2xs cursor-pointer transition ${
+                              isSelected
+                                ? 'bg-emerald-50/80 border-emerald-500 ring-2 ring-emerald-500/20'
+                                : 'bg-white border-slate-200 hover:border-emerald-300'
+                            }`}
+                          >
+                            <div className="flex-1 pr-2">
+                              <div className="flex items-center gap-2">
+                                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: f.color || '#10b981' }} />
+                                <h5 className={`text-xs font-bold ${isSelected ? 'text-emerald-900' : 'text-slate-900'}`}>{f.name}</h5>
+                                {isSelected && (
+                                  <span className="text-[9px] bg-emerald-600 text-white font-bold px-1.5 py-0.2 rounded-full">
+                                    📍 Odaklandı
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-1">🌱 {f.cropName} • <b>{f.areaDecares} Dönüm</b></p>
                             </div>
-                            <p className="text-[11px] text-slate-500 mt-1">🌱 {f.cropName} • <b>{f.areaDecares} Dönüm</b></p>
+                            <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedMapFieldId(f.id)}
+                                className={`text-[10px] font-bold px-2 py-1 rounded-md transition ${
+                                  isSelected ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                }`}
+                                title="Haritada Odaklan"
+                              >
+                                📍 Göster
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedWeatherFieldId(f.id)
+                                  setActiveTab('weather')
+                                }}
+                                className="text-[10px] font-semibold text-sky-700 bg-sky-50 px-2 py-1 rounded-md hover:bg-sky-100"
+                                title="Hava durumu"
+                              >
+                                🌤️
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(`"${f.name}" tarlasını silmek istediğinize emin misiniz?`)) {
+                                    onDeleteField(f.id)
+                                    if (selectedMapFieldId === f.id) setSelectedMapFieldId(null)
+                                  }
+                                }}
+                                className="text-slate-400 hover:text-rose-600 text-xs p-1"
+                                title="Tarlayı Sil"
+                              >
+                                🗑️
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedWeatherFieldId(f.id)
-                                setActiveTab('weather')
-                              }}
-                              className="text-[11px] font-semibold text-sky-700 bg-sky-50 px-2 py-1 rounded-md hover:bg-sky-100"
-                              title="Hava durumu"
-                            >
-                              🌤️ Hava
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onDeleteField(f.id)}
-                              className="text-slate-400 hover:text-rose-600 text-xs p-1"
-                              title="Tarlayı Sil"
-                            >
-                              🗑️
-                            </button>
-                          </div>
+                        )
+                      })}
+                      {fields.length === 0 && (
+                        <div className="p-4 text-center text-slate-400 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                          Henüz kayıtlı tarla bulunamadı.
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
                 )}

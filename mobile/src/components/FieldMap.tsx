@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import MapView, {
   Marker,
@@ -22,6 +22,9 @@ export type FieldMarker = {
 type Props = {
   markers?: FieldMarker[];
   initialRegion?: Region;
+  focusRegion?: Region | null;
+  selectedMarkerId?: string | null;
+  onMarkerPress?: (marker: FieldMarker) => void;
   selectable?: boolean;
   selected?: GeoPoint | null;
   onSelect?: (point: GeoPoint) => void;
@@ -47,6 +50,9 @@ function toLatLng(p: GeoPoint): LatLng {
 export default function FieldMap({
   markers = [],
   initialRegion,
+  focusRegion,
+  selectedMarkerId,
+  onMarkerPress,
   selectable = false,
   selected = null,
   onSelect,
@@ -58,6 +64,12 @@ export default function FieldMap({
 }: Props) {
   const mapRef = useRef<MapView>(null);
   const [region, setRegion] = useState<Region>(initialRegion || DEFAULT_REGION);
+
+  useEffect(() => {
+    if (focusRegion && mapRef.current) {
+      mapRef.current.animateToRegion(focusRegion, 500);
+    }
+  }, [focusRegion]);
 
   const onPress = (e: MapPressEvent) => {
     const { latitude, longitude } = e.nativeEvent.coordinate;
@@ -94,31 +106,52 @@ export default function FieldMap({
           />
         )}
 
-        {markers.map((m) =>
-          m.polygon && m.polygon.length >= 3 ? (
+        {markers.map((m) => {
+          const isSelected = selectedMarkerId === m.id;
+          return m.polygon && m.polygon.length >= 3 ? (
             <Polygon
               key={`poly-${m.id}`}
               coordinates={m.polygon.map(toLatLng)}
-              strokeColor={m.type === 'greenhouse' ? '#1565C0' : '#2E7D32'}
+              strokeColor={
+                isSelected
+                  ? '#FF6D00'
+                  : m.type === 'greenhouse'
+                  ? '#1565C0'
+                  : '#2E7D32'
+              }
               fillColor={
-                m.type === 'greenhouse'
+                isSelected
+                  ? 'rgba(255, 109, 0, 0.35)'
+                  : m.type === 'greenhouse'
                   ? 'rgba(21, 101, 192, 0.25)'
                   : 'rgba(46, 125, 50, 0.25)'
               }
-              strokeWidth={2}
+              strokeWidth={isSelected ? 3.5 : 2}
+              tappable
+              onPress={() => onMarkerPress && onMarkerPress(m)}
             />
-          ) : null
-        )}
+          ) : null;
+        })}
 
-        {markers.map((m) => (
-          <Marker
-            key={m.id}
-            coordinate={toLatLng(m.location)}
-            title={m.name}
-            description={m.type === 'greenhouse' ? 'Sera' : 'Tarla'}
-            pinColor={m.type === 'greenhouse' ? '#1565C0' : '#2E7D32'}
-          />
-        ))}
+        {markers.map((m) => {
+          const isSelected = selectedMarkerId === m.id;
+          return (
+            <Marker
+              key={m.id}
+              coordinate={toLatLng(m.location)}
+              title={m.name}
+              description={m.type === 'greenhouse' ? 'Sera' : 'Tarla'}
+              pinColor={
+                isSelected
+                  ? '#FF6D00'
+                  : m.type === 'greenhouse'
+                  ? '#1565C0'
+                  : '#2E7D32'
+              }
+              onPress={() => onMarkerPress && onMarkerPress(m)}
+            />
+          );
+        })}
 
         {drawing && vertices.length >= 2 && (
           <Polygon

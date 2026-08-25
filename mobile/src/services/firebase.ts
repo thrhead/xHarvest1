@@ -8,6 +8,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Field,
+  FieldType,
   Crop,
   Task,
   UserSettings,
@@ -30,56 +31,68 @@ const initialDemo = {
   uid: 'demo-user-id',
   fields: [
     {
-      id: 'f1',
+      id: 'f-1',
       userId: 'demo-user-id',
-      name: 'Kuzey Tarla',
+      name: 'Örnek Domates Tarlası',
       type: 'field' as const,
-      location: { lat: 39.92, lng: 32.85 },
-      areaHectare: 2.5,
+      location: { lat: 39.925, lng: 32.85 },
+      polygon: [
+        { lat: 39.925, lng: 32.85 },
+        { lat: 39.928, lng: 32.855 },
+        { lat: 39.923, lng: 32.86 },
+      ],
+      areaHectare: 2.45,
       soilType: 'killi-tınlı',
       createdAt: new Date(),
     },
     {
-      id: 'f2',
+      id: 'f-2',
       userId: 'demo-user-id',
-      name: 'Sera 1',
-      type: 'greenhouse' as const,
-      location: { lat: 39.925, lng: 32.86 },
-      areaHectare: 0.3,
+      name: 'Güney Buğday Parseli',
+      type: 'field' as const,
+      location: { lat: 39.91, lng: 32.83 },
+      polygon: [
+        { lat: 39.91, lng: 32.83 },
+        { lat: 39.915, lng: 32.838 },
+        { lat: 39.905, lng: 32.842 },
+      ],
+      areaHectare: 8.5,
+      soilType: 'killi-tınlı',
       createdAt: new Date(),
     },
   ] as Field[],
-  // Görevlerdeki cropId (c1/c2) ile eşleşen ekim kayıtları — Takvim listesi için zorunlu
+  // Görevlerdeki cropId ile eşleşen ekim kayıtları — Takvim listesi için zorunlu
   crops: [
     {
       id: 'c1',
       userId: 'demo-user-id',
-      fieldId: 'f1',
+      fieldId: 'f-1',
       cropTemplateId: 'tomato',
       cropName: 'Domates',
       plantingDate: plantC1,
       status: 'active' as const,
-      notes: 'Demo ekim kaydı',
+      notes: 'Örnek Domates ekim kaydı',
     },
     {
       id: 'c2',
       userId: 'demo-user-id',
-      fieldId: 'f2',
-      cropTemplateId: 'tomato',
-      cropName: 'Domates (sera)',
+      fieldId: 'f-2',
+      cropTemplateId: 'wheat',
+      cropName: 'Buğday',
       plantingDate: plantC2,
       status: 'active' as const,
+      notes: 'Güney Buğday ekim kaydı',
     },
   ] as Crop[],
   tasks: [
     {
       id: 't1',
       userId: 'demo-user-id',
-      fieldId: 'f1',
+      fieldId: 'f-1',
       cropId: 'c1',
       type: 'spraying' as const,
-      title: 'Koruyucu ilaçlama',
-      description: 'Mildiyöye karşı bakırlı ilaç',
+      title: 'Mildiyö Koruyucu İlaçlama',
+      description: 'Mildiyöye karşı bakırlı ilaç (Bakır Oksiklorür)',
       plannedDate: new Date(),
       originalDate: new Date(),
       status: 'pending' as const,
@@ -87,10 +100,10 @@ const initialDemo = {
     {
       id: 't2',
       userId: 'demo-user-id',
-      fieldId: 'f1',
+      fieldId: 'f-1',
       cropId: 'c1',
       type: 'fertilizing' as const,
-      title: 'Üst gübre (üre)',
+      title: 'Üst Gübreleme (Üre %46)',
       plannedDate: new Date(Date.now() + 86400000 * 2),
       originalDate: new Date(Date.now() + 86400000 * 2),
       status: 'pending' as const,
@@ -98,10 +111,10 @@ const initialDemo = {
     {
       id: 't3',
       userId: 'demo-user-id',
-      fieldId: 'f2',
+      fieldId: 'f-2',
       cropId: 'c2',
-      type: 'irrigation' as const,
-      title: 'Damla sulama',
+      type: 'spraying' as const,
+      title: 'Süne Mücadelesi İlaçlama',
       plannedDate: new Date(Date.now() + 86400000),
       originalDate: new Date(Date.now() + 86400000),
       status: 'pending' as const,
@@ -111,9 +124,9 @@ const initialDemo = {
     {
       id: 'log1',
       userId: 'demo-user-id',
-      fieldId: 'f1',
+      fieldId: 'f-1',
       inputType: 'fertilizer' as const,
-      productName: 'Üre 46',
+      productName: 'Üre %46',
       quantity: 50,
       unit: 'kg' as const,
       method: 'broadcast' as const,
@@ -126,7 +139,7 @@ const initialDemo = {
     {
       id: 'log2',
       userId: 'demo-user-id',
-      fieldId: 'f1',
+      fieldId: 'f-1',
       inputType: 'pesticide' as const,
       productName: 'Bakır Sülfat',
       quantity: 2.5,
@@ -190,13 +203,12 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
     if (webStr) {
       const webFields = JSON.parse(webStr);
       if (Array.isArray(webFields) && webFields.length > 0) {
-        webFields.forEach((wf: any) => {
-          const existingIdx = targetDemo.fields.findIndex((f) => f.id === wf.id);
+        const convertedFields: Field[] = webFields.map((wf: any) => {
           const coords = wf.coordinates || [];
           const loc = coords.length > 0 ? { lat: coords[0][0], lng: coords[0][1] } : { lat: 39.92, lng: 32.85 };
           const poly = coords.length >= 3 ? coords.map((c: [number, number]) => ({ lat: c[0], lng: c[1] })) : undefined;
-          
-          const convertedField: Field = {
+
+          return {
             id: wf.id,
             userId: 'demo-user-id',
             name: wf.name || 'Tarla',
@@ -207,14 +219,12 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
             soilType: 'killi-tınlı',
             createdAt: new Date(wf.createdAt || Date.now()),
           };
+        });
 
-          if (existingIdx >= 0) {
-            targetDemo.fields[existingIdx] = { ...targetDemo.fields[existingIdx], ...convertedField };
-          } else {
-            targetDemo.fields.push(convertedField);
-          }
+        targetDemo.fields = convertedFields;
 
-          // Ensure matching crop entry
+        // Ensure matching crop entry
+        webFields.forEach((wf: any) => {
           const cropName = wf.cropName || 'Domates';
           const existingCrop = targetDemo.crops.find((c) => c.fieldId === wf.id);
           if (!existingCrop) {
