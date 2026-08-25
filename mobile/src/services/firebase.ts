@@ -22,6 +22,16 @@ import {
 
 export const DEMO_MODE = process.env.EXPO_PUBLIC_DEMO_MODE !== 'false';
 
+const PAYLOAD_URL = process.env.EXPO_PUBLIC_PAYLOAD_URL || process.env.NEXT_PUBLIC_SERVER_URL || '';
+
+function resolveApiUrl(path: string): string {
+  if (typeof window !== 'undefined' && !PAYLOAD_URL) {
+    return path;
+  }
+  const base = (PAYLOAD_URL || 'https://ekim-hasat-cms.vercel.app').replace(/\/+$/, '');
+  return `${base}${path}`;
+}
+
 const plantC1 = new Date();
 plantC1.setDate(plantC1.getDate() - 40);
 const plantC2 = new Date();
@@ -387,7 +397,7 @@ export async function getFields(userId: string): Promise<Field[]> {
   if (DEMO_MODE) {
     if (typeof fetch !== 'undefined') {
       try {
-        const res = await fetch('/api/fields');
+        const res = await fetch(resolveApiUrl('/api/fields'));
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data.fields) && data.fields.length > 0) {
@@ -445,7 +455,7 @@ export async function createField(
               [newField.location.lat + 0.004, newField.location.lng + 0.005],
               [newField.location.lat - 0.003, newField.location.lng + 0.006],
             ];
-        await fetch('/api/fields', {
+        await fetch(resolveApiUrl('/api/fields'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -485,7 +495,7 @@ export async function deleteField(fieldId: string): Promise<void> {
     persistDemo();
     if (typeof fetch !== 'undefined') {
       try {
-        await fetch(`/api/fields?id=${fieldId}`, { method: 'DELETE' });
+        await fetch(resolveApiUrl(`/api/fields?id=${fieldId}`), { method: 'DELETE' });
       } catch {}
     }
   }
