@@ -204,32 +204,66 @@ export default function DashboardView() {
 
   const [isInitialLoaded, setIsInitialLoaded] = useState(false)
 
-  // LocalStorage yükleme & Çift Taraflı Senkronizasyon (Web <-> Mobil)
+  const fetchFieldsFromApi = async () => {
+    try {
+      const res = await fetch('/api/fields')
+      if (res.ok) {
+        const d = await res.json()
+        if (d.success && Array.isArray(d.fields)) {
+          setFields(d.fields)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('eh_web_fields', JSON.stringify(d.fields))
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Fetch fields error:', e)
+    } finally {
+      setIsInitialLoaded(true)
+    }
+  }
+
+  const handleDeleteField = async (id: string, name?: string) => {
+    if (name && typeof window !== 'undefined' && !window.confirm(`"${name}" tarlasını silmek istediğinize emin misiniz?`)) return
+    setFields((prev) => prev.filter((f) => f.id !== id))
+    try {
+      await fetch(`/api/fields?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (typeof window !== 'undefined') {
+        const remaining = fields.filter((f) => f.id !== id)
+        localStorage.setItem('eh_web_fields', JSON.stringify(remaining))
+      }
+    } catch (e) {
+      console.warn('Field delete error:', e)
+    }
+  }
+
+  const handleCreateField = async (newField: any) => {
+    setFields((p) => [...p, newField])
+    try {
+      const res = await fetch('/api/fields', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: newField }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.field && data.field.id) {
+          setFields((p) => p.map((f) => (f.id === newField.id ? { ...f, id: data.field.id } : f)))
+        }
+      }
+    } catch (e) {
+      console.warn('Field save error:', e)
+    }
+  }
+
+  // Initial Data Fetch & Polling
   useEffect(() => {
     setMounted(true)
     fetchCronLogs()
+    fetchFieldsFromApi()
+
     if (typeof window !== 'undefined') {
       try {
-        localStorage.removeItem('eh_mobile_demo_state')
-        localStorage.removeItem('eh_mobile_demo_state_v1')
-
-        const savedFields = localStorage.getItem('eh_web_fields')
-        if (savedFields !== null) {
-          const parsed = JSON.parse(savedFields)
-          if (Array.isArray(parsed)) setFields(parsed)
-          setIsInitialLoaded(true)
-        } else {
-          fetch('/api/fields')
-            .then((r) => r.json())
-            .then((d) => {
-              if (d.success && Array.isArray(d.fields)) {
-                setFields(d.fields)
-              }
-            })
-            .catch(() => {})
-            .finally(() => setIsInitialLoaded(true))
-        }
-
         const savedRecs = localStorage.getItem('eh_web_records')
         if (savedRecs) {
           const parsed = JSON.parse(savedRecs)
@@ -247,101 +281,35 @@ export default function DashboardView() {
         }
       } catch (e) {
         console.error('Storage parse error:', e)
-        setIsInitialLoaded(true)
+      }
+
+      // Background sync polling & focus sync
+      const interval = setInterval(() => {
+        fetchFieldsFromApi()
+      }, 12000)
+
+      const onFocus = () => {
+        fetchFieldsFromApi()
+      }
+      window.addEventListener('focus', onFocus)
+      window.addEventListener('storage', onFocus)
+
+      return () => {
+        clearInterval(interval)
+        window.removeEventListener('focus', onFocus)
+        window.removeEventListener('storage', onFocus)
       }
     }
   }, [])
 
-  // Mobil uygulamayla canlı senkronizasyon dinleyicisi
+  // LocalStorage persist for other state
   useEffect(() => {
-    const handleSync = (e: any) => {
-      if (typeof window === 'undefined') return
-      if (e?.detail?.source === 'web') return
-      try {
-        const savedFields = localStorage.getItem('eh_web_fields')
-        if (savedFields) {
-          const parsed = JSON.parse(savedFields)
-          if (Array.isArray(parsed)) {
-            setFields(parsed)
-          }
-        }
-      } catch {}
-    }
-    window.addEventListener('eh_fields_sync', handleSync)
-    window.addEventListener('storage', handleSync)
-    return () => {
-      window.removeEventListener('eh_fields_sync', handleSync)
-      window.removeEventListener('storage', handleSync)
-    }
-  }, [])
-
-  // LocalStorage ve Mobil hafıza senkronizasyonu
-  useEffect(() => {
-    if (mounted && isInitialLoaded && typeof window !== 'undefined') {
+    if (mounted && typeof window !== 'undefined') {
       try {
         localStorage.setItem('eh_web_fields', JSON.stringify(fields))
-
-        // API'ye de kaydet
-        fetch('/api/fields', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fields }),
-        }).catch(() => {})
-
-        // Mobil hafızasını da anlık güncelle
-        const mobStr = localStorage.getItem('eh_mobile_demo_state_v2')
-        let mobState = mobStr ? JSON.parse(mobStr) : { uid: 'demo-user-id', fields: [], crops: [], tasks: [], applicationLogs: [] }
-        if (!mobState.fields) mobState.fields = []
-        if (!mobState.crops) mobState.crops = []
-
-        fields.forEach((wf) => {
-          const existingIdx = mobState.fields.findIndex((f: any) => f.id === wf.id)
-          const coords = wf.coordinates || []
-          const loc = coords.length > 0 ? { lat: coords[0][0], lng: coords[0][1] } : { lat: 39.92, lng: 32.85 }
-          const poly = coords.length >= 3 ? coords.map((c) => ({ lat: c[0], lng: c[1] })) : undefined
-
-          const converted: any = {
-            id: wf.id,
-            userId: 'demo-user-id',
-            name: wf.name || 'Tarla',
-            type: wf.cropName?.toLowerCase().includes('sera') ? 'greenhouse' : 'field',
-            location: loc,
-            polygon: poly,
-            areaHectare: (wf.areaDecares || 10) / 10,
-            soilType: 'killi-tınlı',
-            createdAt: wf.createdAt || new Date().toISOString(),
-          }
-
-          if (existingIdx >= 0) {
-            mobState.fields[existingIdx] = { ...mobState.fields[existingIdx], ...converted }
-          } else {
-            mobState.fields.push(converted)
-          }
-
-          const cropName = wf.cropName || 'Domates'
-          const existingCrop = mobState.crops.find((c: any) => c.fieldId === wf.id)
-          if (!existingCrop) {
-            mobState.crops.push({
-              id: `c_${wf.id}`,
-              userId: 'demo-user-id',
-              fieldId: wf.id,
-              cropTemplateId: cropName.toLowerCase(),
-              cropName: cropName,
-              plantingDate: new Date().toISOString(),
-              status: 'active',
-            })
-          }
-        })
-
-        const validIds = new Set(fields.map((f) => f.id))
-        mobState.fields = mobState.fields.filter((f: any) => validIds.has(f.id))
-        mobState.crops = mobState.crops.filter((c: any) => validIds.has(c.fieldId))
-
-        localStorage.setItem('eh_mobile_demo_state_v2', JSON.stringify(mobState))
-        window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', fields } }))
       } catch {}
     }
-  }, [fields, mounted, isInitialLoaded])
+  }, [fields, mounted])
 
   useEffect(() => {
     if (mounted && typeof window !== 'undefined') {
@@ -642,8 +610,18 @@ export default function DashboardView() {
 
                       <button
                         type="button"
+                        onClick={() => fetchFieldsFromApi()}
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1"
+                        title="Veritabanı ve Mobil Cihazlarla Senkronize Et"
+                      >
+                        <RefreshCw size={13} />
+                        <span>Senkronize Et</span>
+                      </button>
+
+                      <button
+                        type="button"
                         onClick={() => setShowAddWebFieldModal(true)}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1 ml-auto"
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1"
                       >
                         <Plus size={14} />
                         <span>Yeni Tarla Ekle</span>
@@ -657,8 +635,8 @@ export default function DashboardView() {
                   {mounted ? (
                     <InteractiveMap
                       fields={fields}
-                      onAddField={(f) => setFields((p) => [...p, { ...f, id: `f-${Date.now()}` }])}
-                      onDeleteField={(id) => setFields((p) => p.filter((x) => x.id !== id))}
+                      onAddField={(f) => handleCreateField({ ...f, id: `f-${Date.now()}` })}
+                      onDeleteField={(id) => handleDeleteField(id)}
                       onUpdateFieldCrop={(id, crop) =>
                         setFields((p) => p.map((x) => (x.id === id ? { ...x, cropName: crop } : x)))
                       }
@@ -703,9 +681,19 @@ export default function DashboardView() {
                           </p>
                         </div>
                       </div>
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200/60">
-                        Aktif
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200/60">
+                          Aktif
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteField(f.id, f.name)}
+                          className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded-md border border-rose-200/60 transition"
+                          title="Tarlayı Sil"
+                        >
+                          Sil
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -2071,7 +2059,7 @@ export default function DashboardView() {
                 createdAt: newFieldPlantDate,
               }
 
-              setFields((p) => [...p, newField])
+              handleCreateField(newField)
 
               // Otomatik Ekim Kaydı ekle
               setPlantingRecords((p) => [

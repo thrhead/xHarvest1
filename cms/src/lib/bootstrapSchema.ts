@@ -59,6 +59,17 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
   }
 
   const statements = [
+    `CREATE TABLE IF NOT EXISTS fields (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      crop_name TEXT,
+      type TEXT DEFAULT 'field',
+      area_decares NUMERIC DEFAULT 10,
+      coordinates TEXT,
+      color TEXT,
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    )`,
     `CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT,
@@ -211,6 +222,10 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
     `ALTER TABLE guides ADD COLUMN category TEXT`,
     `ALTER TABLE guides ADD COLUMN summary TEXT`,
     `ALTER TABLE guides ADD COLUMN body TEXT`,
+    `ALTER TABLE fields ADD COLUMN color TEXT`,
+    `ALTER TABLE fields ADD COLUMN coordinates TEXT`,
+    `ALTER TABLE fields ADD COLUMN crop_name TEXT`,
+    `ALTER TABLE fields ADD COLUMN area_decares NUMERIC DEFAULT 10`,
   ]
 
   for (const alt of safeAlters) {

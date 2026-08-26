@@ -50,5 +50,15 @@ export const Fields: CollectionConfig = {
       type: 'json',
       label: 'Köşe / Konum Koordinatları',
     },
+    {
+      name: 'color',
+      type: 'text',
+      label: 'Harita Rengi',
+    },
+    {
+      name: 'customId',
+      type: 'text',
+      label: 'Özel İstemci ID',
+    },
   ],
 }

@@ -6,6 +6,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import {
   Field,
   FieldType,
@@ -22,17 +23,64 @@ import {
 
 export const DEMO_MODE = process.env.EXPO_PUBLIC_DEMO_MODE !== 'false';
 
-const RAW_PAYLOAD_URL = process.env.EXPO_PUBLIC_PAYLOAD_URL || process.env.NEXT_PUBLIC_SERVER_URL || '';
-const PAYLOAD_URL = RAW_PAYLOAD_URL.includes('ekim-hasat-cms.vercel.app') ? '' : RAW_PAYLOAD_URL;
+const DEFAULT_PRODUCTION_URL = 'https://ekim-hasat-cms.vercel.app';
+let memoryCustomServerUrl: string | null = null;
 
-function resolveApiUrl(path: string): string {
-  if (typeof window !== 'undefined') {
-    return path;
+// Hydrate custom server url from storage if configured
+AsyncStorage.getItem('eh_custom_server_url').then((val) => {
+  if (val && val.startsWith('http')) memoryCustomServerUrl = val.replace(/\/+$/, '');
+}).catch(() => {});
+
+export function getServerBaseUrl(): string {
+  if (memoryCustomServerUrl) return memoryCustomServerUrl;
+  if (typeof window !== 'undefined' && window.location && window.location.origin && Platform.OS === 'web') {
+    return window.location.origin;
   }
-  if (PAYLOAD_URL && PAYLOAD_URL.startsWith('http')) {
-    return `${PAYLOAD_URL.replace(/\/+$/, '')}${path}`;
+  const envUrl = process.env.EXPO_PUBLIC_PAYLOAD_URL || process.env.NEXT_PUBLIC_SERVER_URL || '';
+  if (envUrl && envUrl.startsWith('http')) {
+    return envUrl.replace(/\/+$/, '');
   }
-  return path;
+  return DEFAULT_PRODUCTION_URL;
+}
+
+export function setCustomServerUrl(url: string) {
+  const clean = url.trim().replace(/\/+$/, '');
+  memoryCustomServerUrl = clean || null;
+  if (clean) {
+    AsyncStorage.setItem('eh_custom_server_url', clean).catch(() => {});
+  } else {
+    AsyncStorage.removeItem('eh_custom_server_url').catch(() => {});
+  }
+}
+
+export function resolveApiUrl(path: string): string {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return cleanPath;
+  }
+  const base = getServerBaseUrl();
+  return `${base}${cleanPath}`;
+}
+
+export async function testServerConnection(): Promise<{ ok: boolean; statusText: string; url: string; count?: number }> {
+  const testUrl = resolveApiUrl('/api/fields');
+  try {
+    const start = Date.now();
+    const res = await fetch(testUrl, { method: 'GET' });
+    const latency = Date.now() - start;
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        ok: true,
+        statusText: `Bağlantı başarılı (${latency}ms) · ${data.count ?? data.fields?.length ?? 0} tarla`,
+        url: testUrl,
+        count: data.count ?? data.fields?.length ?? 0,
+      };
+    }
+    return { ok: false, statusText: `HTTP ${res.status}: ${res.statusText}`, url: testUrl };
+  } catch (err: any) {
+    return { ok: false, statusText: err?.message || 'Bağlantı hatası', url: testUrl };
+  }
 }
 
 const plantC1 = new Date();
@@ -304,14 +352,13 @@ export function getCurrentUid(): string | null {
 
 export async function getFields(userId: string): Promise<Field[]> {
   if (DEMO_MODE) {
-    syncWebFieldsIntoDemo(demo);
     if (typeof fetch !== 'undefined') {
       try {
         const res = await fetch(resolveApiUrl('/api/fields'));
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data.fields) && data.fields.length > 0) {
-            data.fields.forEach((wf: any) => {
+          if (Array.isArray(data.fields)) {
+            const convertedFields: Field[] = data.fields.map((wf: any) => {
               const coords = wf.coordinates || [];
               const loc =
                 coords.length > 0
@@ -324,30 +371,49 @@ export async function getFields(userId: string): Promise<Field[]> {
               const cropName = wf.cropName || wf.crop || 'Domates';
               const isSera = wf.type === 'greenhouse' || cropName.toLowerCase().includes('sera');
 
-              const converted: Field = {
-                id: wf.id,
+              return {
+                id: String(wf.id),
                 userId: 'demo-user-id',
                 name: wf.name || 'Tarla',
                 cropName: cropName,
                 type: (isSera ? 'greenhouse' : 'field') as FieldType,
                 location: loc,
                 polygon: poly,
-                areaHectare: (wf.areaDecares || 10) / 10,
+                areaHectare: (wf.areaDecares || (wf.areaHectare ? wf.areaHectare * 10 : 10)) / 10,
                 soilType: 'killi-tınlı',
                 createdAt: new Date(wf.createdAt || Date.now()),
               };
+            });
 
-              const existingIdx = demo.fields.findIndex((f) => f.id === wf.id);
-              if (existingIdx >= 0) {
-                demo.fields[existingIdx] = { ...demo.fields[existingIdx], ...converted };
-              } else {
-                demo.fields.push(converted);
+            demo.fields = convertedFields;
+
+            // Reconcile crops
+            const validFieldIds = new Set(convertedFields.map((f) => f.id));
+            demo.crops = demo.crops.filter((c) => validFieldIds.has(c.fieldId));
+
+            convertedFields.forEach((f) => {
+              const cropName = f.cropName || 'Domates';
+              const existingCrop = demo.crops.find((c) => c.fieldId === f.id);
+              if (!existingCrop) {
+                demo.crops.push({
+                  id: `c_${f.id}`,
+                  userId: 'demo-user-id',
+                  fieldId: f.id,
+                  cropTemplateId: cropName.toLowerCase(),
+                  cropName: cropName,
+                  plantingDate: f.createdAt || new Date(),
+                  status: 'active',
+                });
               }
             });
+
             persistDemo();
+            return demo.fields;
           }
         }
-      } catch {}
+      } catch (e) {
+        console.warn('[Mobile Sync] /api/fields fetch warning:', e);
+      }
     }
     return demo.fields;
   }
@@ -360,34 +426,19 @@ export async function createField(
   if (DEMO_MODE) {
     const id = genId('f');
     const newField: Field = { ...data, id, createdAt: data.createdAt || new Date() };
-    demo.fields.push(newField);
-
     const cropName = newField.cropName || 'Domates';
-    const existingCrop = demo.crops.find((c) => c.fieldId === newField.id);
-    if (!existingCrop) {
-      demo.crops.push({
-        id: `c_${newField.id}`,
-        userId: newField.userId || 'demo-user-id',
-        fieldId: newField.id,
-        cropTemplateId: cropName.toLowerCase(),
-        cropName: cropName,
-        plantingDate: newField.createdAt || new Date(),
-        status: 'active',
-      });
-    }
+    const coords = newField.polygon && newField.polygon.length >= 3
+      ? newField.polygon.map((p) => [p.lat, p.lng])
+      : [
+          [newField.location.lat, newField.location.lng],
+          [newField.location.lat + 0.004, newField.location.lng + 0.005],
+          [newField.location.lat - 0.003, newField.location.lng + 0.006],
+        ];
 
-    persistDemo();
-
+    let savedId = id;
     if (typeof fetch !== 'undefined') {
       try {
-        const coords = newField.polygon && newField.polygon.length >= 3
-          ? newField.polygon.map((p) => [p.lat, p.lng])
-          : [
-              [newField.location.lat, newField.location.lng],
-              [newField.location.lat + 0.004, newField.location.lng + 0.005],
-              [newField.location.lat - 0.003, newField.location.lng + 0.006],
-            ];
-        await fetch(resolveApiUrl('/api/fields'), {
+        const res = await fetch(resolveApiUrl('/api/fields'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -396,16 +447,37 @@ export async function createField(
               name: newField.name,
               cropName: cropName,
               type: newField.type,
-              areaDecares: Math.round(newField.areaHectare * 10),
+              areaDecares: Math.round((newField.areaHectare || 1) * 10),
               coordinates: coords,
               createdAt: newField.createdAt?.toISOString ? newField.createdAt.toISOString() : new Date().toISOString(),
             },
           }),
         });
-      } catch {}
+        if (res.ok) {
+          const resData = await res.json();
+          if (resData.field && resData.field.id) {
+            savedId = String(resData.field.id);
+            newField.id = savedId;
+          }
+        }
+      } catch (e) {
+        console.warn('[Mobile CreateField] Server POST error:', e);
+      }
     }
 
-    return id;
+    demo.fields.push(newField);
+    demo.crops.push({
+      id: `c_${newField.id}`,
+      userId: newField.userId || 'demo-user-id',
+      fieldId: newField.id,
+      cropTemplateId: cropName.toLowerCase(),
+      cropName: cropName,
+      plantingDate: newField.createdAt || new Date(),
+      status: 'active',
+    });
+
+    persistDemo();
+    return savedId;
   }
   throw new Error('Firebase aktif değil');
 }
@@ -430,8 +502,10 @@ export async function deleteField(fieldId: string): Promise<void> {
     persistDemo();
     if (typeof fetch !== 'undefined') {
       try {
-        await fetch(resolveApiUrl(`/api/fields?id=${fieldId}`), { method: 'DELETE' });
-      } catch {}
+        await fetch(resolveApiUrl(`/api/fields?id=${encodeURIComponent(fieldId)}`), { method: 'DELETE' });
+      } catch (e) {
+        console.warn('[Mobile DeleteField] Server DELETE error:', e);
+      }
     }
   }
 }
