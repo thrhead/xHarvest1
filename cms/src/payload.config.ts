@@ -9,6 +9,7 @@ import { Users } from './collections/Users'
 import { Media } from './collections/Media'
 import { Crops } from './collections/Crops'
 import { Guides } from './collections/Guides'
+import { Fields } from './collections/Fields'
 import { runWeatherAdjustCron } from './endpoints/weatherCron'
 
 const filename = fileURLToPath(import.meta.url)
@@ -46,7 +47,7 @@ export default buildConfig({
     },
     dateFormat: 'dd.MM.yyyy HH:mm',
   },
-  collections: [Users, Media, Crops, Guides],
+  collections: [Users, Media, Crops, Guides, Fields],
   endpoints: [
     {
       path: '/cron/weather-adjust',
