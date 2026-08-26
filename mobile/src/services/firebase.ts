@@ -22,14 +22,20 @@ import {
 
 export const DEMO_MODE = process.env.EXPO_PUBLIC_DEMO_MODE !== 'false';
 
-const PAYLOAD_URL = process.env.EXPO_PUBLIC_PAYLOAD_URL || process.env.NEXT_PUBLIC_SERVER_URL || '';
+const RAW_PAYLOAD_URL = process.env.EXPO_PUBLIC_PAYLOAD_URL || process.env.NEXT_PUBLIC_SERVER_URL || '';
+const PAYLOAD_URL = RAW_PAYLOAD_URL.includes('ekim-hasat-cms.vercel.app') ? '' : RAW_PAYLOAD_URL;
 
 function resolveApiUrl(path: string): string {
-  if (typeof window !== 'undefined' && !PAYLOAD_URL) {
+  if (typeof window !== 'undefined') {
+    if (PAYLOAD_URL && PAYLOAD_URL.startsWith('http')) {
+      return `${PAYLOAD_URL.replace(/\/+$/, '')}${path}`;
+    }
     return path;
   }
-  const base = (PAYLOAD_URL || 'https://ekim-hasat-cms.vercel.app').replace(/\/+$/, '');
-  return `${base}${path}`;
+  if (PAYLOAD_URL && PAYLOAD_URL.startsWith('http')) {
+    return `${PAYLOAD_URL.replace(/\/+$/, '')}${path}`;
+  }
+  return path;
 }
 
 const plantC1 = new Date();
