@@ -80,13 +80,6 @@ export default function MapScreen() {
             <Text style={styles.listSubtitle}>Tarlaya dokununca haritada odaklanır</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <TouchableOpacity
-              onPress={() => refreshFields()}
-              style={styles.syncButton}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.syncText}>🔄 Eşitle</Text>
-            </TouchableOpacity>
             <Link href="/add-field" asChild>
               <TouchableOpacity style={styles.addButton}>
                 <Text style={styles.link}>+ Yeni Tarla</Text>

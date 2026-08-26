@@ -3,47 +3,7 @@ import { NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 
 // Shared in-memory and default store for Fields across Web Portal and Mobile App
-let inMemoryFields = [
-  {
-    id: 'f-1',
-    name: 'güney domates tarlası',
-    cropName: 'Salatalık (Hıyar)',
-    areaDecares: 1914.0,
-    color: '#06b6d4',
-    coordinates: [
-      [39.88, 32.80],
-      [39.89, 32.82],
-      [39.87, 32.84],
-    ],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'f-2',
-    name: 'anadolu tarlası',
-    cropName: 'Domates',
-    areaDecares: 20.0,
-    color: '#ef4444',
-    coordinates: [
-      [39.925, 32.85],
-      [39.928, 32.855],
-      [39.923, 32.86],
-    ],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'f-3',
-    name: 'salatalık tarlası',
-    cropName: 'Salatalık (Hıyar)',
-    areaDecares: 4150.0,
-    color: '#06b6d4',
-    coordinates: [
-      [39.95, 32.78],
-      [39.96, 32.81],
-      [39.94, 32.83],
-    ],
-    createdAt: new Date().toISOString(),
-  },
-]
+let inMemoryFields: any[] = []
 
 export async function GET() {
   return NextResponse.json({

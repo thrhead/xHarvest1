@@ -39,122 +39,10 @@ plantC2.setDate(plantC2.getDate() - 15);
 
 const initialDemo = {
   uid: 'demo-user-id',
-  fields: [
-    {
-      id: 'f-1',
-      userId: 'demo-user-id',
-      name: 'güney domates tarlası',
-      type: 'field' as const,
-      location: { lat: 39.88, lng: 32.80 },
-      polygon: [
-        { lat: 39.88, lng: 32.80 },
-        { lat: 39.89, lng: 32.82 },
-        { lat: 39.87, lng: 32.84 },
-      ],
-      areaHectare: 191.4,
-      soilType: 'killi-tınlı',
-      createdAt: new Date(),
-    },
-    {
-      id: 'f-2',
-      userId: 'demo-user-id',
-      name: 'anadolu tarlası',
-      type: 'field' as const,
-      location: { lat: 39.925, lng: 32.85 },
-      polygon: [
-        { lat: 39.925, lng: 32.85 },
-        { lat: 39.928, lng: 32.855 },
-        { lat: 39.923, lng: 32.86 },
-      ],
-      areaHectare: 2.0,
-      soilType: 'killi-tınlı',
-      createdAt: new Date(),
-    },
-    {
-      id: 'f-3',
-      userId: 'demo-user-id',
-      name: 'salatalık tarlası',
-      type: 'field' as const,
-      location: { lat: 39.95, lng: 32.78 },
-      polygon: [
-        { lat: 39.95, lng: 32.78 },
-        { lat: 39.96, lng: 32.81 },
-        { lat: 39.94, lng: 32.83 },
-      ],
-      areaHectare: 415.0,
-      soilType: 'killi-tınlı',
-      createdAt: new Date(),
-    },
-  ] as Field[],
-  // Görevlerdeki cropId ile eşleşen ekim kayıtları — Takvim listesi için zorunlu
-  crops: [
-    {
-      id: 'c1',
-      userId: 'demo-user-id',
-      fieldId: 'f-1',
-      cropTemplateId: 'cucumber',
-      cropName: 'Salatalık (Hıyar)',
-      plantingDate: plantC1,
-      status: 'active' as const,
-      notes: 'Güney domates tarlası ekim kaydı',
-    },
-    {
-      id: 'c2',
-      userId: 'demo-user-id',
-      fieldId: 'f-2',
-      cropTemplateId: 'tomato',
-      cropName: 'Domates',
-      plantingDate: plantC2,
-      status: 'active' as const,
-      notes: 'Anadolu tarlası ekim kaydı',
-    },
-    {
-      id: 'c3',
-      userId: 'demo-user-id',
-      fieldId: 'f-3',
-      cropTemplateId: 'cucumber',
-      cropName: 'Salatalık (Hıyar)',
-      plantingDate: plantC1,
-      status: 'active' as const,
-      notes: 'Salatalık tarlası ekim kaydı',
-    },
-  ] as Crop[],
-  tasks: [
-    {
-      id: 't1',
-      userId: 'demo-user-id',
-      fieldId: 'f-1',
-      cropId: 'c1',
-      type: 'spraying' as const,
-      title: 'Mildiyö Koruyucu İlaçlama',
-      description: 'Mildiyöye karşı bakırlı ilaç (Bakır Oksiklorür)',
-      plannedDate: new Date(),
-      originalDate: new Date(),
-      status: 'pending' as const,
-    },
-    {
-      id: 't2',
-      userId: 'demo-user-id',
-      fieldId: 'f-1',
-      cropId: 'c1',
-      type: 'fertilizing' as const,
-      title: 'Üst Gübreleme (Üre %46)',
-      plannedDate: new Date(Date.now() + 86400000 * 2),
-      originalDate: new Date(Date.now() + 86400000 * 2),
-      status: 'pending' as const,
-    },
-    {
-      id: 't3',
-      userId: 'demo-user-id',
-      fieldId: 'f-2',
-      cropId: 'c2',
-      type: 'spraying' as const,
-      title: 'Süne Mücadelesi İlaçlama',
-      plannedDate: new Date(Date.now() + 86400000),
-      originalDate: new Date(Date.now() + 86400000),
-      status: 'pending' as const,
-    },
-  ] as Task[],
+  fields: [] as Field[],
+  crops: [] as Crop[],
+  tasks: [] as Task[],
+  applicationLogs: [] as ApplicationLog[],
   applicationLogs: [
     {
       id: 'log1',
@@ -237,7 +125,7 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
     const webStr = window.localStorage.getItem(WEB_FIELDS_KEY);
     if (webStr) {
       const webFields = JSON.parse(webStr);
-      if (Array.isArray(webFields) && webFields.length > 0) {
+      if (Array.isArray(webFields)) {
         const convertedFields: Field[] = webFields.map((wf: any) => {
           const coords = wf.coordinates || [];
           const loc = coords.length > 0 ? { lat: coords[0][0], lng: coords[0][1] } : { lat: 39.92, lng: 32.85 };
@@ -400,7 +288,7 @@ export async function getFields(userId: string): Promise<Field[]> {
         const res = await fetch(resolveApiUrl('/api/fields'));
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data.fields) && data.fields.length > 0) {
+          if (Array.isArray(data.fields)) {
             demo.fields = data.fields.map((wf: any) => {
               const coords = wf.coordinates || [];
               const loc =

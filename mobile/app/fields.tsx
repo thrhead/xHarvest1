@@ -36,13 +36,6 @@ export default function FieldsScreen() {
     <View style={styles.container}>
       <View style={styles.topBar}>
         <Text style={styles.title}>Kayıtlı Tarlalar ({fields.length})</Text>
-        <TouchableOpacity
-          onPress={() => refreshFields()}
-          style={styles.syncBtn}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.syncBtnText}>🔄 Web ile Eşitle</Text>
-        </TouchableOpacity>
       </View>
       <FlatList
         data={fields}

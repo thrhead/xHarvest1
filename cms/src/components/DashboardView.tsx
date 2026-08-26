@@ -143,79 +143,11 @@ export default function DashboardView() {
   const [newStockQty, setNewStockQty] = useState('')
   const [newStockUnit, setNewStockUnit] = useState('kg')
 
-  const [webRecords, setWebRecords] = useState([
-    { id: 'wr-1', fieldName: 'Örnek Domates Tarlası', title: 'Mildiyö Koruyucu İlaçlama', type: 'spraying' as const, productName: 'Bakır Oksiklorür', dosage: '250 ml / da', date: '2026-08-07', status: 'completed' as const, phiDays: 7, notes: 'Yaprak altları dahil pülverizasyon yapıldı.' },
-    { id: 'wr-2', fieldName: 'Örnek Domates Tarlası', title: 'Üst Gübreleme (Azot Desteği)', type: 'fertilizing' as const, productName: 'Üre %46', dosage: '15 kg / da', date: '2026-08-05', status: 'completed' as const, phiDays: 0, notes: 'Damla sulama ile sisteme verildi.' },
-    { id: 'wr-3', fieldName: 'Güney Buğday Parseli', title: 'Süne Mücadelesi', type: 'spraying' as const, productName: 'Deltamethrin', dosage: '50 ml / da', date: '2026-08-12', status: 'completed' as const, phiDays: 14, notes: 'Eşik üstü nimf yoğunluğu tespit edildi.' },
-    { id: 'wr-4', fieldName: 'Örnek Domates Tarlası', title: 'Potasyum Meyve İrilik Gübresi', type: 'fertilizing' as const, productName: 'Potasyum Nitrat', dosage: '8 kg / da', date: '2026-08-18', status: 'pending' as const, phiDays: 0, notes: 'Meyve tutumu sonrası planlandı.' },
-  ])
+  const [webRecords, setWebRecords] = useState<any[]>([])
 
-  const [fields, setFields] = useState<FieldPolygon[]>([
-    {
-      id: 'f-1',
-      name: 'güney domates tarlası',
-      cropName: 'Salatalık (Hıyar)',
-      areaDecares: 191407.3,
-      color: '#06b6d4',
-      coordinates: [
-        [39.88, 32.80],
-        [39.89, 32.82],
-        [39.87, 32.84],
-      ],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'f-2',
-      name: 'anadolu tarlası',
-      cropName: 'Domates',
-      areaDecares: 20.0,
-      color: '#ef4444',
-      coordinates: [
-        [39.925, 32.85],
-        [39.928, 32.855],
-        [39.923, 32.86],
-      ],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'f-3',
-      name: 'salatalık tarlası',
-      cropName: 'Salatalık (Hıyar)',
-      areaDecares: 415084.9,
-      color: '#06b6d4',
-      coordinates: [
-        [39.95, 32.78],
-        [39.96, 32.81],
-        [39.94, 32.83],
-      ],
-      createdAt: new Date().toISOString(),
-    },
-  ])
+  const [fields, setFields] = useState<FieldPolygon[]>([])
 
-  const [plantingRecords, setPlantingRecords] = useState<PlantingRecord[]>([
-    {
-      id: 'pr-1',
-      fieldId: 'f-1',
-      fieldName: 'Örnek Domates Tarlası',
-      cropTemplateId: 'demo-domates',
-      cropNameTr: 'Domates',
-      plantingDate: '2026-03-15',
-      status: 'ekildi',
-      areaDa: 24.5,
-      taskProgress: { '0': true, '1': true, '2': true },
-    },
-    {
-      id: 'pr-2',
-      fieldId: 'f-2',
-      fieldName: 'Güney Buğday Parseli',
-      cropTemplateId: 'demo-bugday',
-      cropNameTr: 'Buğday',
-      plantingDate: '2025-10-20',
-      status: 'ekildi',
-      areaDa: 85.0,
-      taskProgress: { '0': true, '1': true },
-    },
-  ])
+  const [plantingRecords, setPlantingRecords] = useState<PlantingRecord[]>([])
 
   const [showAddPlantingModal, setShowAddPlantingModal] = useState(false)
   const [showAddWebFieldModal, setShowAddWebFieldModal] = useState(false)
@@ -277,19 +209,14 @@ export default function DashboardView() {
     if (typeof window !== 'undefined') {
       try {
         const savedFields = localStorage.getItem('eh_web_fields')
-        let initialList: FieldPolygon[] = []
-        if (savedFields) {
+        if (savedFields !== null) {
           const parsed = JSON.parse(savedFields)
-          if (Array.isArray(parsed) && parsed.length > 0) initialList = parsed
-        }
-
-        if (initialList.length > 0) {
-          setFields(initialList)
+          if (Array.isArray(parsed)) setFields(parsed)
         } else {
           fetch('/api/fields')
             .then((r) => r.json())
             .then((d) => {
-              if (d.success && Array.isArray(d.fields) && d.fields.length > 0) {
+              if (d.success && Array.isArray(d.fields)) {
                 setFields(d.fields)
               }
             })
