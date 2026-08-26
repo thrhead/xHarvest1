@@ -27,9 +27,6 @@ const PAYLOAD_URL = RAW_PAYLOAD_URL.includes('ekim-hasat-cms.vercel.app') ? '' :
 
 function resolveApiUrl(path: string): string {
   if (typeof window !== 'undefined') {
-    if (PAYLOAD_URL && PAYLOAD_URL.startsWith('http')) {
-      return `${PAYLOAD_URL.replace(/\/+$/, '')}${path}`;
-    }
     return path;
   }
   if (PAYLOAD_URL && PAYLOAD_URL.startsWith('http')) {
@@ -136,12 +133,15 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
           const coords = wf.coordinates || [];
           const loc = coords.length > 0 ? { lat: coords[0][0], lng: coords[0][1] } : { lat: 39.92, lng: 32.85 };
           const poly = coords.length >= 3 ? coords.map((c: [number, number]) => ({ lat: c[0], lng: c[1] })) : undefined;
+          const cropName = wf.cropName || wf.crop || 'Domates';
+          const isSera = wf.type === 'greenhouse' || cropName.toLowerCase().includes('sera');
 
           return {
             id: wf.id,
             userId: 'demo-user-id',
             name: wf.name || 'Tarla',
-            type: (wf.cropName?.toLowerCase().includes('sera') ? 'greenhouse' : 'field') as FieldType,
+            cropName: cropName,
+            type: (isSera ? 'greenhouse' : 'field') as FieldType,
             location: loc,
             polygon: poly,
             areaHectare: (wf.areaDecares || 10) / 10,
@@ -166,7 +166,7 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
               fieldId: wf.id,
               cropTemplateId: cropName.toLowerCase(),
               cropName: cropName,
-              plantingDate: new Date(),
+              plantingDate: new Date(wf.createdAt || Date.now()),
               status: 'active',
             });
           }
@@ -192,11 +192,12 @@ function syncDemoFieldsToWeb() {
       return {
         id: mf.id,
         name: mf.name,
-        cropName: matchingCrop?.cropName || (mf.type === 'greenhouse' ? 'Domates (Sera)' : 'Genel Tarla'),
+        cropName: mf.cropName || matchingCrop?.cropName || (mf.type === 'greenhouse' ? 'Domates (Sera)' : 'Genel Tarla'),
+        type: mf.type || 'field',
         areaDecares: Math.round((mf.areaHectare || 1) * 10),
-        color: '#10b981',
+        color: mf.type === 'greenhouse' ? '#059669' : '#10b981',
         coordinates: coords,
-        createdAt: mf.createdAt?.toISOString ? mf.createdAt.toISOString() : new Date().toISOString(),
+        createdAt: mf.createdAt?.toISOString ? mf.createdAt.toISOString() : (typeof mf.createdAt === 'string' ? mf.createdAt : new Date().toISOString()),
       };
     });
 
@@ -303,13 +304,14 @@ export function getCurrentUid(): string | null {
 
 export async function getFields(userId: string): Promise<Field[]> {
   if (DEMO_MODE) {
+    syncWebFieldsIntoDemo(demo);
     if (typeof fetch !== 'undefined') {
       try {
         const res = await fetch(resolveApiUrl('/api/fields'));
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data.fields)) {
-            demo.fields = data.fields.map((wf: any) => {
+          if (Array.isArray(data.fields) && data.fields.length > 0) {
+            data.fields.forEach((wf: any) => {
               const coords = wf.coordinates || [];
               const loc =
                 coords.length > 0
@@ -319,39 +321,61 @@ export async function getFields(userId: string): Promise<Field[]> {
                 coords.length >= 3
                   ? coords.map((c: [number, number]) => ({ lat: c[0], lng: c[1] }))
                   : undefined;
-              return {
+              const cropName = wf.cropName || wf.crop || 'Domates';
+              const isSera = wf.type === 'greenhouse' || cropName.toLowerCase().includes('sera');
+
+              const converted: Field = {
                 id: wf.id,
                 userId: 'demo-user-id',
                 name: wf.name || 'Tarla',
-                type: (wf.cropName?.toLowerCase().includes('sera')
-                  ? 'greenhouse'
-                  : 'field') as FieldType,
+                cropName: cropName,
+                type: (isSera ? 'greenhouse' : 'field') as FieldType,
                 location: loc,
                 polygon: poly,
                 areaHectare: (wf.areaDecares || 10) / 10,
                 soilType: 'killi-tınlı',
                 createdAt: new Date(wf.createdAt || Date.now()),
               };
+
+              const existingIdx = demo.fields.findIndex((f) => f.id === wf.id);
+              if (existingIdx >= 0) {
+                demo.fields[existingIdx] = { ...demo.fields[existingIdx], ...converted };
+              } else {
+                demo.fields.push(converted);
+              }
             });
             persistDemo();
-            return demo.fields;
           }
         }
       } catch {}
     }
-    syncWebFieldsIntoDemo(demo);
     return demo.fields;
   }
   return [];
 }
 
 export async function createField(
-  data: Omit<Field, 'id' | 'createdAt'>
+  data: Omit<Field, 'id' | 'createdAt'> & { createdAt?: Date }
 ): Promise<string> {
   if (DEMO_MODE) {
     const id = genId('f');
-    const newField: Field = { ...data, id, createdAt: new Date() };
+    const newField: Field = { ...data, id, createdAt: data.createdAt || new Date() };
     demo.fields.push(newField);
+
+    const cropName = newField.cropName || 'Domates';
+    const existingCrop = demo.crops.find((c) => c.fieldId === newField.id);
+    if (!existingCrop) {
+      demo.crops.push({
+        id: `c_${newField.id}`,
+        userId: newField.userId || 'demo-user-id',
+        fieldId: newField.id,
+        cropTemplateId: cropName.toLowerCase(),
+        cropName: cropName,
+        plantingDate: newField.createdAt || new Date(),
+        status: 'active',
+      });
+    }
+
     persistDemo();
 
     if (typeof fetch !== 'undefined') {
@@ -370,10 +394,11 @@ export async function createField(
             field: {
               id: newField.id,
               name: newField.name,
-              cropName: newField.cropName || (newField.type === 'greenhouse' ? 'Domates (Sera)' : 'Genel Tarla'),
+              cropName: cropName,
               type: newField.type,
               areaDecares: Math.round(newField.areaHectare * 10),
               coordinates: coords,
+              createdAt: newField.createdAt?.toISOString ? newField.createdAt.toISOString() : new Date().toISOString(),
             },
           }),
         });
