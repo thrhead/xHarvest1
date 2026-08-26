@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Platform,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppStore } from '../src/store/appStore';
@@ -27,7 +28,26 @@ export default function HomeScreen() {
     runWeatherAdjust,
     lastWeatherAdjust,
     completeTask,
+    deleteField,
   } = useAppStore();
+
+  const handleDeleteField = (id: string, name: string) => {
+    const doDelete = async () => {
+      await deleteField(id);
+      await refreshFields();
+    };
+
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(`"${name}" tarlasını silmek istediğinize emin misiniz?`)) {
+        doDelete();
+      }
+    } else {
+      Alert.alert('Tarlayı Sil', `"${name}" tarlasını silmek istediğinize emin misiniz?`, [
+        { text: 'İptal', style: 'cancel' },
+        { text: 'Sil', style: 'destructive', onPress: doDelete },
+      ]);
+    }
+  };
 
   const [adjustingWeather, setAdjustingWeather] = useState(false);
   const [weatherAlert, setWeatherAlert] = useState<string | null>(
@@ -311,27 +331,34 @@ export default function HomeScreen() {
             <Text style={styles.emptyText}>Henüz kayıtlı tarla bulunmuyor</Text>
           </View>
         ) : (
-          fields.slice(0, 3).map((f) => (
-            <TouchableOpacity
-              key={f.id}
-              style={styles.fieldCard}
-              onPress={() => router.push(`/weather?fieldId=${f.id}`)}
-              activeOpacity={0.85}
-            >
-              <View style={styles.fieldCardLeft}>
-                <View style={[styles.fieldDot, { backgroundColor: (f as any).color || '#10b981' }]} />
-                <View>
-                  <Text style={styles.fieldTitle}>{f.name}</Text>
-                  <Text style={styles.fieldSubtitle}>
-                    🌱 {(f as any).cropName || (f as any).crop || 'Ürün'} •{' '}
-                    <Text style={{ fontWeight: '700' }}>
-                      {(f as any).areaDecares || (f as any).areaHectare || '10'} Dönüm
+          fields.slice(0, 5).map((f) => (
+            <View key={f.id} style={styles.fieldCard}>
+              <TouchableOpacity
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+                onPress={() => router.push(`/weather?fieldId=${f.id}`)}
+                activeOpacity={0.85}
+              >
+                <View style={styles.fieldCardLeft}>
+                  <View style={[styles.fieldDot, { backgroundColor: (f as any).color || '#10b981' }]} />
+                  <View>
+                    <Text style={styles.fieldTitle}>{f.name}</Text>
+                    <Text style={styles.fieldSubtitle}>
+                      🌱 {(f as any).cropName || (f as any).crop || 'Ürün'} •{' '}
+                      <Text style={{ fontWeight: '700' }}>
+                        {(f as any).areaDecares || (f as any).areaHectare ? ((f as any).areaHectare ? ((f as any).areaHectare * 10).toFixed(0) : (f as any).areaDecares) : '10'} Dönüm
+                      </Text>
                     </Text>
-                  </Text>
+                  </View>
                 </View>
-              </View>
-              <Text style={styles.fieldArrow}>→</Text>
-            </TouchableOpacity>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleDeleteField(f.id, f.name)}
+                style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#fee2e2', borderRadius: 8, marginLeft: 6 }}
+                title="Tarlayı Sil"
+              >
+                <Text style={{ fontSize: 13 }}>🗑️ Sil</Text>
+              </TouchableOpacity>
+            </View>
           ))
         )}
 

@@ -15,16 +15,25 @@ export default function FieldsScreen() {
   );
 
   const handleDelete = (id: string, name: string) => {
-    Alert.alert('Tarlayı Sil', `"${name}" tarlasını silmek istediğinize emin misiniz?`, [
-      { text: 'İptal', style: 'cancel' },
-      {
-        text: 'Sil',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteField(id);
+    const doDelete = async () => {
+      await deleteField(id);
+      await refreshFields();
+    };
+
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(`"${name}" tarlasını silmek istediğinize emin misiniz?`)) {
+        doDelete();
+      }
+    } else {
+      Alert.alert('Tarlayı Sil', `"${name}" tarlasını silmek istediğinize emin misiniz?`, [
+        { text: 'İptal', style: 'cancel' },
+        {
+          text: 'Sil',
+          style: 'destructive',
+          onPress: doDelete,
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   const listProps =

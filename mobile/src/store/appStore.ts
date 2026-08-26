@@ -82,6 +82,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const { uid } = await fb.signInAnonymously();
       set({ uid });
+
+      if (typeof window !== 'undefined') {
+        const handleSync = () => {
+          get().refreshFields();
+        };
+        window.addEventListener('eh_fields_sync', handleSync);
+        window.addEventListener('storage', handleSync);
+      }
+
       await Promise.all([
         get().refreshFields(),
         get().refreshCrops(),

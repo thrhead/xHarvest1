@@ -5,6 +5,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
+  Platform,
+  Alert,
 } from 'react-native';
 import { Link, useFocusEffect } from 'expo-router';
 import { Region } from 'react-native-maps';
@@ -13,7 +15,7 @@ import FieldMap from '../src/components/FieldMap';
 import { Field } from '../src/types';
 
 export default function MapScreen() {
-  const { fields, refreshFields } = useAppStore();
+  const { fields, refreshFields, deleteField } = useAppStore();
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [focusRegion, setFocusRegion] = useState<Region | null>(null);
 
@@ -22,6 +24,24 @@ export default function MapScreen() {
       refreshFields();
     }, [])
   );
+
+  const handleDelete = (id: string, name: string) => {
+    const doDelete = async () => {
+      await deleteField(id);
+      await refreshFields();
+    };
+
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(`"${name}" tarlasını silmek istediğinize emin misiniz?`)) {
+        doDelete();
+      }
+    } else {
+      Alert.alert('Tarlayı Sil', `"${name}" tarlasını silmek istediğinize emin misiniz?`, [
+        { text: 'İptal', style: 'cancel' },
+        { text: 'Sil', style: 'destructive', onPress: doDelete },
+      ]);
+    }
+  };
 
   const markers = useMemo(
     () =>
@@ -118,11 +138,24 @@ export default function MapScreen() {
                   >
                     {item.name}
                   </Text>
-                  {isSelected && (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>📍 Odak</Text>
-                    </View>
-                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    {isSelected && (
+                      <View style={styles.badge}>
+                        <Text style={styles.badgeText}>📍 Odak</Text>
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleDelete(item.id, item.name);
+                      }}
+                      style={{ padding: 4, backgroundColor: '#fee2e2', borderRadius: 6 }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      title="Tarlayı Sil"
+                    >
+                      <Text style={{ fontSize: 11 }}>🗑️</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 <Text style={styles.cardMeta}>
                   {item.type === 'greenhouse' ? '🌱 Sera' : '🌾 Tarla'} ·{' '}

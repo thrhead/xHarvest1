@@ -202,16 +202,22 @@ export default function DashboardView() {
     }
   }
 
+  const [isInitialLoaded, setIsInitialLoaded] = useState(false)
+
   // LocalStorage yükleme & Çift Taraflı Senkronizasyon (Web <-> Mobil)
   useEffect(() => {
     setMounted(true)
     fetchCronLogs()
     if (typeof window !== 'undefined') {
       try {
+        localStorage.removeItem('eh_mobile_demo_state')
+        localStorage.removeItem('eh_mobile_demo_state_v1')
+
         const savedFields = localStorage.getItem('eh_web_fields')
         if (savedFields !== null) {
           const parsed = JSON.parse(savedFields)
           if (Array.isArray(parsed)) setFields(parsed)
+          setIsInitialLoaded(true)
         } else {
           fetch('/api/fields')
             .then((r) => r.json())
@@ -221,6 +227,7 @@ export default function DashboardView() {
               }
             })
             .catch(() => {})
+            .finally(() => setIsInitialLoaded(true))
         }
 
         const savedRecs = localStorage.getItem('eh_web_records')
@@ -240,14 +247,16 @@ export default function DashboardView() {
         }
       } catch (e) {
         console.error('Storage parse error:', e)
+        setIsInitialLoaded(true)
       }
     }
   }, [])
 
   // Mobil uygulamayla canlı senkronizasyon dinleyicisi
   useEffect(() => {
-    const handleSync = () => {
+    const handleSync = (e: any) => {
       if (typeof window === 'undefined') return
+      if (e?.detail?.source === 'web') return
       try {
         const savedFields = localStorage.getItem('eh_web_fields')
         if (savedFields) {
@@ -268,7 +277,7 @@ export default function DashboardView() {
 
   // LocalStorage ve Mobil hafıza senkronizasyonu
   useEffect(() => {
-    if (mounted && typeof window !== 'undefined') {
+    if (mounted && isInitialLoaded && typeof window !== 'undefined') {
       try {
         localStorage.setItem('eh_web_fields', JSON.stringify(fields))
 
@@ -280,7 +289,7 @@ export default function DashboardView() {
         }).catch(() => {})
 
         // Mobil hafızasını da anlık güncelle
-        const mobStr = localStorage.getItem('eh_mobile_demo_state_v2') || localStorage.getItem('eh_mobile_demo_state')
+        const mobStr = localStorage.getItem('eh_mobile_demo_state_v2')
         let mobState = mobStr ? JSON.parse(mobStr) : { uid: 'demo-user-id', fields: [], crops: [], tasks: [], applicationLogs: [] }
         if (!mobState.fields) mobState.fields = []
         if (!mobState.crops) mobState.crops = []
@@ -329,9 +338,10 @@ export default function DashboardView() {
         mobState.crops = mobState.crops.filter((c: any) => validIds.has(c.fieldId))
 
         localStorage.setItem('eh_mobile_demo_state_v2', JSON.stringify(mobState))
+        window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', fields } }))
       } catch {}
     }
-  }, [fields, mounted])
+  }, [fields, mounted, isInitialLoaded])
 
   useEffect(() => {
     if (mounted && typeof window !== 'undefined') {

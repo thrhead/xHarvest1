@@ -146,6 +146,9 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
 
         targetDemo.fields = convertedFields;
 
+        const validFieldIds = new Set(convertedFields.map((f) => f.id));
+        targetDemo.crops = targetDemo.crops.filter((c) => validFieldIds.has(c.fieldId));
+
         // Ensure matching crop entry
         webFields.forEach((wf: any) => {
           const cropName = wf.cropName || 'Domates';
@@ -193,6 +196,7 @@ function syncDemoFieldsToWeb() {
 
     window.localStorage.setItem(WEB_FIELDS_KEY, JSON.stringify(webFields));
     window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'mobile', fields: webFields } }));
+    window.dispatchEvent(new Event('storage'));
   } catch {}
 }
 
@@ -200,7 +204,17 @@ function loadInitialSync(): typeof initialDemo {
   const defaultDemo = JSON.parse(JSON.stringify(initialDemo));
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      const s = window.localStorage.getItem(STORAGE_KEY) || window.localStorage.getItem('eh_mobile_demo_state');
+      // Remove stale legacy keys that might hold old mock data
+      window.localStorage.removeItem('eh_mobile_demo_state');
+      window.localStorage.removeItem('eh_mobile_demo_state_v1');
+
+      const webStr = window.localStorage.getItem(WEB_FIELDS_KEY);
+      if (webStr) {
+        syncWebFieldsIntoDemo(defaultDemo);
+        return defaultDemo;
+      }
+
+      const s = window.localStorage.getItem(STORAGE_KEY);
       if (s) {
         const p = parseStoredData(s);
         if (p) {
@@ -381,6 +395,7 @@ export async function updateField(
 export async function deleteField(fieldId: string): Promise<void> {
   if (DEMO_MODE) {
     demo.fields = demo.fields.filter((f) => f.id !== fieldId);
+    demo.crops = demo.crops.filter((c) => c.fieldId !== fieldId);
     persistDemo();
     if (typeof fetch !== 'undefined') {
       try {
