@@ -9,50 +9,46 @@ const defaultDbPath = isVercel
   ? path.join('/tmp', 'ekim-hasat.db')
   : path.resolve(dirname, '../../ekim-hasat.db')
 
-let activeClient: Client | null = null
-let useLocalOnly = false
-
-function createLocalClient(): Client {
-  return createClient({ url: `file:${defaultDbPath}` })
+function isPlaceholderToken(token?: string): boolean {
+  if (!token) return true
+  const t = token.trim()
+  return t === '' || t.includes('YOUR_TURSO') || t === 'change-me'
 }
 
-function getClient(): Client {
-  if (activeClient) return activeClient
-
+function getDatabaseConfig() {
   let rawUrl = process.env.DATABASE_URI || process.env.TURSO_DATABASE_URL || `file:${defaultDbPath}`
+  // Clean double 'l' typo if exists
   if (rawUrl.startsWith('llibsql://')) {
     rawUrl = 'libsql://' + rawUrl.slice(10)
   }
-  const authToken = process.env.DATABASE_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN
+  const authToken = (process.env.DATABASE_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '').trim()
   const isRemote = rawUrl.startsWith('libsql://') || rawUrl.startsWith('https://')
 
-  if (useLocalOnly || !isRemote || !authToken) {
-    activeClient = createLocalClient()
-    return activeClient
+  if (isRemote && !isPlaceholderToken(authToken)) {
+    return { url: rawUrl, authToken, isRemote: true }
   }
+  return { url: `file:${defaultDbPath}`, isRemote: false }
+}
 
+function createDbClient(): Client {
+  const config = getDatabaseConfig()
   try {
-    activeClient = createClient({ url: rawUrl, authToken })
-    return activeClient
+    return createClient(config)
   } catch {
-    useLocalOnly = true
-    activeClient = createLocalClient()
-    return activeClient
+    return createClient({ url: `file:${defaultDbPath}` })
   }
 }
 
 async function executeSql(sql: string | { sql: string; args: any[] }) {
-  const client = getClient()
+  const client = createDbClient()
   try {
     return await client.execute(sql)
   } catch (err: any) {
-    // If remote fails, fallback immediately to local SQLite
-    if (!useLocalOnly) {
-      console.warn('[fieldDb] Remote DB error, switching to local SQLite:', err?.message || err)
-      useLocalOnly = true
-      activeClient = createLocalClient()
-      await ensureFieldsTable(true)
-      return await activeClient.execute(sql)
+    const config = getDatabaseConfig()
+    if (config.isRemote) {
+      console.warn('[fieldDb] Remote Turso error, executing on local SQLite fallback:', err?.message || err)
+      const localClient = createClient({ url: `file:${defaultDbPath}` })
+      return await localClient.execute(sql)
     }
     throw err
   }
@@ -117,11 +113,7 @@ export const SEED_FIELDS = [
   },
 ]
 
-let isTableReady = false
-
-export async function ensureFieldsTable(force = false): Promise<void> {
-  if (isTableReady && !force) return
-
+export async function ensureFieldsTable(): Promise<void> {
   const ddl = `
     CREATE TABLE IF NOT EXISTS fields (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -152,8 +144,6 @@ export async function ensureFieldsTable(force = false): Promise<void> {
   try {
     await executeSql(`ALTER TABLE fields ADD COLUMN area_decares NUMERIC DEFAULT 10`)
   } catch {}
-
-  isTableReady = true
 }
 
 function parseCoordinates(raw: any): [number, number][] {
