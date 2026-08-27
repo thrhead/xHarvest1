@@ -232,6 +232,7 @@ export default function DashboardView() {
       if (typeof window !== 'undefined') {
         const remaining = fields.filter((f) => f.id !== id)
         localStorage.setItem('eh_web_fields', JSON.stringify(remaining))
+        window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', fields: remaining } }))
       }
     } catch (e) {
       console.warn('Field delete error:', e)
@@ -239,21 +240,50 @@ export default function DashboardView() {
   }
 
   const handleCreateField = async (newField: any) => {
-    setFields((p) => [...p, newField])
+    const fieldWithId = { ...newField, id: newField.id || `f-${Date.now()}` }
+    setFields((p) => [...p, fieldWithId])
     try {
       const res = await fetch('/api/fields', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ field: newField }),
+        body: JSON.stringify({ field: fieldWithId }),
       })
       if (res.ok) {
         const data = await res.json()
         if (data.field && data.field.id) {
-          setFields((p) => p.map((f) => (f.id === newField.id ? { ...f, id: data.field.id } : f)))
+          const finalId = data.field.id
+          setFields((p) => p.map((f) => (f.id === fieldWithId.id ? { ...f, id: finalId } : f)))
+          if (typeof window !== 'undefined') {
+            const updated = fields.map((f) => (f.id === fieldWithId.id ? { ...f, id: finalId } : f))
+            localStorage.setItem('eh_web_fields', JSON.stringify(updated))
+            window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', fields: updated } }))
+          }
         }
       }
     } catch (e) {
       console.warn('Field save error:', e)
+    }
+  }
+
+  const handleUpdateFieldCrop = async (id: string, crop: string) => {
+    setFields((p) => p.map((x) => (x.id === id ? { ...x, cropName: crop } : x)))
+    const target = fields.find((x) => x.id === id)
+    if (target) {
+      try {
+        const updated = { ...target, cropName: crop }
+        await fetch('/api/fields', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field: updated }),
+        })
+        if (typeof window !== 'undefined') {
+          const allUpdated = fields.map((x) => (x.id === id ? updated : x))
+          localStorage.setItem('eh_web_fields', JSON.stringify(allUpdated))
+          window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', fields: allUpdated } }))
+        }
+      } catch (e) {
+        console.warn('Field crop update error:', e)
+      }
     }
   }
 
@@ -638,9 +668,7 @@ export default function DashboardView() {
                       fields={fields}
                       onAddField={(f) => handleCreateField({ ...f, id: `f-${Date.now()}` })}
                       onDeleteField={(id) => handleDeleteField(id)}
-                      onUpdateFieldCrop={(id, crop) =>
-                        setFields((p) => p.map((x) => (x.id === id ? { ...x, cropName: crop } : x)))
-                      }
+                      onUpdateFieldCrop={(id, crop) => handleUpdateFieldCrop(id, crop)}
                       selectedCrop={selectedCropId === 'all' ? 'all' : selectedCropId || 'all'}
                       availableCrops={Array.from(
                         new Set([
@@ -1597,8 +1625,8 @@ export default function DashboardView() {
               <div className="space-y-4">
                 <MobileSimulator
                   fields={fields}
-                  onAddField={(f) => setFields((p) => [...p, { ...f, id: `f-${Date.now()}` }])}
-                  onDeleteField={(id) => setFields((p) => p.filter((x) => x.id !== id))}
+                  onAddField={(f) => handleCreateField({ ...f, id: `f-${Date.now()}` })}
+                  onDeleteField={(id) => handleDeleteField(id)}
                 />
               </div>
             )}

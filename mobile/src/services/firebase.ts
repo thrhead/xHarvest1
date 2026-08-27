@@ -90,15 +90,94 @@ plantC2.setDate(plantC2.getDate() - 15);
 
 const initialDemo = {
   uid: 'demo-user-id',
-  fields: [] as Field[],
-  crops: [] as Crop[],
+  fields: [
+    {
+      id: 'f-ankara-1',
+      userId: 'demo-user-id',
+      name: 'Kuzey Parsel (Ankara)',
+      cropName: 'Domates',
+      type: 'field' as FieldType,
+      location: { lat: 39.925, lng: 32.845 },
+      polygon: [
+        { lat: 39.925, lng: 32.845 },
+        { lat: 39.925, lng: 32.855 },
+        { lat: 39.915, lng: 32.855 },
+        { lat: 39.915, lng: 32.845 },
+      ],
+      areaHectare: 2.0,
+      soilType: 'killi-tınlı',
+      createdAt: new Date('2026-06-20'),
+    },
+    {
+      id: 'f-cukurova-1',
+      userId: 'demo-user-id',
+      name: 'Çukurova Sera-1',
+      cropName: 'Biber',
+      type: 'greenhouse' as FieldType,
+      location: { lat: 36.995, lng: 35.315 },
+      polygon: [
+        { lat: 36.995, lng: 35.315 },
+        { lat: 36.995, lng: 35.325 },
+        { lat: 36.985, lng: 35.325 },
+        { lat: 36.985, lng: 35.315 },
+      ],
+      areaHectare: 0.8,
+      soilType: 'kumlu-tınlı',
+      createdAt: new Date('2026-07-01'),
+    },
+    {
+      id: 'f-konya-1',
+      userId: 'demo-user-id',
+      name: 'Konya Ovası Buğday',
+      cropName: 'Buğday',
+      type: 'field' as FieldType,
+      location: { lat: 37.875, lng: 32.475 },
+      polygon: [
+        { lat: 37.875, lng: 32.475 },
+        { lat: 37.875, lng: 32.485 },
+        { lat: 37.865, lng: 32.485 },
+        { lat: 37.865, lng: 32.475 },
+      ],
+      areaHectare: 4.5,
+      soilType: 'killi',
+      createdAt: new Date('2026-05-15'),
+    },
+  ] as Field[],
+  crops: [
+    {
+      id: 'c_f-ankara-1',
+      userId: 'demo-user-id',
+      fieldId: 'f-ankara-1',
+      cropTemplateId: 'tomato',
+      cropName: 'Domates',
+      plantingDate: new Date('2026-06-20'),
+      status: 'active' as const,
+    },
+    {
+      id: 'c_f-cukurova-1',
+      userId: 'demo-user-id',
+      fieldId: 'f-cukurova-1',
+      cropTemplateId: 'pepper',
+      cropName: 'Biber',
+      plantingDate: new Date('2026-07-01'),
+      status: 'active' as const,
+    },
+    {
+      id: 'c_f-konya-1',
+      userId: 'demo-user-id',
+      fieldId: 'f-konya-1',
+      cropTemplateId: 'wheat',
+      cropName: 'Buğday',
+      plantingDate: new Date('2026-05-15'),
+      status: 'active' as const,
+    },
+  ] as Crop[],
   tasks: [] as Task[],
-  applicationLogs: [] as ApplicationLog[],
   applicationLogs: [
     {
       id: 'log1',
       userId: 'demo-user-id',
-      fieldId: 'f-1',
+      fieldId: 'f-ankara-1',
       inputType: 'fertilizer' as const,
       productName: 'Üre %46',
       quantity: 50,
@@ -113,7 +192,7 @@ const initialDemo = {
     {
       id: 'log2',
       userId: 'demo-user-id',
-      fieldId: 'f-1',
+      fieldId: 'f-ankara-1',
       inputType: 'pesticide' as const,
       productName: 'Bakır Sülfat',
       quantity: 2.5,
@@ -490,7 +569,35 @@ export async function updateField(
     const i = demo.fields.findIndex((f) => f.id === fieldId);
     if (i >= 0) {
       demo.fields[i] = { ...demo.fields[i], ...data };
+      const updated = demo.fields[i];
       persistDemo();
+      if (typeof fetch !== 'undefined') {
+        try {
+          const coords = updated.polygon && updated.polygon.length >= 3
+            ? updated.polygon.map((p) => [p.lat, p.lng])
+            : [
+                [updated.location.lat, updated.location.lng],
+                [updated.location.lat + 0.004, updated.location.lng + 0.005],
+                [updated.location.lat - 0.003, updated.location.lng + 0.006],
+              ];
+          await fetch(resolveApiUrl('/api/fields'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              field: {
+                id: updated.id,
+                name: updated.name,
+                cropName: updated.cropName,
+                type: updated.type,
+                areaDecares: Math.round((updated.areaHectare || 1) * 10),
+                coordinates: coords,
+              },
+            }),
+          });
+        } catch (e) {
+          console.warn('[Mobile UpdateField] Server POST error:', e);
+        }
+      }
     }
   }
 }

@@ -131,42 +131,44 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<TaskItem | null>(null)
   const [editingNotes, setEditingNotes] = useState('')
   const [editingPhotos, setEditingPhotos] = useState<string[]>([])
-  const [selectedWeatherFieldId, setSelectedWeatherFieldId] = useState<string>('f-1')
+  const [selectedWeatherFieldId, setSelectedWeatherFieldId] = useState<string>('')
   const [selectedMapFieldId, setSelectedMapFieldId] = useState<string | null>(null)
   const [calendarView, setCalendarView] = useState<'list' | 'plan'>('list')
   const [planCrop, setPlanCrop] = useState<{ name: string; field: string; plantDate: string } | null>(null)
 
-  const [tasks, setTasks] = useState<TaskItem[]>([
+  const activeField = fields.find((f) => f.id === selectedWeatherFieldId) || fields[0]
+
+  const [tasks, setTasks] = useState<TaskItem[]>(() => [
     {
-      id: 't-1', fieldId: 'f-1', fieldName: 'Örnek Domates Tarlası', cropName: 'Domates',
+      id: 't-1', fieldId: 'f-ankara-1', fieldName: 'Kuzey Parsel (Ankara)', cropName: 'Domates',
       title: 'İlk Azotlu Gübreleme & Çapa', type: 'fertilizing', date: '2026-08-05', status: 'completed',
       productName: 'Üre %46 Azot Gübresi', dosage: '15 kg / Dönüm', targetPestOrPurpose: 'Kök gelişimi',
       notes: 'Toprak nemi iyi. Damlama ile verildi.',
       photos: ['https://images.unsplash.com/photo-1592417817098-8f3d6eb1b755?w=400&q=80'],
     },
     {
-      id: 't-2', fieldId: 'f-1', fieldName: 'Örnek Domates Tarlası', cropName: 'Domates',
+      id: 't-2', fieldId: 'f-ankara-1', fieldName: 'Kuzey Parsel (Ankara)', cropName: 'Domates',
       title: 'Damlama Sulama & Potasyum Desteği', type: 'fertilizing', date: '2026-08-06', status: 'pending',
       productName: 'Potasyum Nitrat (13-0-46)', dosage: '3 kg / Dekar',
     },
     {
-      id: 't-3', fieldId: 'f-2', fieldName: 'Güney Buğday Parseli', cropName: 'Buğday',
+      id: 't-3', fieldId: 'f-konya-1', fieldName: 'Konya Ovası Buğday', cropName: 'Buğday',
       title: 'Pas Hastalığı Koruyucu İlaçlama', type: 'spraying', date: '2026-08-07', status: 'delayed',
       productName: 'Bakır Sülfat', dosage: '250 ml / 100 LT',
       weatherReason: 'Rüzgar 22 km/s, sabah 06:00 ertelendi',
     },
     {
-      id: 't-4', fieldId: 'f-2', fieldName: 'Güney Buğday Parseli', cropName: 'Buğday',
+      id: 't-4', fieldId: 'f-cukurova-1', fieldName: 'Çukurova Sera-1', cropName: 'Biber',
       title: 'Üst Gübre Dağıtımı', type: 'fertilizing', date: '2026-08-04', status: 'completed',
       productName: 'NPK 15-15-15', dosage: '20 kg / Dönüm',
     },
     {
-      id: 't-5', fieldId: 'f-1', fieldName: 'Örnek Domates Tarlası', cropName: 'Domates',
+      id: 't-5', fieldId: 'f-ankara-1', fieldName: 'Kuzey Parsel (Ankara)', cropName: 'Domates',
       title: 'Kırmızı Örümcek & Yaprak Biti İlaçlaması', type: 'spraying', date: '2026-08-08', status: 'skipped',
       productName: 'Sistemik İnsektisit', dosage: '150 ml / Dekar',
     },
     {
-      id: 't-6', fieldId: 'f-2', fieldName: 'Güney Buğday Parseli', cropName: 'Buğday',
+      id: 't-6', fieldId: 'f-konya-1', fieldName: 'Konya Ovası Buğday', cropName: 'Buğday',
       title: 'Geniş Yapraklı Ot İlaçlaması', type: 'spraying', date: '2026-08-02', status: 'completed',
       productName: 'Selektif Herbisit', dosage: '100 ml / Dekar',
     },
