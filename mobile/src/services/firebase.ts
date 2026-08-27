@@ -316,298 +316,282 @@ function genId(prefix: string) {
 // ── AUTH ──
 
 export async function signInAnonymously(): Promise<{ uid: string }> {
-  if (DEMO_MODE) return { uid: demo.uid };
-  throw new Error('DEMO_MODE=false: @react-native-firebase/auth ekleyin');
+  try {
+    const storedUid = await AsyncStorage.getItem('eh_user_uid');
+    if (storedUid) {
+      demo.uid = storedUid;
+      return { uid: storedUid };
+    }
+  } catch {}
+  demo.uid = 'user_' + Math.random().toString(36).slice(2, 10);
+  try {
+    await AsyncStorage.setItem('eh_user_uid', demo.uid);
+  } catch {}
+  return { uid: demo.uid };
 }
 
 export async function signInWithEmail(
   email: string,
-  password: string
+  _password: string
 ): Promise<{ uid: string; email: string }> {
-  if (DEMO_MODE) return { uid: demo.uid, email };
-  throw new Error('DEMO_MODE=false: Firebase Auth aktif edin');
+  demo.uid = 'usr_' + btoa(email).slice(0, 8);
+  return { uid: demo.uid, email };
 }
 
 export async function signOut(): Promise<void> {
-  if (DEMO_MODE) return;
+  // Session reset if needed
 }
 
 export function onAuthStateChanged(
   callback: (user: { uid: string } | null) => void
 ): () => void {
-  if (DEMO_MODE) {
-    callback({ uid: demo.uid });
-    return () => {};
-  }
-  callback(null);
+  callback({ uid: demo.uid || 'demo-user-id' });
   return () => {};
 }
 
 export function getCurrentUid(): string | null {
-  return DEMO_MODE ? demo.uid : null;
+  return demo.uid || 'demo-user-id';
 }
 
 // ── FIELDS ──
 
-export async function getFields(userId: string): Promise<Field[]> {
-  if (DEMO_MODE) {
-    if (typeof fetch !== 'undefined') {
-      try {
-        const res = await fetch(resolveApiUrl('/api/fields'));
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data.fields)) {
-            const convertedFields: Field[] = data.fields.map((wf: any) => {
-              const coords = wf.coordinates || [];
-              const loc =
-                coords.length > 0
-                  ? { lat: coords[0][0], lng: coords[0][1] }
-                  : { lat: 39.92, lng: 32.85 };
-              const poly =
-                coords.length >= 3
-                  ? coords.map((c: [number, number]) => ({ lat: c[0], lng: c[1] }))
-                  : undefined;
-              const cropName = wf.cropName || wf.crop || 'Domates';
-              const isSera = wf.type === 'greenhouse' || cropName.toLowerCase().includes('sera');
+export async function getFields(_userId?: string): Promise<Field[]> {
+  if (typeof fetch !== 'undefined') {
+    try {
+      const res = await fetch(resolveApiUrl('/api/fields'), { method: 'GET' });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.fields)) {
+          const convertedFields: Field[] = data.fields.map((wf: any) => {
+            const coords = wf.coordinates || [];
+            const loc =
+              coords.length > 0
+                ? { lat: coords[0][0], lng: coords[0][1] }
+                : { lat: 39.92, lng: 32.85 };
+            const poly =
+              coords.length >= 3
+                ? coords.map((c: [number, number]) => ({ lat: c[0], lng: c[1] }))
+                : undefined;
+            const cropName = wf.cropName || wf.crop || 'Domates';
+            const isSera = wf.type === 'greenhouse' || cropName.toLowerCase().includes('sera');
 
-              return {
-                id: String(wf.id),
-                userId: 'demo-user-id',
-                name: wf.name || 'Tarla',
+            return {
+              id: String(wf.id),
+              userId: demo.uid || 'demo-user-id',
+              name: wf.name || 'Tarla',
+              cropName: cropName,
+              type: (isSera ? 'greenhouse' : 'field') as FieldType,
+              location: loc,
+              polygon: poly,
+              areaHectare: (wf.areaDecares || (wf.areaHectare ? wf.areaHectare * 10 : 10)) / 10,
+              soilType: 'killi-tınlı',
+              createdAt: new Date(wf.createdAt || Date.now()),
+            };
+          });
+
+          demo.fields = convertedFields;
+
+          // Reconcile crops
+          const validFieldIds = new Set(convertedFields.map((f) => f.id));
+          demo.crops = demo.crops.filter((c) => validFieldIds.has(c.fieldId));
+
+          convertedFields.forEach((f) => {
+            const cropName = f.cropName || 'Domates';
+            const existingCrop = demo.crops.find((c) => c.fieldId === f.id);
+            if (!existingCrop) {
+              demo.crops.push({
+                id: `c_${f.id}`,
+                userId: demo.uid || 'demo-user-id',
+                fieldId: f.id,
+                cropTemplateId: cropName.toLowerCase(),
                 cropName: cropName,
-                type: (isSera ? 'greenhouse' : 'field') as FieldType,
-                location: loc,
-                polygon: poly,
-                areaHectare: (wf.areaDecares || (wf.areaHectare ? wf.areaHectare * 10 : 10)) / 10,
-                soilType: 'killi-tınlı',
-                createdAt: new Date(wf.createdAt || Date.now()),
-              };
-            });
+                plantingDate: f.createdAt || new Date(),
+                status: 'active',
+              });
+            }
+          });
 
-            demo.fields = convertedFields;
-
-            // Reconcile crops
-            const validFieldIds = new Set(convertedFields.map((f) => f.id));
-            demo.crops = demo.crops.filter((c) => validFieldIds.has(c.fieldId));
-
-            convertedFields.forEach((f) => {
-              const cropName = f.cropName || 'Domates';
-              const existingCrop = demo.crops.find((c) => c.fieldId === f.id);
-              if (!existingCrop) {
-                demo.crops.push({
-                  id: `c_${f.id}`,
-                  userId: 'demo-user-id',
-                  fieldId: f.id,
-                  cropTemplateId: cropName.toLowerCase(),
-                  cropName: cropName,
-                  plantingDate: f.createdAt || new Date(),
-                  status: 'active',
-                });
-              }
-            });
-
-            persistDemo();
-            return demo.fields;
-          }
+          persistDemo();
+          return demo.fields;
         }
-      } catch (e) {
-        console.warn('[Mobile Sync] /api/fields fetch warning:', e);
       }
+    } catch (e) {
+      console.warn('[Mobile Sync] /api/fields fetch warning:', e);
     }
-    return demo.fields;
   }
-  return [];
+  return demo.fields;
 }
 
 export async function createField(
   data: Omit<Field, 'id' | 'createdAt'> & { createdAt?: Date }
 ): Promise<string> {
-  if (DEMO_MODE) {
-    const id = genId('f');
-    const newField: Field = { ...data, id, createdAt: data.createdAt || new Date() };
-    const cropName = newField.cropName || 'Domates';
-    const coords = newField.polygon && newField.polygon.length >= 3
-      ? newField.polygon.map((p) => [p.lat, p.lng])
-      : [
-          [newField.location.lat, newField.location.lng],
-          [newField.location.lat + 0.004, newField.location.lng + 0.005],
-          [newField.location.lat - 0.003, newField.location.lng + 0.006],
-        ];
+  const id = genId('f');
+  const newField: Field = { ...data, id, createdAt: data.createdAt || new Date() };
+  const cropName = newField.cropName || 'Domates';
+  const coords = newField.polygon && newField.polygon.length >= 3
+    ? newField.polygon.map((p) => [p.lat, p.lng])
+    : [
+        [newField.location.lat, newField.location.lng],
+        [newField.location.lat + 0.004, newField.location.lng + 0.005],
+        [newField.location.lat - 0.003, newField.location.lng + 0.006],
+      ];
 
-    let savedId = id;
-    if (typeof fetch !== 'undefined') {
-      try {
-        const res = await fetch(resolveApiUrl('/api/fields'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            field: {
-              id: newField.id,
-              name: newField.name,
-              cropName: cropName,
-              type: newField.type,
-              areaDecares: Math.round((newField.areaHectare || 1) * 10),
-              coordinates: coords,
-              createdAt: newField.createdAt?.toISOString ? newField.createdAt.toISOString() : new Date().toISOString(),
-            },
-          }),
-        });
-        if (res.ok) {
-          const resData = await res.json();
-          if (resData.field && resData.field.id) {
-            savedId = String(resData.field.id);
-            newField.id = savedId;
-          }
+  let savedId = id;
+  if (typeof fetch !== 'undefined') {
+    try {
+      const res = await fetch(resolveApiUrl('/api/fields'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          field: {
+            id: newField.id,
+            name: newField.name,
+            cropName: cropName,
+            type: newField.type,
+            areaDecares: Math.round((newField.areaHectare || 1) * 10),
+            coordinates: coords,
+            createdAt: newField.createdAt?.toISOString ? newField.createdAt.toISOString() : new Date().toISOString(),
+          },
+        }),
+      });
+      if (res.ok) {
+        const resData = await res.json();
+        if (resData.field && resData.field.id) {
+          savedId = String(resData.field.id);
+          newField.id = savedId;
         }
-      } catch (e) {
-        console.warn('[Mobile CreateField] Server POST error:', e);
       }
+    } catch (e) {
+      console.warn('[Mobile CreateField] Server POST error:', e);
     }
-
-    demo.fields.push(newField);
-    demo.crops.push({
-      id: `c_${newField.id}`,
-      userId: newField.userId || 'demo-user-id',
-      fieldId: newField.id,
-      cropTemplateId: cropName.toLowerCase(),
-      cropName: cropName,
-      plantingDate: newField.createdAt || new Date(),
-      status: 'active',
-    });
-
-    persistDemo();
-    return savedId;
   }
-  throw new Error('Firebase aktif değil');
+
+  demo.fields.push(newField);
+  demo.crops.push({
+    id: `c_${newField.id}`,
+    userId: newField.userId || demo.uid || 'demo-user-id',
+    fieldId: newField.id,
+    cropTemplateId: cropName.toLowerCase(),
+    cropName: cropName,
+    plantingDate: newField.createdAt || new Date(),
+    status: 'active',
+  });
+
+  persistDemo();
+  return savedId;
 }
 
 export async function updateField(
   fieldId: string,
   data: Partial<Field>
 ): Promise<void> {
-  if (DEMO_MODE) {
-    const i = demo.fields.findIndex((f) => f.id === fieldId);
-    if (i >= 0) {
-      demo.fields[i] = { ...demo.fields[i], ...data };
-      const updated = demo.fields[i];
-      persistDemo();
-      if (typeof fetch !== 'undefined') {
-        try {
-          const coords = updated.polygon && updated.polygon.length >= 3
-            ? updated.polygon.map((p) => [p.lat, p.lng])
-            : [
-                [updated.location.lat, updated.location.lng],
-                [updated.location.lat + 0.004, updated.location.lng + 0.005],
-                [updated.location.lat - 0.003, updated.location.lng + 0.006],
-              ];
-          await fetch(resolveApiUrl('/api/fields'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              field: {
-                id: updated.id,
-                name: updated.name,
-                cropName: updated.cropName,
-                type: updated.type,
-                areaDecares: Math.round((updated.areaHectare || 1) * 10),
-                coordinates: coords,
-              },
-            }),
-          });
-        } catch (e) {
-          console.warn('[Mobile UpdateField] Server POST error:', e);
-        }
+  const i = demo.fields.findIndex((f) => f.id === fieldId);
+  if (i >= 0) {
+    demo.fields[i] = { ...demo.fields[i], ...data };
+    const updated = demo.fields[i];
+    persistDemo();
+    if (typeof fetch !== 'undefined') {
+      try {
+        const coords = updated.polygon && updated.polygon.length >= 3
+          ? updated.polygon.map((p) => [p.lat, p.lng])
+          : [
+              [updated.location.lat, updated.location.lng],
+              [updated.location.lat + 0.004, updated.location.lng + 0.005],
+              [updated.location.lat - 0.003, updated.location.lng + 0.006],
+            ];
+        await fetch(resolveApiUrl('/api/fields'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            field: {
+              id: updated.id,
+              name: updated.name,
+              cropName: updated.cropName,
+              type: updated.type,
+              areaDecares: Math.round((updated.areaHectare || 1) * 10),
+              coordinates: coords,
+            },
+          }),
+        });
+      } catch (e) {
+        console.warn('[Mobile UpdateField] Server POST error:', e);
       }
     }
   }
 }
 
 export async function deleteField(fieldId: string): Promise<void> {
-  if (DEMO_MODE) {
-    demo.fields = demo.fields.filter((f) => f.id !== fieldId);
-    demo.crops = demo.crops.filter((c) => c.fieldId !== fieldId);
-    persistDemo();
-    if (typeof fetch !== 'undefined') {
-      try {
-        await fetch(resolveApiUrl(`/api/fields?id=${encodeURIComponent(fieldId)}`), { method: 'DELETE' });
-      } catch (e) {
-        console.warn('[Mobile DeleteField] Server DELETE error:', e);
-      }
+  demo.fields = demo.fields.filter((f) => f.id !== fieldId);
+  demo.crops = demo.crops.filter((c) => c.fieldId !== fieldId);
+  persistDemo();
+  if (typeof fetch !== 'undefined') {
+    try {
+      await fetch(resolveApiUrl(`/api/fields?id=${encodeURIComponent(fieldId)}`), { method: 'DELETE' });
+    } catch (e) {
+      console.warn('[Mobile DeleteField] Server DELETE error:', e);
     }
   }
 }
 
 // ── CROPS ──
 
-export async function getCrops(userId: string): Promise<Crop[]> {
-  if (DEMO_MODE) return demo.crops.filter((c) => c.userId === userId);
-  return [];
+export async function getCrops(userId?: string): Promise<Crop[]> {
+  const uid = userId || demo.uid || 'demo-user-id';
+  return demo.crops.filter((c) => !c.userId || c.userId === uid || c.userId === 'demo-user-id');
 }
 
 export async function createCrop(data: Omit<Crop, 'id'>): Promise<string> {
-  if (DEMO_MODE) {
-    const id = genId('c');
-    demo.crops.push({ ...data, id });
-    persistDemo();
-    return id;
-  }
-  throw new Error('Firebase aktif değil');
+  const id = genId('c');
+  demo.crops.push({ ...data, id });
+  persistDemo();
+  return id;
 }
 
 export async function deleteCrop(cropId: string): Promise<void> {
-  if (DEMO_MODE) {
-    demo.crops = demo.crops.filter((c) => c.id !== cropId);
-    demo.tasks = demo.tasks.filter((t) => t.cropId !== cropId);
-    persistDemo();
-  }
+  demo.crops = demo.crops.filter((c) => c.id !== cropId);
+  demo.tasks = demo.tasks.filter((t) => t.cropId !== cropId);
+  persistDemo();
 }
 
 // ── TASKS ──
 
 export async function getTasks(
-  userId: string,
+  userId?: string,
   opts?: { status?: TaskStatus[]; from?: Date; to?: Date }
 ): Promise<Task[]> {
-  if (DEMO_MODE) {
-    let list = demo.tasks.filter((t) => t.userId === userId);
-    if (opts?.status?.length) {
-      list = list.filter((t) => opts.status!.includes(t.status));
-    }
-    if (opts?.from) list = list.filter((t) => t.plannedDate >= opts.from!);
-    if (opts?.to) list = list.filter((t) => t.plannedDate <= opts.to!);
-    return list.sort(
-      (a, b) => a.plannedDate.getTime() - b.plannedDate.getTime()
-    );
+  const uid = userId || demo.uid || 'demo-user-id';
+  let list = demo.tasks.filter((t) => !t.userId || t.userId === uid || t.userId === 'demo-user-id');
+  if (opts?.status?.length) {
+    list = list.filter((t) => opts.status!.includes(t.status));
   }
-  return [];
+  if (opts?.from) list = list.filter((t) => t.plannedDate >= opts.from!);
+  if (opts?.to) list = list.filter((t) => t.plannedDate <= opts.to!);
+  return list.sort(
+    (a, b) => a.plannedDate.getTime() - b.plannedDate.getTime()
+  );
 }
 
 export async function createTasks(
   tasks: Omit<Task, 'id'>[]
 ): Promise<string[]> {
-  if (DEMO_MODE) {
-    const ids: string[] = [];
-    for (const t of tasks) {
-      const id = genId('t');
-      demo.tasks.push({ ...t, id });
-      ids.push(id);
-    }
-    persistDemo();
-    return ids;
+  const ids: string[] = [];
+  for (const t of tasks) {
+    const id = genId('t');
+    demo.tasks.push({ ...t, id });
+    ids.push(id);
   }
-  throw new Error('Firebase aktif değil');
+  persistDemo();
+  return ids;
 }
 
 export async function updateTask(
   taskId: string,
   data: Partial<Task>
 ): Promise<void> {
-  if (DEMO_MODE) {
-    const i = demo.tasks.findIndex((t) => t.id === taskId);
-    if (i >= 0) {
-      demo.tasks[i] = { ...demo.tasks[i], ...data };
-      persistDemo();
-    }
+  const i = demo.tasks.findIndex((t) => t.id === taskId);
+  if (i >= 0) {
+    demo.tasks[i] = { ...demo.tasks[i], ...data };
+    persistDemo();
   }
 }
 
@@ -616,10 +600,8 @@ export async function completeTask(taskId: string): Promise<void> {
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
-  if (DEMO_MODE) {
-    demo.tasks = demo.tasks.filter((t) => t.id !== taskId);
-    persistDemo();
-  }
+  demo.tasks = demo.tasks.filter((t) => t.id !== taskId);
+  persistDemo();
 }
 
 // ── SETTINGS + FCM ──
@@ -638,12 +620,10 @@ export async function getUserSettings(_userId: string): Promise<UserSettings> {
 }
 
 export async function saveFcmToken(userId: string, token: string): Promise<void> {
-  if (DEMO_MODE) {
-    console.log('[demo] FCM token', userId, token.slice(0, 12) + '...');
-  }
+  console.log('[FCM token]', userId, token.slice(0, 12) + '...');
 }
 
-/** Demo'da Cloud Function yokken ürün + görevleri birlikte yazar */
+/** Ürün + görevleri birlikte yazar */
 export async function createCropWithTasks(
   cropData: Omit<Crop, 'id'>,
   taskList: Omit<Task, 'id'>[]
@@ -657,66 +637,57 @@ export async function createCropWithTasks(
 // ── APPLICATION LOGS ──
 
 export async function getApplicationLogs(
-  userId: string,
+  userId?: string,
   fieldId?: string
 ): Promise<ApplicationLog[]> {
-  if (DEMO_MODE) {
-    let list = demo.applicationLogs.filter((l) => l.userId === userId);
-    if (fieldId) {
-      list = list.filter((l) => l.fieldId === fieldId);
-    }
-    return list.sort((a, b) => b.appliedAt.getTime() - a.appliedAt.getTime());
+  const uid = userId || demo.uid || 'demo-user-id';
+  let list = demo.applicationLogs.filter((l) => !l.userId || l.userId === uid || l.userId === 'demo-user-id');
+  if (fieldId) {
+    list = list.filter((l) => l.fieldId === fieldId);
   }
-  return [];
+  return list.sort((a, b) => b.appliedAt.getTime() - a.appliedAt.getTime());
 }
 
 export async function createApplicationLog(
   data: Omit<ApplicationLog, 'id' | 'createdAt'>
 ): Promise<string> {
-  if (DEMO_MODE) {
-    const id = genId('log');
-    let harvestSafeDate = data.harvestSafeDate;
-    if (data.phiDays && data.phiDays > 0 && data.appliedAt) {
-      const d = new Date(data.appliedAt);
-      d.setDate(d.getDate() + data.phiDays);
-      harvestSafeDate = d;
-    }
-    let totalCostTry = data.totalCostTry;
-    if (totalCostTry == null && data.unitCostTry != null) {
-      totalCostTry = data.unitCostTry * data.quantity;
-    }
-    const newLog: ApplicationLog = {
-      ...data,
-      harvestSafeDate,
-      totalCostTry,
-      id,
-      createdAt: new Date(),
-    };
-    demo.applicationLogs.unshift(newLog);
-    persistDemo();
-    return id;
+  const id = genId('log');
+  let harvestSafeDate = data.harvestSafeDate;
+  if (data.phiDays && data.phiDays > 0 && data.appliedAt) {
+    const d = new Date(data.appliedAt);
+    d.setDate(d.getDate() + data.phiDays);
+    harvestSafeDate = d;
   }
-  throw new Error('Firebase aktif değil — DEMO_MODE=false ve Firestore bağlayın');
+  let totalCostTry = data.totalCostTry;
+  if (totalCostTry == null && data.unitCostTry != null) {
+    totalCostTry = data.unitCostTry * data.quantity;
+  }
+  const newLog: ApplicationLog = {
+    ...data,
+    harvestSafeDate,
+    totalCostTry,
+    id,
+    createdAt: new Date(),
+  };
+  demo.applicationLogs.unshift(newLog);
+  persistDemo();
+  return id;
 }
 
 export async function updateApplicationLog(
   id: string,
   data: Partial<ApplicationLog>
 ): Promise<void> {
-  if (DEMO_MODE) {
-    const i = demo.applicationLogs.findIndex((l) => l.id === id);
-    if (i >= 0) {
-      demo.applicationLogs[i] = { ...demo.applicationLogs[i], ...data };
-      persistDemo();
-    }
+  const i = demo.applicationLogs.findIndex((l) => l.id === id);
+  if (i >= 0) {
+    demo.applicationLogs[i] = { ...demo.applicationLogs[i], ...data };
+    persistDemo();
   }
 }
 
 export async function deleteApplicationLog(id: string): Promise<void> {
-  if (DEMO_MODE) {
-    demo.applicationLogs = demo.applicationLogs.filter((l) => l.id !== id);
-    persistDemo();
-  }
+  demo.applicationLogs = demo.applicationLogs.filter((l) => l.id !== id);
+  persistDemo();
 }
 
 // ── STOCK ──
@@ -774,53 +745,44 @@ const demoMembers: FarmMember[] = [
 
 const demoDetections: DiseaseDetectionResult[] = [];
 
-export async function getStock(userId: string): Promise<StockItem[]> {
-  if (DEMO_MODE) return demoStock.filter((s) => s.userId === userId);
-  return [];
+export async function getStock(userId?: string): Promise<StockItem[]> {
+  const uid = userId || demo.uid || 'demo-user-id';
+  return demoStock.filter((s) => !s.userId || s.userId === uid || s.userId === 'demo-user-id');
 }
 
 export async function createStockItem(
   data: Omit<StockItem, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
-  if (DEMO_MODE) {
-    const id = genId('stk');
-    demoStock.unshift({
-      ...data,
-      id,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    return id;
-  }
-  throw new Error('Firebase aktif değil');
+  const id = genId('stk');
+  demoStock.unshift({
+    ...data,
+    id,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  return id;
 }
 
 export async function updateStockItem(
   id: string,
   data: Partial<StockItem>
 ): Promise<void> {
-  if (DEMO_MODE) {
-    const i = demoStock.findIndex((s) => s.id === id);
-    if (i >= 0)
-      demoStock[i] = { ...demoStock[i], ...data, updatedAt: new Date() };
-  }
+  const i = demoStock.findIndex((s) => s.id === id);
+  if (i >= 0)
+    demoStock[i] = { ...demoStock[i], ...data, updatedAt: new Date() };
 }
 
 export async function deleteStockItem(id: string): Promise<void> {
-  if (DEMO_MODE) {
-    const i = demoStock.findIndex((s) => s.id === id);
-    if (i >= 0) demoStock.splice(i, 1);
-  }
+  const i = demoStock.findIndex((s) => s.id === id);
+  if (i >= 0) demoStock.splice(i, 1);
 }
 
-export async function getFarm(_userId: string): Promise<Farm | null> {
-  if (DEMO_MODE) return demoFarm;
-  return null;
+export async function getFarm(_userId?: string): Promise<Farm | null> {
+  return demoFarm;
 }
 
 export async function getFarmMembers(farmId: string): Promise<FarmMember[]> {
-  if (DEMO_MODE) return demoMembers.filter((m) => m.farmId === farmId);
-  return [];
+  return demoMembers.filter((m) => m.farmId === farmId);
 }
 
 export async function joinFarmByCode(
@@ -828,24 +790,21 @@ export async function joinFarmByCode(
   code: string,
   displayName: string
 ): Promise<boolean> {
-  if (DEMO_MODE) {
-    if (code.trim().toUpperCase() !== demoFarm.inviteCode) return false;
-    if (!demoMembers.some((m) => m.userId === userId)) {
-      demoMembers.push({
-        id: genId('m'),
-        farmId: demoFarm.id,
-        userId,
-        displayName,
-        role: 'worker',
-        joinedAt: new Date(),
-      });
-    }
-    return true;
+  if (code.trim().toUpperCase() !== demoFarm.inviteCode) return false;
+  if (!demoMembers.some((m) => m.userId === userId)) {
+    demoMembers.push({
+      id: genId('m'),
+      farmId: demoFarm.id,
+      userId,
+      displayName,
+      role: 'worker',
+      joinedAt: new Date(),
+    });
   }
-  return false;
+  return true;
 }
 
-/** Stub AI — gerçek TFLite model ile değiştirilecek */
+/** Stub AI */
 export async function runDiseaseDetectionStub(
   userId: string,
   imageUri: string,
@@ -878,13 +837,13 @@ export async function runDiseaseDetectionStub(
     createdAt: new Date(),
     modelVersion: 'stub-v0',
   };
-  if (DEMO_MODE) demoDetections.unshift(result);
+  demoDetections.unshift(result);
   return result;
 }
 
 export async function getDiseaseDetections(
-  userId: string
+  userId?: string
 ): Promise<DiseaseDetectionResult[]> {
-  if (DEMO_MODE) return demoDetections.filter((d) => d.userId === userId);
-  return [];
+  const uid = userId || demo.uid || 'demo-user-id';
+  return demoDetections.filter((d) => !d.userId || d.userId === uid || d.userId === 'demo-user-id');
 }
