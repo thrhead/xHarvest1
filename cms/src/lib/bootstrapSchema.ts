@@ -4,7 +4,10 @@ import { fileURLToPath } from 'url'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
-const defaultDbPath = path.resolve(dirname, '../../../ekim-hasat.db')
+const isVercel = Boolean(process.env.VERCEL)
+const defaultDbPath = isVercel
+  ? path.join('/tmp', 'ekim-hasat.db')
+  : path.resolve(dirname, '../../ekim-hasat.db')
 
 function clientFromEnv() {
   const url = process.env.DATABASE_URI || process.env.TURSO_DATABASE_URL || `file:${defaultDbPath}`
@@ -67,6 +70,7 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
       area_decares NUMERIC DEFAULT 10,
       coordinates TEXT,
       color TEXT,
+      custom_id TEXT,
       updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )`,
@@ -226,6 +230,7 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
     `ALTER TABLE fields ADD COLUMN coordinates TEXT`,
     `ALTER TABLE fields ADD COLUMN crop_name TEXT`,
     `ALTER TABLE fields ADD COLUMN area_decares NUMERIC DEFAULT 10`,
+    `ALTER TABLE fields ADD COLUMN custom_id TEXT`,
   ]
 
   for (const alt of safeAlters) {
