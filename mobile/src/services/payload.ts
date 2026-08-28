@@ -1,6 +1,5 @@
 import { CropTemplate } from '../types';
-
-const PAYLOAD_URL = process.env.EXPO_PUBLIC_PAYLOAD_URL || 'http://localhost:3000';
+import { getServerBaseUrl } from './firebase';
 
 /**
  * Payload CMS’den ürün şablonlarını çeker.
@@ -8,8 +7,11 @@ const PAYLOAD_URL = process.env.EXPO_PUBLIC_PAYLOAD_URL || 'http://localhost:300
  */
 export async function fetchCropTemplates(): Promise<CropTemplate[]> {
   try {
-    const res = await fetch(`${PAYLOAD_URL}/api/crops?limit=50&depth=2`);
+    const baseUrl = getServerBaseUrl();
+    const res = await fetch(`${baseUrl}/api/crops?limit=50&depth=2`);
     if (!res.ok) throw new Error('CMS yanıt vermedi');
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) throw new Error('JSON formatında yanıt gelmedi');
     const json = await res.json();
     return json.docs.map(mapPayloadCrop);
   } catch (e) {

@@ -23,7 +23,6 @@ import {
 
 export const DEMO_MODE = process.env.EXPO_PUBLIC_DEMO_MODE !== 'false';
 
-const DEFAULT_PRODUCTION_URL = 'https://ekim-hasat-cms.vercel.app';
 let memoryCustomServerUrl: string | null = null;
 
 // Hydrate custom server url from storage if configured
@@ -33,14 +32,36 @@ AsyncStorage.getItem('eh_custom_server_url').then((val) => {
 
 export function getServerBaseUrl(): string {
   if (memoryCustomServerUrl) return memoryCustomServerUrl;
-  if (typeof window !== 'undefined' && window.location && window.location.origin && Platform.OS === 'web') {
-    return window.location.origin;
-  }
-  const envUrl = process.env.EXPO_PUBLIC_PAYLOAD_URL || process.env.NEXT_PUBLIC_SERVER_URL || '';
+
+  const envUrl =
+    process.env.EXPO_PUBLIC_API_URL ||
+    process.env.EXPO_PUBLIC_PAYLOAD_URL ||
+    process.env.NEXT_PUBLIC_SERVER_URL ||
+    '';
   if (envUrl && envUrl.startsWith('http')) {
     return envUrl.replace(/\/+$/, '');
   }
-  return DEFAULT_PRODUCTION_URL;
+
+  // Web / Browser environment detection
+  if (typeof window !== 'undefined' && window.location) {
+    const loc = window.location;
+    const port = loc.port;
+    const host = loc.hostname;
+
+    // If running in browser on port 3000 or on deployed domain (e.g. *.run.app, custom domain)
+    const isBundlerPort = port === '8081' || port === '19006' || port === '8082' || port === '5173';
+    if (!isBundlerPort && (port === '3000' || host.includes('.run.app') || !port || port === '80' || port === '443')) {
+      return loc.origin;
+    }
+
+    // If running in Expo Web / Metro bundler (e.g. localhost:8081), target Next.js on port 3000
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return `http://${host}:3000`;
+    }
+  }
+
+  // Default local backend
+  return 'http://localhost:3000';
 }
 
 export function setCustomServerUrl(url: string) {
@@ -55,29 +76,64 @@ export function setCustomServerUrl(url: string) {
 
 export function resolveApiUrl(path: string): string {
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+  const base = getServerBaseUrl();
+
+  // If in web on port 3000 or production origin, relative path works directly
+  if (
+    typeof window !== 'undefined' &&
+    window.location &&
+    Platform.OS === 'web' &&
+    window.location.origin === base
+  ) {
     return cleanPath;
   }
-  const base = getServerBaseUrl();
+
   return `${base}${cleanPath}`;
+}
+
+async function safeFetchJson<T = any>(url: string, init?: RequestInit): Promise<{ ok: boolean; status: number; data?: T; error?: string }> {
+  try {
+    const res = await fetch(url, init);
+    const contentType = res.headers.get('content-type') || '';
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: `HTTP ${res.status}: ${res.statusText}` };
+    }
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      return { ok: true, status: res.status, data };
+    }
+    // Received non-JSON (like HTML fallback from Expo dev server or 404 page)
+    const text = await res.text();
+    if (text.trim().startsWith('<') || text.includes('<!DOCTYPE') || text.includes('<html')) {
+      return { ok: false, status: res.status, error: 'Sunucu beklenen JSON yerine HTML sayfası döndürdü' };
+    }
+    try {
+      const parsed = JSON.parse(text);
+      return { ok: true, status: res.status, data: parsed };
+    } catch {
+      return { ok: false, status: res.status, error: 'Geçersiz JSON formatı' };
+    }
+  } catch (err: any) {
+    return { ok: false, status: 0, error: err?.message || 'Ağ bağlantı hatası' };
+  }
 }
 
 export async function testServerConnection(): Promise<{ ok: boolean; statusText: string; url: string; count?: number }> {
   const testUrl = resolveApiUrl('/api/fields');
   try {
     const start = Date.now();
-    const res = await fetch(testUrl, { method: 'GET' });
+    const result = await safeFetchJson<{ count?: number; fields?: any[] }>(testUrl, { method: 'GET' });
     const latency = Date.now() - start;
-    if (res.ok) {
-      const data = await res.json();
+    if (result.ok && result.data) {
+      const count = result.data.count ?? result.data.fields?.length ?? 0;
       return {
         ok: true,
-        statusText: `Bağlantı başarılı (${latency}ms) · ${data.count ?? data.fields?.length ?? 0} tarla`,
+        statusText: `Bağlantı başarılı (${latency}ms) · ${count} tarla senkronize`,
         url: testUrl,
-        count: data.count ?? data.fields?.length ?? 0,
+        count,
       };
     }
-    return { ok: false, statusText: `HTTP ${res.status}: ${res.statusText}`, url: testUrl };
+    return { ok: false, statusText: result.error || `HTTP ${result.status}`, url: testUrl };
   } catch (err: any) {
     return { ok: false, statusText: err?.message || 'Bağlantı hatası', url: testUrl };
   }
@@ -358,62 +414,59 @@ export function getCurrentUid(): string | null {
 export async function getFields(_userId?: string): Promise<Field[]> {
   if (typeof fetch !== 'undefined') {
     try {
-      const res = await fetch(resolveApiUrl('/api/fields'), { method: 'GET' });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.fields)) {
-          const convertedFields: Field[] = data.fields.map((wf: any) => {
-            const coords = wf.coordinates || [];
-            const loc =
-              coords.length > 0
-                ? { lat: coords[0][0], lng: coords[0][1] }
-                : { lat: 39.92, lng: 32.85 };
-            const poly =
-              coords.length >= 3
-                ? coords.map((c: [number, number]) => ({ lat: c[0], lng: c[1] }))
-                : undefined;
-            const cropName = wf.cropName || wf.crop || 'Domates';
-            const isSera = wf.type === 'greenhouse' || cropName.toLowerCase().includes('sera');
+      const res = await safeFetchJson<{ fields?: any[]; count?: number }>(resolveApiUrl('/api/fields'), { method: 'GET' });
+      if (res.ok && res.data && Array.isArray(res.data.fields)) {
+        const convertedFields: Field[] = res.data.fields.map((wf: any) => {
+          const coords = wf.coordinates || [];
+          const loc =
+            coords.length > 0
+              ? { lat: coords[0][0], lng: coords[0][1] }
+              : { lat: 39.92, lng: 32.85 };
+          const poly =
+            coords.length >= 3
+              ? coords.map((c: [number, number]) => ({ lat: c[0], lng: c[1] }))
+              : undefined;
+          const cropName = wf.cropName || wf.crop || 'Domates';
+          const isSera = wf.type === 'greenhouse' || cropName.toLowerCase().includes('sera');
 
-            return {
-              id: String(wf.id),
+          return {
+            id: String(wf.id),
+            userId: demo.uid || 'demo-user-id',
+            name: wf.name || 'Tarla',
+            cropName: cropName,
+            type: (isSera ? 'greenhouse' : 'field') as FieldType,
+            location: loc,
+            polygon: poly,
+            areaHectare: (wf.areaDecares || (wf.areaHectare ? wf.areaHectare * 10 : 10)) / 10,
+            soilType: 'killi-tınlı',
+            createdAt: new Date(wf.createdAt || Date.now()),
+          };
+        });
+
+        demo.fields = convertedFields;
+
+        // Reconcile crops
+        const validFieldIds = new Set(convertedFields.map((f) => f.id));
+        demo.crops = demo.crops.filter((c) => validFieldIds.has(c.fieldId));
+
+        convertedFields.forEach((f) => {
+          const cropName = f.cropName || 'Domates';
+          const existingCrop = demo.crops.find((c) => c.fieldId === f.id);
+          if (!existingCrop) {
+            demo.crops.push({
+              id: `c_${f.id}`,
               userId: demo.uid || 'demo-user-id',
-              name: wf.name || 'Tarla',
+              fieldId: f.id,
+              cropTemplateId: cropName.toLowerCase(),
               cropName: cropName,
-              type: (isSera ? 'greenhouse' : 'field') as FieldType,
-              location: loc,
-              polygon: poly,
-              areaHectare: (wf.areaDecares || (wf.areaHectare ? wf.areaHectare * 10 : 10)) / 10,
-              soilType: 'killi-tınlı',
-              createdAt: new Date(wf.createdAt || Date.now()),
-            };
-          });
+              plantingDate: f.createdAt || new Date(),
+              status: 'active',
+            });
+          }
+        });
 
-          demo.fields = convertedFields;
-
-          // Reconcile crops
-          const validFieldIds = new Set(convertedFields.map((f) => f.id));
-          demo.crops = demo.crops.filter((c) => validFieldIds.has(c.fieldId));
-
-          convertedFields.forEach((f) => {
-            const cropName = f.cropName || 'Domates';
-            const existingCrop = demo.crops.find((c) => c.fieldId === f.id);
-            if (!existingCrop) {
-              demo.crops.push({
-                id: `c_${f.id}`,
-                userId: demo.uid || 'demo-user-id',
-                fieldId: f.id,
-                cropTemplateId: cropName.toLowerCase(),
-                cropName: cropName,
-                plantingDate: f.createdAt || new Date(),
-                status: 'active',
-              });
-            }
-          });
-
-          persistDemo();
-          return demo.fields;
-        }
+        persistDemo();
+        return demo.fields;
       }
     } catch (e) {
       console.warn('[Mobile Sync] /api/fields fetch warning:', e);
@@ -439,27 +492,27 @@ export async function createField(
   let savedId = id;
   if (typeof fetch !== 'undefined') {
     try {
-      const res = await fetch(resolveApiUrl('/api/fields'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          field: {
-            id: newField.id,
-            name: newField.name,
-            cropName: cropName,
-            type: newField.type,
-            areaDecares: Math.round((newField.areaHectare || 1) * 10),
-            coordinates: coords,
-            createdAt: newField.createdAt?.toISOString ? newField.createdAt.toISOString() : new Date().toISOString(),
-          },
-        }),
-      });
-      if (res.ok) {
-        const resData = await res.json();
-        if (resData.field && resData.field.id) {
-          savedId = String(resData.field.id);
-          newField.id = savedId;
+      const res = await safeFetchJson<{ success: boolean; field?: { id: string | number } }>(
+        resolveApiUrl('/api/fields'),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            field: {
+              id: newField.id,
+              name: newField.name,
+              cropName: cropName,
+              type: newField.type,
+              areaDecares: Math.round((newField.areaHectare || 1) * 10),
+              coordinates: coords,
+              createdAt: newField.createdAt?.toISOString ? newField.createdAt.toISOString() : new Date().toISOString(),
+            },
+          }),
         }
+      );
+      if (res.ok && res.data?.field?.id) {
+        savedId = String(res.data.field.id);
+        newField.id = savedId;
       }
     } catch (e) {
       console.warn('[Mobile CreateField] Server POST error:', e);
@@ -478,6 +531,7 @@ export async function createField(
   });
 
   persistDemo();
+  syncDemoFieldsToWeb();
   return savedId;
 }
 
@@ -490,6 +544,7 @@ export async function updateField(
     demo.fields[i] = { ...demo.fields[i], ...data };
     const updated = demo.fields[i];
     persistDemo();
+    syncDemoFieldsToWeb();
     if (typeof fetch !== 'undefined') {
       try {
         const coords = updated.polygon && updated.polygon.length >= 3
@@ -499,7 +554,7 @@ export async function updateField(
               [updated.location.lat + 0.004, updated.location.lng + 0.005],
               [updated.location.lat - 0.003, updated.location.lng + 0.006],
             ];
-        await fetch(resolveApiUrl('/api/fields'), {
+        await safeFetchJson(resolveApiUrl('/api/fields'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -524,9 +579,10 @@ export async function deleteField(fieldId: string): Promise<void> {
   demo.fields = demo.fields.filter((f) => f.id !== fieldId);
   demo.crops = demo.crops.filter((c) => c.fieldId !== fieldId);
   persistDemo();
+  syncDemoFieldsToWeb();
   if (typeof fetch !== 'undefined') {
     try {
-      await fetch(resolveApiUrl(`/api/fields?id=${encodeURIComponent(fieldId)}`), { method: 'DELETE' });
+      await safeFetchJson(resolveApiUrl(`/api/fields?id=${encodeURIComponent(fieldId)}`), { method: 'DELETE' });
     } catch (e) {
       console.warn('[Mobile DeleteField] Server DELETE error:', e);
     }

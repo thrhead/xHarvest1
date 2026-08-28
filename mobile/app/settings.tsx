@@ -73,10 +73,26 @@ export default function SettingsScreen() {
           style={s.input}
           value={serverUrl}
           onChangeText={setServerUrlState}
-          placeholder="https://ekim-hasat-cms.vercel.app"
+          placeholder="http://localhost:3000"
           autoCapitalize="none"
           autoCorrect={false}
         />
+        <View style={{ flexDirection: 'row', gap: 6, marginVertical: 6, flexWrap: 'wrap' }}>
+          <TouchableOpacity
+            style={{ backgroundColor: '#F1F5F9', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1' }}
+            onPress={() => setServerUrlState('http://localhost:3000')}
+          >
+            <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>📍 Localhost:3000</Text>
+          </TouchableOpacity>
+          {typeof window !== 'undefined' && window.location?.origin && (
+            <TouchableOpacity
+              style={{ backgroundColor: '#F1F5F9', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1' }}
+              onPress={() => setServerUrlState(window.location.origin)}
+            >
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>🌐 Web Host</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         <View style={s.serverActionRow}>
           <TouchableOpacity
             style={s.testBtn}

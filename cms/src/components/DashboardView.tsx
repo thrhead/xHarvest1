@@ -226,14 +226,16 @@ export default function DashboardView() {
 
   const handleDeleteField = async (id: string, name?: string) => {
     if (name && typeof window !== 'undefined' && !window.confirm(`"${name}" tarlasını silmek istediğinize emin misiniz?`)) return
-    setFields((prev) => prev.filter((f) => f.id !== id))
-    try {
-      await fetch(`/api/fields?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+    setFields((prev) => {
+      const remaining = prev.filter((f) => f.id !== id)
       if (typeof window !== 'undefined') {
-        const remaining = fields.filter((f) => f.id !== id)
         localStorage.setItem('eh_web_fields', JSON.stringify(remaining))
         window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', fields: remaining } }))
       }
+      return remaining
+    })
+    try {
+      await fetch(`/api/fields?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
     } catch (e) {
       console.warn('Field delete error:', e)
     }
@@ -241,7 +243,14 @@ export default function DashboardView() {
 
   const handleCreateField = async (newField: any) => {
     const fieldWithId = { ...newField, id: newField.id || `f-${Date.now()}` }
-    setFields((p) => [...p, fieldWithId])
+    setFields((p) => {
+      const next = [...p.filter((f) => f.id !== fieldWithId.id), fieldWithId]
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('eh_web_fields', JSON.stringify(next))
+        window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', fields: next } }))
+      }
+      return next
+    })
     try {
       const res = await fetch('/api/fields', {
         method: 'POST',
@@ -252,12 +261,14 @@ export default function DashboardView() {
         const data = await res.json()
         if (data.field && data.field.id) {
           const finalId = data.field.id
-          setFields((p) => p.map((f) => (f.id === fieldWithId.id ? { ...f, id: finalId } : f)))
-          if (typeof window !== 'undefined') {
-            const updated = fields.map((f) => (f.id === fieldWithId.id ? { ...f, id: finalId } : f))
-            localStorage.setItem('eh_web_fields', JSON.stringify(updated))
-            window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', fields: updated } }))
-          }
+          setFields((p) => {
+            const next = p.map((f) => (f.id === fieldWithId.id ? { ...f, id: finalId } : f))
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('eh_web_fields', JSON.stringify(next))
+              window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', fields: next } }))
+            }
+            return next
+          })
         }
       }
     } catch (e) {
@@ -266,21 +277,28 @@ export default function DashboardView() {
   }
 
   const handleUpdateFieldCrop = async (id: string, crop: string) => {
-    setFields((p) => p.map((x) => (x.id === id ? { ...x, cropName: crop } : x)))
-    const target = fields.find((x) => x.id === id)
-    if (target) {
+    let updatedField: any = null
+    setFields((p) => {
+      const next = p.map((x) => {
+        if (x.id === id) {
+          updatedField = { ...x, cropName: crop }
+          return updatedField
+        }
+        return x
+      })
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('eh_web_fields', JSON.stringify(next))
+        window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', fields: next } }))
+      }
+      return next
+    })
+    if (updatedField) {
       try {
-        const updated = { ...target, cropName: crop }
         await fetch('/api/fields', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ field: updated }),
+          body: JSON.stringify({ field: updatedField }),
         })
-        if (typeof window !== 'undefined') {
-          const allUpdated = fields.map((x) => (x.id === id ? updated : x))
-          localStorage.setItem('eh_web_fields', JSON.stringify(allUpdated))
-          window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', fields: allUpdated } }))
-        }
       } catch (e) {
         console.warn('Field crop update error:', e)
       }
@@ -317,18 +335,25 @@ export default function DashboardView() {
       // Background sync polling & focus sync
       const interval = setInterval(() => {
         fetchFieldsFromApi()
-      }, 12000)
+      }, 5000)
 
       const onFocus = () => {
         fetchFieldsFromApi()
       }
+      const onSyncEvent = (e: any) => {
+        if (e?.detail?.source === 'mobile') {
+          fetchFieldsFromApi()
+        }
+      }
       window.addEventListener('focus', onFocus)
       window.addEventListener('storage', onFocus)
+      window.addEventListener('eh_fields_sync', onSyncEvent)
 
       return () => {
         clearInterval(interval)
         window.removeEventListener('focus', onFocus)
         window.removeEventListener('storage', onFocus)
+        window.removeEventListener('eh_fields_sync', onSyncEvent)
       }
     }
   }, [])
