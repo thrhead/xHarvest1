@@ -144,6 +144,9 @@ export async function ensureFieldsTable(): Promise<void> {
   try {
     await executeSql(`ALTER TABLE fields ADD COLUMN area_decares NUMERIC DEFAULT 10`)
   } catch {}
+  try {
+    await executeSql(`UPDATE fields SET crop_name = 'Domates' WHERE crop_name = '5' OR crop_name IS NULL OR crop_name = ''`)
+  } catch {}
 }
 
 function parseCoordinates(raw: any): [number, number][] {
@@ -163,11 +166,13 @@ function parseCoordinates(raw: any): [number, number][] {
 function rowToField(row: any): DbField {
   const decares = typeof row.area_decares === 'number' ? row.area_decares : parseFloat(row.area_decares) || 10
   const customId = row.custom_id || (row.id ? `f-${row.id}` : `f-${Date.now()}`)
+  const rawCrop = (row.crop_name || '').trim()
+  const cropName = (!rawCrop || rawCrop === '5' || (!isNaN(Number(rawCrop)) && rawCrop.length < 5)) ? 'Domates' : rawCrop
   return {
     id: customId,
     dbId: row.id != null ? Number(row.id) : undefined,
     name: row.name || 'Tarla',
-    cropName: row.crop_name || 'Domates',
+    cropName,
     type: row.type === 'greenhouse' ? 'greenhouse' : 'field',
     areaDecares: decares,
     areaHectare: decares / 10,

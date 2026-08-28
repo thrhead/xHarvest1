@@ -82,6 +82,7 @@ export default function DashboardView() {
   const [crops, setCrops] = useState<any[]>([])
   const [guides, setGuides] = useState<any[]>([])
   const [selectedCropId, setSelectedCropId] = useState('')
+  const [mapCropFilter, setMapCropFilter] = useState('all')
   const [activeTab, setActiveTab] = useState<PortalTab>('map')
   const [sidebarAction, setSidebarAction] = useState<SidebarAction | null>(null)
   const [mapFocus, setMapFocus] = useState<'draw' | 'list' | 'assign' | null>(null)
@@ -635,9 +636,9 @@ export default function DashboardView() {
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setSelectedCropId('all')}
+                        onClick={() => setMapCropFilter('all')}
                         className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                          selectedCropId === 'all' || !selectedCropId
+                          mapCropFilter === 'all' || !mapCropFilter
                             ? 'bg-emerald-700 text-white shadow-2xs'
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
@@ -645,24 +646,26 @@ export default function DashboardView() {
                         Tüm Tarlalar ({fields.length})
                       </button>
 
-                      {Array.from(new Set(fields.map((f) => f.cropName).filter(Boolean))).map((cropName) => {
-                        const count = fields.filter((f) => f.cropName === cropName).length
-                        const isSelected = selectedCropId === cropName
-                        return (
-                          <button
-                            key={cropName}
-                            type="button"
-                            onClick={() => setSelectedCropId(isSelected ? 'all' : cropName)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                              isSelected
-                                ? 'bg-emerald-700 text-white shadow-2xs'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                            }`}
-                          >
-                            🌱 {cropName} ({count})
-                          </button>
-                        )
-                      })}
+                      {Array.from(new Set(fields.map((f) => f.cropName).filter(Boolean)))
+                        .filter((cropName) => cropName !== '5' && isNaN(Number(cropName)))
+                        .map((cropName) => {
+                          const count = fields.filter((f) => f.cropName === cropName).length
+                          const isSelected = mapCropFilter === cropName
+                          return (
+                            <button
+                              key={cropName}
+                              type="button"
+                              onClick={() => setMapCropFilter(isSelected ? 'all' : cropName)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                isSelected
+                                  ? 'bg-emerald-700 text-white shadow-2xs'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              }`}
+                            >
+                              🌱 {cropName} ({count})
+                            </button>
+                          )
+                        })}
 
                       <button
                         type="button"
@@ -694,10 +697,10 @@ export default function DashboardView() {
                       onAddField={(f) => handleCreateField({ ...f, id: `f-${Date.now()}` })}
                       onDeleteField={(id) => handleDeleteField(id)}
                       onUpdateFieldCrop={(id, crop) => handleUpdateFieldCrop(id, crop)}
-                      selectedCrop={selectedCropId === 'all' ? 'all' : selectedCropId || 'all'}
+                      selectedCrop={mapCropFilter}
                       availableCrops={Array.from(
                         new Set([
-                          ...crops.map((c) => c.nameTr),
+                          ...crops.map((c) => c.nameTr).filter((n) => n && n !== '5' && isNaN(Number(n))),
                           'Domates',
                           'Buğday',
                           'Biber',
@@ -706,6 +709,7 @@ export default function DashboardView() {
                           'Zeytin',
                           'Pamuk',
                           'Elma',
+                          'Patlıcan',
                         ]),
                       )}
                     />

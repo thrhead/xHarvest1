@@ -70,13 +70,14 @@ export default function InteractiveMap({
 
   // Sync crop filter with incoming selectedCrop prop
   useEffect(() => {
-    if (selectedCrop && selectedCrop !== 'all') {
+    if (selectedCrop && selectedCrop !== 'all' && selectedCrop !== '5' && isNaN(Number(selectedCrop))) {
       setCropFilter(selectedCrop)
       setDrawingCrop(selectedCrop)
     } else {
       setCropFilter('all')
-      if (availableCrops.length > 0 && !drawingCrop) {
-        setDrawingCrop(availableCrops[0])
+      const validCrops = availableCrops.filter((c) => c && c !== '5' && isNaN(Number(c)))
+      if (validCrops.length > 0 && (!drawingCrop || drawingCrop === '5' || !isNaN(Number(drawingCrop)))) {
+        setDrawingCrop(validCrops[0])
       }
     }
   }, [selectedCrop, availableCrops])
@@ -87,7 +88,7 @@ export default function InteractiveMap({
       ...availableCrops,
       ...fields.map((f) => f.cropName).filter(Boolean),
     ]),
-  )
+  ).filter((c) => c && c !== '5' && isNaN(Number(c)))
 
   // Change cursor when drawing
   useEffect(() => {

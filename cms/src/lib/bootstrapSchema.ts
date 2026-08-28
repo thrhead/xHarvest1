@@ -55,10 +55,6 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
     for (const t of DROP_ALL) {
       await client.execute(`DROP TABLE IF EXISTS ${t}`)
     }
-  } else if (options?.fix) {
-    for (const t of DROP_SAFE) {
-      await client.execute(`DROP TABLE IF EXISTS ${t}`)
-    }
   }
 
   const statements = [
@@ -106,7 +102,7 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
       created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )`,
     `CREATE TABLE IF NOT EXISTS crops_stages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT PRIMARY KEY,
       _order INTEGER NOT NULL DEFAULT 0,
       _parent_id INTEGER NOT NULL,
       name TEXT,
@@ -116,9 +112,9 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
       FOREIGN KEY (_parent_id) REFERENCES crops(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE IF NOT EXISTS crops_stages_tasks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT PRIMARY KEY,
       _order INTEGER NOT NULL DEFAULT 0,
-      _parent_id INTEGER NOT NULL,
+      _parent_id TEXT NOT NULL,
       type TEXT,
       title TEXT,
       title_tr TEXT,
@@ -181,7 +177,6 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
       updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )`,
-    // Payload parent_id bekler (parent degil)
     `CREATE TABLE IF NOT EXISTS payload_preferences_rels (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       "order" INTEGER,
@@ -198,34 +193,28 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
       updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )`,
+    // IF NOT EXISTS Indexes
+    `CREATE INDEX IF NOT EXISTS users_created_at_idx ON users (created_at)`,
+    `CREATE INDEX IF NOT EXISTS users_updated_at_idx ON users (updated_at)`,
+    `CREATE INDEX IF NOT EXISTS crops_created_at_idx ON crops (created_at)`,
+    `CREATE INDEX IF NOT EXISTS crops_updated_at_idx ON crops (updated_at)`,
+    `CREATE INDEX IF NOT EXISTS crops_stages_order_idx ON crops_stages (_order)`,
+    `CREATE INDEX IF NOT EXISTS crops_stages_parent_id_idx ON crops_stages (_parent_id)`,
+    `CREATE INDEX IF NOT EXISTS crops_stages_tasks_order_idx ON crops_stages_tasks (_order)`,
+    `CREATE INDEX IF NOT EXISTS crops_stages_tasks_parent_id_idx ON crops_stages_tasks (_parent_id)`,
+    `CREATE INDEX IF NOT EXISTS guides_created_at_idx ON guides (created_at)`,
+    `CREATE INDEX IF NOT EXISTS guides_updated_at_idx ON guides (updated_at)`,
+    `CREATE INDEX IF NOT EXISTS media_created_at_idx ON media (created_at)`,
+    `CREATE INDEX IF NOT EXISTS media_updated_at_idx ON media (updated_at)`,
+    `CREATE INDEX IF NOT EXISTS payload_migrations_created_at_idx ON payload_migrations (created_at)`,
+    `CREATE INDEX IF NOT EXISTS payload_migrations_updated_at_idx ON payload_migrations (updated_at)`,
   ]
 
   for (const sql of statements) {
     await client.execute(sql)
   }
 
-  // Safe migrations for columns added later or missing on existing databases
   const safeAlters = [
-    `ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'admin'`,
-    `ALTER TABLE users ADD COLUMN name TEXT`,
-    `ALTER TABLE users ADD COLUMN login_attempts NUMERIC DEFAULT 0`,
-    `ALTER TABLE users ADD COLUMN lock_until TEXT`,
-    `ALTER TABLE users ADD COLUMN reset_password_token TEXT`,
-    `ALTER TABLE users ADD COLUMN reset_password_expiration TEXT`,
-    `ALTER TABLE users ADD COLUMN salt TEXT`,
-    `ALTER TABLE users ADD COLUMN hash TEXT`,
-    `ALTER TABLE crops ADD COLUMN name_tr TEXT`,
-    `ALTER TABLE crops ADD COLUMN category TEXT DEFAULT 'vegetable'`,
-    `ALTER TABLE crops ADD COLUMN default_duration_days NUMERIC DEFAULT 120`,
-    `ALTER TABLE crops_stages ADD COLUMN name_tr TEXT`,
-    `ALTER TABLE crops_stages ADD COLUMN day_offset NUMERIC`,
-    `ALTER TABLE crops_stages ADD COLUMN duration_days NUMERIC`,
-    `ALTER TABLE crops_stages_tasks ADD COLUMN title_tr TEXT`,
-    `ALTER TABLE guides ADD COLUMN title_tr TEXT`,
-    `ALTER TABLE guides ADD COLUMN slug TEXT`,
-    `ALTER TABLE guides ADD COLUMN category TEXT`,
-    `ALTER TABLE guides ADD COLUMN summary TEXT`,
-    `ALTER TABLE guides ADD COLUMN body TEXT`,
     `ALTER TABLE fields ADD COLUMN color TEXT`,
     `ALTER TABLE fields ADD COLUMN coordinates TEXT`,
     `ALTER TABLE fields ADD COLUMN crop_name TEXT`,
@@ -237,7 +226,7 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
     try {
       await client.execute(alt)
     } catch {
-      // Column already exists or table freshly created
+      // Column already exists
     }
   }
 
@@ -245,6 +234,5 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
     ok: true,
     tables: statements.length,
     reset: Boolean(options?.reset),
-    fix: Boolean(options?.fix),
   }
 }

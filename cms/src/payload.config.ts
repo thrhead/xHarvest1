@@ -71,7 +71,7 @@ export default buildConfig({
       ...(authToken ? { authToken } : {}),
     },
     ...(isRemoteLibsql ? {} : { busyTimeout: 30000, wal: true }),
-    push: !isBuilding && !isVercel,
+    push: false,
   }),
   sharp,
   cors: [

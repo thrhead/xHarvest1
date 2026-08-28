@@ -60,6 +60,7 @@ export default function AddFieldScreen() {
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
   const [polygon, setPolygon] = useState<GeoPoint[] | undefined>(undefined);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Haritadan dönünce seçilen konumu al
   useFocusEffect(
@@ -140,15 +141,7 @@ export default function AddFieldScreen() {
       });
 
       await refreshFields();
-
-      if (Platform.OS === 'web') {
-        router.back();
-      } else {
-        Alert.alert('Kaydedildi', 'Tarla ve ekim kaydı başarıyla eklendi', [
-          { text: 'Tamam', onPress: () => router.back() },
-        ]);
-        setTimeout(() => router.back(), 500);
-      }
+      setShowSuccessModal(true);
     } catch (e: any) {
       const msg = e?.message || 'Kayıt başarısız';
       if (Platform.OS === 'web') alert(msg); else Alert.alert('Hata', msg);
@@ -336,6 +329,30 @@ export default function AddFieldScreen() {
           <Text style={styles.saveText}>Tarla & Ekim Kaydını Kaydet</Text>
         )}
       </TouchableOpacity>
+
+      {/* Custom In-App Success Alert Modal */}
+      {showSuccessModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconWrap}>
+              <Text style={styles.modalIconText}>🌱</Text>
+            </View>
+            <Text style={styles.modalTitle}>Tarla Eklendi</Text>
+            <Text style={styles.modalMessage}>
+              Tarla ve ekim kaydı başarıyla eklendi.
+            </Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => {
+                setShowSuccessModal(false);
+                router.back();
+              }}
+            >
+              <Text style={styles.modalButtonText}>Tamam</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -438,4 +455,70 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   saveText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  modalIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#ECFDF5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#A7F3D0',
+  },
+  modalIconText: {
+    fontSize: 28,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+  modalButton: {
+    width: '100%',
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
 });

@@ -131,6 +131,118 @@ const CROPS_TEMPLATES = [
     ],
   },
   {
+    name: 'Eggplant',
+    nameTr: 'Patlıcan',
+    category: 'vegetable',
+    defaultDurationDays: 120,
+    stages: [
+      {
+        name: 'Transplanting',
+        nameTr: 'Fide Dikimi',
+        dayOffset: 0,
+        durationDays: 25,
+        tasks: [
+          { type: 'planting', title: 'Plant eggplant seedlings', titleTr: 'Patlıcan fidelerini dik', description: 'Don riski kalktıktan sonra toprağa dikilir ve can suyu verilir.' },
+          { type: 'irrigation', title: 'Initial irrigation', titleTr: 'Can suyu sulaması', description: 'Kök tutunması için düzenli sulama yapılır.' },
+        ],
+      },
+      {
+        name: 'Vegetative Growth & Flowering',
+        nameTr: 'Gelişme ve Çiçeklenme',
+        dayOffset: 25,
+        durationDays: 40,
+        tasks: [
+          { type: 'fertilizing', title: 'NPK & Nitrogen application', titleTr: 'Dengeli Gübreleme', description: 'Azot ve potasyum ağırlıklı besleme yapılır.' },
+          { type: 'spraying', title: 'Red spider & Aphid spray', titleTr: 'Kırmızı Örümcek ve Zararlı Kontrolü', description: 'Sıcak havalarda kırmızı örümceğe dikkat edilir.' },
+        ],
+      },
+      {
+        name: 'Harvest',
+        nameTr: 'Hasat Dönemi',
+        dayOffset: 65,
+        durationDays: 55,
+        tasks: [
+          { type: 'harvesting', title: 'Regular harvest', titleTr: 'Kademeli Patlıcan Hasadı', description: 'Meyveler parlak mor renkteyken kartlaşmadan kesilerek toplanır.' },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'Cotton',
+    nameTr: 'Pamuk',
+    category: 'industrial',
+    defaultDurationDays: 160,
+    stages: [
+      {
+        name: 'Sowing & Emergence',
+        nameTr: 'Ekim ve Çıkış',
+        dayOffset: 0,
+        durationDays: 20,
+        tasks: [
+          { type: 'planting', title: 'Sow cotton seeds', titleTr: 'Pamuk Ekimi', description: 'Toprak sıcaklığı 15°C üzerine çıktığında mibzerle ekim yapılır.' },
+          { type: 'fertilizing', title: 'Base fertilization', titleTr: 'Taban Gübrelemesi', description: 'Fosfor ve azot kompoze gübre verilir.' },
+        ],
+      },
+      {
+        name: 'Squaring & Flowering',
+        nameTr: 'Taraklanma ve Çiçeklenme',
+        dayOffset: 45,
+        durationDays: 50,
+        tasks: [
+          { type: 'irrigation', title: 'First irrigation (First water)', titleTr: 'İlk Sulama (Tarak Dönemi)', description: 'Taraklanma başlangıcında ilk asıl su verilir.' },
+          { type: 'spraying', title: 'Bollworm & Aphid control', titleTr: 'Yeşil Kurt ve Yaprak Biti Mücadelesi', description: 'Zararlı takibi yapılarak ilaçlama düzenlenir.' },
+        ],
+      },
+      {
+        name: 'Boll Opening & Harvest',
+        nameTr: 'Koza Açma ve Hasat',
+        dayOffset: 110,
+        durationDays: 50,
+        tasks: [
+          { type: 'other', title: 'Defoliation spray', titleTr: 'Yaprak Dökücü Uygulaması', description: 'Makineli hasat öncesi yaprak dökücü atılır.' },
+          { type: 'harvesting', title: 'Cotton picking', titleTr: 'Pamuk Hasadı', description: 'Kozaların %80i açtığında pamuk toplama makinesi ile toplanır.' },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'Sunflower',
+    nameTr: 'Ayçiçeği',
+    category: 'cereal',
+    defaultDurationDays: 120,
+    stages: [
+      {
+        name: 'Sowing & Germination',
+        nameTr: 'Ekim ve Çimlenme',
+        dayOffset: 0,
+        durationDays: 15,
+        tasks: [
+          { type: 'planting', title: 'Precision sowing', titleTr: 'Ayçiçeği Ekimi', description: 'Havalı mibzerle 70 cm sıra arası ile ekilir.' },
+          { type: 'fertilizing', title: 'Base NPK application', titleTr: 'Taban Gübresi', description: 'Gelişimi destekleyecek taban gübresi verilir.' },
+        ],
+      },
+      {
+        name: 'Vegetative & Heading',
+        nameTr: 'Gelişme ve Tabla Oluşumu',
+        dayOffset: 20,
+        durationDays: 45,
+        tasks: [
+          { type: 'fertilizing', title: 'Hoeing & Top nitrogen', titleTr: 'Çapa ve Üst Gübreleme', description: 'Boğaz doldurma ile birlikte azotlu üst gübre atılır.' },
+          { type: 'irrigation', title: 'Head initiation irrigation', titleTr: 'Tabla Çıkarma Sulaması', description: 'Çiçek öncesi sulama verimi artıran en kritik adımdır.' },
+        ],
+      },
+      {
+        name: 'Maturation & Harvest',
+        nameTr: 'Olgunlaşma ve Hasat',
+        dayOffset: 75,
+        durationDays: 45,
+        tasks: [
+          { type: 'harvesting', title: 'Combine harvest', titleTr: 'Biçerdöverle Ayçiçeği Hasadı', description: 'Tablaların arkası kahverengileşip nem düşündüğünde biçilir.' },
+        ],
+      },
+    ],
+  },
+  {
     name: 'Wheat',
     nameTr: 'Buğday',
     category: 'cereal',

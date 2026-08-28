@@ -10,21 +10,12 @@ export async function GET() {
     const config = (await import('@payload-config')).default
     const payload = await getPayload({ config })
 
-    const existing = await payload.find({ collection: 'crops', limit: 1 })
-    if (existing.totalDocs > 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'Zaten veri var. Yeni seed atlanadi.',
-        crops: existing.totalDocs,
-      })
-    }
-
     const { runSeed } = await import('@/seed')
     await runSeed(payload)
 
     const [crops, guides] = await Promise.all([
-      payload.find({ collection: 'crops', limit: 50 }),
-      payload.find({ collection: 'guides', limit: 50 }),
+      payload.find({ collection: 'crops', limit: 100 }),
+      payload.find({ collection: 'guides', limit: 100 }),
     ])
 
     return NextResponse.json({
