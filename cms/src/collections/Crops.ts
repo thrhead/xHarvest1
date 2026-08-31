@@ -95,11 +95,41 @@ export const Crops: CollectionConfig = {
         },
         {
           name: 'tasks',
-          type: 'json',
-          label: 'Aşama Görevleri (Zirai İşlem Listesi)',
-          admin: {
-            description: 'Bu aşamadaki görevler (gübreleme, ilaçlama, sulama vb. JSON formatında)',
+          type: 'array',
+          label: 'Aşama Görevleri',
+          labels: {
+            singular: 'Görev',
+            plural: 'Görevler',
           },
+          fields: [
+            {
+              name: 'type',
+              type: 'select',
+              options: [
+                { label: 'Ekim / Dikim', value: 'planting' },
+                { label: 'Gübreleme', value: 'fertilizing' },
+                { label: 'İlaçlama', value: 'spraying' },
+                { label: 'Hasat', value: 'harvesting' },
+                { label: 'Sulama', value: 'irrigation' },
+                { label: 'Diğer / Bakım', value: 'other' },
+              ],
+              required: true,
+              defaultValue: 'other',
+              label: 'Görev Türü',
+            },
+            {
+              type: 'row',
+              fields: [
+                { name: 'titleTr', type: 'text', required: true, label: 'Görev Başlığı (TR)', admin: { width: '50%' } },
+                { name: 'title', type: 'text', required: true, label: 'Görev Başlığı (EN)', admin: { width: '50%' } },
+              ],
+            },
+            {
+              name: 'description',
+              type: 'textarea',
+              label: 'Görev Açıklaması / Talimatlar',
+            },
+          ],
         },
       ],
     },
