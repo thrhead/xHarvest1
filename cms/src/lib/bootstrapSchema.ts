@@ -109,6 +109,7 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
       name_tr TEXT,
       day_offset NUMERIC,
       duration_days NUMERIC,
+      tasks TEXT,
       FOREIGN KEY (_parent_id) REFERENCES crops(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE IF NOT EXISTS crops_stages_tasks (
@@ -220,6 +221,7 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
     `ALTER TABLE fields ADD COLUMN crop_name TEXT`,
     `ALTER TABLE fields ADD COLUMN area_decares NUMERIC DEFAULT 10`,
     `ALTER TABLE fields ADD COLUMN custom_id TEXT`,
+    `ALTER TABLE crops_stages ADD COLUMN tasks TEXT`,
   ]
 
   for (const alt of safeAlters) {

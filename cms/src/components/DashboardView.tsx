@@ -148,6 +148,26 @@ export default function DashboardView() {
   const [webRecords, setWebRecords] = useState<any[]>([])
 
   const [fields, setFields] = useState<FieldPolygon[]>([])
+  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
+
+  const activeField = fields.find((f) => f.id === selectedFieldId) || fields[0] || null
+
+  const getFieldWeather = (field: FieldPolygon | null) => {
+    if (!field) return { region: 'Ankara', temp: '31°C', desc: 'Açık', wind: '11 km/s', rain: '%0', recommendation: 'İlaçlama Uygun' }
+    const nameLower = (field.name + ' ' + (field.region || '')).toLowerCase()
+    if (nameLower.includes('konya') || nameLower.includes('buğday')) {
+      return { region: 'Konya Ovası', temp: '28°C', desc: 'Parçalı Bulutlu', wind: '9 km/s', rain: '%0', recommendation: 'İlaçlama & Gübreleme Uygun' }
+    }
+    if (nameLower.includes('cukurova') || nameLower.includes('adana')) {
+      return { region: 'Çukurova', temp: '34°C', desc: 'Açık & Sıcak', wind: '14 km/s', rain: '%10', recommendation: 'Yüksek Sıcaklık (Gölgeli Saatlerde Uygulayın)' }
+    }
+    if (nameLower.includes('ege') || nameLower.includes('manisa') || nameLower.includes('zeytin')) {
+      return { region: 'Ege / Manisa', temp: '30°C', desc: 'Güneşli', wind: '12 km/s', rain: '%0', recommendation: 'İlaçlama Uygun' }
+    }
+    return { region: field.name, temp: '31°C', desc: 'Açık', wind: '11 km/s', rain: '%0', recommendation: 'İlaçlama Uygun' }
+  }
+
+  const activeFieldWeather = getFieldWeather(activeField)
 
   const [plantingRecords, setPlantingRecords] = useState<PlantingRecord[]>([])
 
@@ -170,6 +190,31 @@ export default function DashboardView() {
   const [cronRunning, setCronRunning] = useState(false)
   const [cronStatusMsg, setCronStatusMsg] = useState<string | null>(null)
   const [cronTab, setCronTab] = useState<'rescheduled' | 'logs'>('rescheduled')
+  const [selectedLogDetail, setSelectedLogDetail] = useState<any | null>(null)
+  const [logSearchQuery, setLogSearchQuery] = useState('')
+  const [logSourceFilter, setLogSourceFilter] = useState<string>('all')
+
+  const filteredLogs = useMemo(() => {
+    return cronLogs.filter((log) => {
+      const q = logSearchQuery.toLowerCase().trim()
+      const matchesSearch =
+        !q ||
+        (log.jobName || '').toLowerCase().includes(q) ||
+        (log.triggeredBy || '').toLowerCase().includes(q) ||
+        (log.id || '').toLowerCase().includes(q) ||
+        (log.source || '').toLowerCase().includes(q) ||
+        (log.statusText || '').toLowerCase().includes(q) ||
+        (log.details || []).some((d: string) => d.toLowerCase().includes(q))
+
+      const matchesSource =
+        logSourceFilter === 'all' ||
+        (logSourceFilter === 'cron-job.org' && (log.source === 'cron-job.org' || log.triggeredBy?.includes('Otomatik'))) ||
+        (logSourceFilter === 'dashboard' && (log.source === 'dashboard' || log.triggeredBy?.includes('Manuel'))) ||
+        (logSourceFilter === 'mobile' && (log.source === 'mobile' || log.triggeredBy?.includes('Mobil')))
+
+      return matchesSearch && matchesSource
+    })
+  }, [cronLogs, logSearchQuery, logSourceFilter])
 
   const fetchCronLogs = () => {
     fetch('/api/cron/weather-adjust?logs=true')
@@ -480,15 +525,15 @@ export default function DashboardView() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight truncate">
-                  Ekim-Hasat Portal
+                  {activeField ? activeField.name : 'Ekim-Hasat Portal'}
                 </h1>
                 <span className="hidden sm:inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-full border border-emerald-200/60">
                   <span className="size-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                  Canlı Saha
+                  Seçili Saha: {activeFieldWeather.region}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 font-medium truncate">
-                📍 Ankara Çiftliği · {fields.length} Parsel · {totalArea.toFixed(1)} Dekar
+                📍 {activeField ? `${activeField.cropName || 'Ekim Yapılmadı'} · ${activeField.areaDecares} Dekar (${fields.length} Parsel)` : `Ankara Çiftliği · ${fields.length} Parsel · ${totalArea.toFixed(1)} Dekar`}
               </p>
             </div>
           </div>
@@ -497,10 +542,12 @@ export default function DashboardView() {
             {/* Quick Weather Snapshot Pill */}
             <div className="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-xl text-xs">
               <CloudSun size={15} className="text-amber-500" />
-              <span className="font-bold text-slate-700">31°C</span>
+              <span className="font-bold text-slate-700">{activeFieldWeather.temp}</span>
+              <span className="text-slate-400">·</span>
+              <span className="text-slate-600 font-semibold">{activeFieldWeather.region}</span>
               <span className="text-slate-400">·</span>
               <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                <CheckCircle2 size={12} /> İlaçlama Uygun
+                <CheckCircle2 size={12} /> {activeFieldWeather.recommendation}
               </span>
             </div>
 
@@ -694,6 +741,8 @@ export default function DashboardView() {
                   {mounted ? (
                     <InteractiveMap
                       fields={fields}
+                      selectedFieldId={selectedFieldId || activeField?.id}
+                      onSelectField={(id) => setSelectedFieldId(id)}
                       onAddField={(f) => handleCreateField({ ...f, id: `f-${Date.now()}` })}
                       onDeleteField={(id) => handleDeleteField(id)}
                       onUpdateFieldCrop={(id, crop) => handleUpdateFieldCrop(id, crop)}
@@ -722,38 +771,65 @@ export default function DashboardView() {
 
                 {/* Field Details Cards */}
                 <div className="grid sm:grid-cols-2 gap-3">
-                  {fields.map((f) => (
-                    <div
-                      key={f.id}
-                      className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="size-3.5 rounded-full ring-4 ring-slate-100 shrink-0"
-                          style={{ backgroundColor: f.color || '#10b981' }}
-                        />
-                        <div>
-                          <h4 className="text-xs font-bold text-slate-900">{f.name}</h4>
-                          <p className="text-[11px] text-slate-500 font-medium">
-                            {f.cropName || 'Boş'} · <strong>{f.areaDecares} dekar</strong>
-                          </p>
+                  {fields.map((f) => {
+                    const isSelected = activeField?.id === f.id
+                    return (
+                      <div
+                        key={f.id}
+                        onClick={() => setSelectedFieldId(f.id)}
+                        className={`bg-white border rounded-2xl p-4 shadow-2xs flex items-center justify-between cursor-pointer transition-all ${
+                          isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20' : 'border-slate-200/80 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="size-3.5 rounded-full ring-4 ring-slate-100 shrink-0"
+                            style={{ backgroundColor: f.color || '#10b981' }}
+                          />
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                              {f.name}
+                              {isSelected && (
+                                <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-md">
+                                  Seçili
+                                </span>
+                              )}
+                            </h4>
+                            <p className="text-[11px] text-slate-500 font-medium">
+                              {f.cropName || 'Boş'} · <strong>{f.areaDecares} dekar</strong>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedFieldId(f.id)
+                            }}
+                            className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${
+                              isSelected
+                                ? 'bg-emerald-700 text-white border-emerald-700'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            {isSelected ? 'Seçildi' : 'Seç'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteField(f.id, f.name)
+                            }}
+                            className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded-md border border-rose-200/60 transition"
+                            title="Tarlayı Sil"
+                          >
+                            Sil
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200/60">
-                          Aktif
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteField(f.id, f.name)}
-                          className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded-md border border-rose-200/60 transition"
-                          title="Tarlayı Sil"
-                        >
-                          Sil
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -1250,56 +1326,164 @@ export default function DashboardView() {
                       </div>
                     )}
 
-                    {/* Tab 2: Execution Logs History Table */}
+                    {/* Tab 2: Execution Logs History Table & Full Search */}
                     {cronTab === 'logs' && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
-                          <thead>
-                            <tr className="border-b border-slate-200 text-[11px] font-extrabold text-slate-400 uppercase">
-                              <th className="py-2.5 px-3">Çalışma Zamanı</th>
-                              <th className="py-2.5 px-3">Tetikleyici</th>
-                              <th className="py-2.5 px-3 text-center">Taranan</th>
-                              <th className="py-2.5 px-3 text-center">Ötelenen</th>
-                              <th className="py-2.5 px-3">Süre</th>
-                              <th className="py-2.5 px-3 text-right">Durum</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {cronLogs.map((log) => (
-                              <tr key={log.id} className="hover:bg-slate-50 font-medium text-slate-700">
-                                <td className="py-2.5 px-3">
-                                  <div className="font-bold text-slate-900">
-                                    {new Date(log.ranAt).toLocaleDateString('tr-TR')}
-                                  </div>
-                                  <div className="text-[10px] text-slate-400">
-                                    {new Date(log.ranAt).toLocaleTimeString('tr-TR')}
-                                  </div>
-                                </td>
-                                <td className="py-2.5 px-3">
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
-                                    {log.source || 'cron-job.org'}
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-3 text-center font-bold">{log.scanned} görev</td>
-                                <td className="py-2.5 px-3 text-center">
-                                  <span
-                                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                      log.moved > 0 ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-500'
-                                    }`}
-                                  >
-                                    {log.moved} adet
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-3 text-slate-500">{log.durationMs} ms</td>
-                                <td className="py-2.5 px-3 text-right">
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
-                                    200 OK
-                                  </span>
-                                </td>
+                      <div className="space-y-4">
+                        {/* Search & Filter Control Bar */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+                          <div className="relative flex-1">
+                            <Search size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                            <input
+                              type="text"
+                              placeholder="Log ID, işlem adı, tetikleyici, durum veya detay ara..."
+                              value={logSearchQuery}
+                              onChange={(e) => setLogSearchQuery(e.target.value)}
+                              className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                            />
+                            {logSearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setLogSearchQuery('')}
+                                className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Source Filter Tabs */}
+                          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200/80 overflow-x-auto text-[11px] shrink-0 font-bold">
+                            <button
+                              type="button"
+                              onClick={() => setLogSourceFilter('all')}
+                              className={`px-2.5 py-1 rounded-lg transition ${
+                                logSourceFilter === 'all' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              Tüm Loglar ({cronLogs.length})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setLogSourceFilter('cron-job.org')}
+                              className={`px-2.5 py-1 rounded-lg transition ${
+                                logSourceFilter === 'cron-job.org' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              ⏰ Otomatik Cron
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setLogSourceFilter('dashboard')}
+                              className={`px-2.5 py-1 rounded-lg transition ${
+                                logSourceFilter === 'dashboard' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              👤 Manuel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setLogSourceFilter('mobile')}
+                              className={`px-2.5 py-1 rounded-lg transition ${
+                                logSourceFilter === 'mobile' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              📱 Mobil
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Execution Logs Table */}
+                        <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+                                <th className="py-3 px-3.5">İşlem & Log ID</th>
+                                <th className="py-3 px-3.5">Çalışma Zamanı</th>
+                                <th className="py-3 px-3.5">Tetikleyici / Kim Tarafından</th>
+                                <th className="py-3 px-3.5 text-center">Taranan / Ertelenen</th>
+                                <th className="py-3 px-3.5">Süre</th>
+                                <th className="py-3 px-3.5">Durum</th>
+                                <th className="py-3 px-3.5 text-right">Eylem</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                              {filteredLogs.length === 0 ? (
+                                <tr>
+                                  <td colSpan={7} className="py-8 text-center text-slate-400 font-medium">
+                                    Aramanız veya filtrenizle eşleşen log kaydı bulunamadı.
+                                  </td>
+                                </tr>
+                              ) : (
+                                filteredLogs.map((log) => (
+                                  <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="py-3 px-3.5">
+                                      <div className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                                        <FileText size={13} className="text-emerald-600 shrink-0" />
+                                        <span>{log.jobName || 'Zirai Hava & Görev Senkronizasyonu'}</span>
+                                      </div>
+                                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">{log.id}</div>
+                                    </td>
+                                    <td className="py-3 px-3.5 whitespace-nowrap">
+                                      <div className="font-bold text-slate-900 flex items-center gap-1">
+                                        <Calendar size={12} className="text-slate-400" />
+                                        {new Date(log.ranAt).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                      </div>
+                                      <div className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+                                        <Clock size={11} className="text-slate-400" />
+                                        {new Date(log.ranAt).toLocaleTimeString('tr-TR')}
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-3.5">
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
+                                          log.source === 'dashboard'
+                                            ? 'bg-purple-50 text-purple-900 border-purple-200/80'
+                                            : log.source === 'mobile'
+                                            ? 'bg-blue-50 text-blue-900 border-blue-200/80'
+                                            : 'bg-emerald-50 text-emerald-900 border-emerald-200/80'
+                                        }`}
+                                      >
+                                        {log.triggeredBy || 'Zamanlanmış Otomatik Cron (cron-job.org)'}
+                                      </span>
+                                    </td>
+                                    <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                                      <div className="flex items-center justify-center gap-1.5">
+                                        <span className="px-2 py-0.5 rounded bg-slate-100 font-bold text-slate-700 text-[11px]">
+                                          {log.scanned || 0} taranan
+                                        </span>
+                                        <span
+                                          className={`px-2 py-0.5 rounded font-bold text-[11px] ${
+                                            log.moved > 0 ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-500'
+                                          }`}
+                                        >
+                                          {log.moved || 0} ertelenen
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-3.5 whitespace-nowrap font-mono text-slate-600 text-[11px]">
+                                      {log.durationMs || 250} ms
+                                    </td>
+                                    <td className="py-3 px-3.5 whitespace-nowrap">
+                                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-200">
+                                        {log.statusText || '200 OK'}
+                                      </span>
+                                    </td>
+                                    <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedLogDetail(log)}
+                                        className="px-2.5 py-1 bg-slate-100 hover:bg-emerald-100 hover:text-emerald-900 text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ml-auto"
+                                      >
+                                        <span>İncele</span>
+                                        <ChevronRight size={13} />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2712,6 +2896,122 @@ export default function DashboardView() {
               </div>
             </div>
           </form>
+        </div>
+      )}
+      {/* Log Detail Modal */}
+      {selectedLogDetail && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-2xl w-full space-y-5 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                  Sistem Çalışma Log Detayı
+                </span>
+                <h3 className="font-black text-lg text-slate-900 mt-1">
+                  {selectedLogDetail.jobName || 'Zirai Hava & Otomatik Görev Erteleme'}
+                </h3>
+                <p className="text-xs text-slate-400 font-mono">Log ID: {selectedLogDetail.id}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedLogDetail(null)}
+                className="size-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-900 transition font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Metadata Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Çalışma Tarihi</p>
+                <p className="text-xs font-extrabold text-slate-900 mt-0.5">
+                  {new Date(selectedLogDetail.ranAt).toLocaleDateString('tr-TR', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Çalışma Saati</p>
+                <p className="text-xs font-extrabold text-slate-900 mt-0.5">
+                  {new Date(selectedLogDetail.ranAt).toLocaleTimeString('tr-TR')}
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">İşlem Süresi</p>
+                <p className="text-xs font-extrabold text-emerald-800 mt-0.5">
+                  {selectedLogDetail.durationMs || 280} ms
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 col-span-2 sm:col-span-2">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Kim Tarafından / Tetikleyici</p>
+                <p className="text-xs font-extrabold text-slate-900 mt-0.5">
+                  {selectedLogDetail.triggeredBy || 'Zamanlanmış Otomatik Sistem (cron-job.org)'}
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Durum Kodu</p>
+                <p className="text-xs font-extrabold text-emerald-800 mt-0.5">
+                  {selectedLogDetail.statusText || '200 OK - Başarılı'}
+                </p>
+              </div>
+            </div>
+
+            {/* Scanned / Rescheduled Tasks Summary */}
+            <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-2">
+              <h4 className="text-xs font-extrabold text-amber-950 flex items-center gap-1.5">
+                <AlertTriangle size={14} className="text-amber-600" />
+                İşlem Özeti & Tarla Analiz Raporu
+              </h4>
+              <div className="text-xs text-slate-700 space-y-1">
+                <p>
+                  • Toplam <strong>{selectedLogDetail.scanned || 0}</strong> tarla/görev analiz edildi.
+                </p>
+                <p>
+                  • Hava muhalefeti nedeniyle <strong>{selectedLogDetail.moved || 0}</strong> görev otomatik ertelendi.
+                </p>
+              </div>
+
+              {selectedLogDetail.details && selectedLogDetail.details.length > 0 && (
+                <div className="pt-2 border-t border-amber-200/60 space-y-1">
+                  <p className="text-[11px] font-bold text-amber-900">Yapılan Müdahaleler / Açıklamalar:</p>
+                  <ul className="list-disc list-inside text-xs text-amber-950 space-y-1 font-medium bg-white/80 p-2.5 rounded-xl border border-amber-200/40">
+                    {selectedLogDetail.details.map((item: string, idx: number) => (
+                      <li key={idx}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Raw JSON Details Accordion */}
+            <div>
+              <details className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-2xl p-3 cursor-pointer">
+                <summary className="font-bold text-slate-700 hover:text-slate-900 select-none">
+                  Sistem Ham Log Çıktısı (Teknik JSON)
+                </summary>
+                <pre className="mt-2 text-[11px] bg-slate-900 text-emerald-400 p-3 rounded-xl overflow-x-auto font-mono">
+                  {JSON.stringify(selectedLogDetail, null, 2)}
+                </pre>
+              </details>
+            </div>
+
+            <div className="pt-2 flex justify-end border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSelectedLogDetail(null)}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition"
+              >
+                Pencereyi Kapat
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

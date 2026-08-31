@@ -10,6 +10,8 @@ interface InteractiveMapProps {
   onAddField: (field: Omit<FieldPolygon, 'id'>) => void
   onDeleteField: (id: string) => void
   onUpdateFieldCrop?: (id: string, cropName: string) => void
+  onSelectField?: (id: string) => void
+  selectedFieldId?: string
   selectedCrop: string
   availableCrops?: string[]
 }
@@ -42,6 +44,8 @@ export default function InteractiveMap({
   onAddField,
   onDeleteField,
   onUpdateFieldCrop,
+  onSelectField,
+  selectedFieldId,
   selectedCrop,
   availableCrops = ['Domates', 'Buğday', 'Biber', 'Salatalık (Hıyar)', 'Mısır', 'Zeytin', 'Elma'],
 }: InteractiveMapProps) {
@@ -281,6 +285,12 @@ export default function InteractiveMap({
           <span style="font-size: 13px; color: #059669;">Alan: <b>${field.areaDecares} Dönüm</b></span>
         </div>
       `)
+
+      polygon.on('click', () => {
+        if (onSelectField) {
+          onSelectField(field.id)
+        }
+      })
 
       polygon.addTo(map)
       layersRef.current[field.id] = polygon

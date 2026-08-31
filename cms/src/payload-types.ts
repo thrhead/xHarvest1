@@ -71,6 +71,7 @@ export interface Config {
     media: Media;
     crops: Crop;
     guides: Guide;
+    fields: Field;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -82,6 +83,7 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     crops: CropsSelect<false> | CropsSelect<true>;
     guides: GuidesSelect<false> | GuidesSelect<true>;
+    fields: FieldsSelect<false> | FieldsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -170,7 +172,7 @@ export interface Crop {
   id: number;
   nameTr: string;
   name: string;
-  category: 'vegetable' | 'cereal' | 'fruit' | 'other';
+  category: 'vegetable' | 'cereal' | 'fruit' | 'industrial' | 'legume' | 'other';
   defaultDurationDays: number;
   stages?:
     | {
@@ -178,14 +180,17 @@ export interface Crop {
         name: string;
         dayOffset: number;
         durationDays?: number | null;
+        /**
+         * Görev listesi. Örnek: [{"type": "planting", "titleTr": "Fideleri dik", "title": "Plant seedlings", "description": "Açıklama"}]
+         */
         tasks?:
           | {
-              type: 'planting' | 'fertilizing' | 'spraying' | 'harvesting' | 'irrigation' | 'other';
-              titleTr: string;
-              title: string;
-              description?: string | null;
-              id?: string | null;
-            }[]
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
           | null;
         id?: string | null;
       }[]
@@ -218,6 +223,30 @@ export interface Guide {
    * Uygulama yöntemleri, dikkat edilecek hususlar ve teknik detaylar
    */
   body?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "fields".
+ */
+export interface Field {
+  id: number;
+  name: string;
+  cropName: string;
+  type?: ('field' | 'greenhouse') | null;
+  areaDecares?: number | null;
+  coordinates?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  color?: string | null;
+  customId?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -260,6 +289,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'guides';
         value: number | Guide;
+      } | null)
+    | ({
+        relationTo: 'fields';
+        value: number | Field;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -353,15 +386,7 @@ export interface CropsSelect<T extends boolean = true> {
         name?: T;
         dayOffset?: T;
         durationDays?: T;
-        tasks?:
-          | T
-          | {
-              type?: T;
-              titleTr?: T;
-              title?: T;
-              description?: T;
-              id?: T;
-            };
+        tasks?: T;
         id?: T;
       };
   updatedAt?: T;
@@ -379,6 +404,21 @@ export interface GuidesSelect<T extends boolean = true> {
   relatedCrop?: T;
   summary?: T;
   body?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "fields_select".
+ */
+export interface FieldsSelect<T extends boolean = true> {
+  name?: T;
+  cropName?: T;
+  type?: T;
+  areaDecares?: T;
+  coordinates?: T;
+  color?: T;
+  customId?: T;
   updatedAt?: T;
   createdAt?: T;
 }

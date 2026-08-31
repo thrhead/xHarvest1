@@ -95,41 +95,12 @@ export const Crops: CollectionConfig = {
         },
         {
           name: 'tasks',
-          type: 'array',
-          label: 'Aşama Görevleri',
-          labels: {
-            singular: 'Görev',
-            plural: 'Görevler',
+          type: 'textarea',
+          label: 'Aşama Görevleri (JSON)',
+          admin: {
+            rows: 4,
+            description: 'Görev listesi. Örnek: [{"type": "planting", "titleTr": "Fideleri dik", "title": "Plant seedlings", "description": "Açıklama"}]',
           },
-          fields: [
-            {
-              name: 'type',
-              type: 'select',
-              options: [
-                { label: 'Ekim / Dikim', value: 'planting' },
-                { label: 'Gübreleme', value: 'fertilizing' },
-                { label: 'İlaçlama', value: 'spraying' },
-                { label: 'Hasat', value: 'harvesting' },
-                { label: 'Sulama', value: 'irrigation' },
-                { label: 'Diğer / Bakım', value: 'other' },
-              ],
-              required: true,
-              defaultValue: 'other',
-              label: 'Görev Türü',
-            },
-            {
-              type: 'row',
-              fields: [
-                { name: 'titleTr', type: 'text', required: true, label: 'Görev Başlığı (TR)', admin: { width: '50%' } },
-                { name: 'title', type: 'text', required: true, label: 'Görev Başlığı (EN)', admin: { width: '50%' } },
-              ],
-            },
-            {
-              name: 'description',
-              type: 'textarea',
-              label: 'Görev Açıklaması / Talimatlar',
-            },
-          ],
         },
       ],
     },

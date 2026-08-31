@@ -8,43 +8,115 @@ interface ForecastDay {
   temp_min: number
 }
 
-// In-memory execution log for cron runs
+// In-memory execution log for cron runs (Sınırsız - Tüm geçmiş saklanır)
 const now = new Date()
-const jobLogs: Array<{
+export interface JobLogItem {
   id: string
+  jobName: string
   ranAt: string
+  triggeredBy: string
+  source: string
   scanned: number
   moved: number
   errors: string[]
   durationMs: number
-  source: string
-}> = [
+  statusCode: number
+  statusText: string
+  details?: string[]
+}
+
+const jobLogs: JobLogItem[] = [
   {
     id: 'job-init-1',
+    jobName: 'Zirai Hava & Otomatik Görev Erteleme Senkronizasyonu',
     ranAt: new Date(now.getTime() - 1000 * 60 * 35).toISOString(),
+    triggeredBy: 'Zamanlanmış Otomatik Sistem (cron-job.org)',
+    source: 'cron-job.org',
     scanned: 6,
     moved: 2,
     errors: [],
     durationMs: 312,
-    source: 'cron-job.org',
+    statusCode: 200,
+    statusText: 'Başarılı (200 OK)',
+    details: [
+      'Güney Domates Tarlası: Mildiyö Koruyucu İlaçlama -> Yağış bekleniyor (6.5 mm) nedeniyle 2 gün ertelendi',
+      'Anadolu Tarlası: Üst Gübreleme (Üre %46) -> Aşırı rüzgar (22 km/s) nedeniyle 1 gün ertelendi',
+    ],
   },
   {
     id: 'job-init-2',
+    jobName: 'Zirai Hava & Otomatik Görev Erteleme Senkronizasyonu',
     ranAt: new Date(now.getTime() - 1000 * 60 * 60 * 12).toISOString(),
+    triggeredBy: 'Sistem Yöneticisi (Dashboard Manuel Tetikleme)',
+    source: 'dashboard',
     scanned: 5,
     moved: 1,
     errors: [],
     durationMs: 285,
-    source: 'cron-job.org',
+    statusCode: 200,
+    statusText: 'Başarılı (200 OK)',
+    details: [
+      'Konya Ovası Buğday Tarlası: Pas İlaçlaması -> Yağış (%80 olasılık) nedeniyle ertelendi',
+    ],
   },
   {
     id: 'job-init-3',
+    jobName: 'Zirai Hava & Otomatik Görev Erteleme Senkronizasyonu',
     ranAt: new Date(now.getTime() - 1000 * 60 * 60 * 24).toISOString(),
+    triggeredBy: 'Zamanlanmış Otomatik Sistem (cron-job.org)',
+    source: 'cron-job.org',
     scanned: 5,
     moved: 0,
     errors: [],
     durationMs: 240,
+    statusCode: 200,
+    statusText: 'Başarılı (200 OK)',
+    details: ['Tüm tarlalar incelendi, hava şartları planlanan görevlere uygun.'],
+  },
+  {
+    id: 'job-init-4',
+    jobName: 'Zirai Hava & Otomatik Görev Erteleme Senkronizasyonu',
+    ranAt: new Date(now.getTime() - 1000 * 60 * 60 * 36).toISOString(),
+    triggeredBy: 'Mobil Uygulama Senkronizasyonu',
+    source: 'mobile',
+    scanned: 4,
+    moved: 1,
+    errors: [],
+    durationMs: 295,
+    statusCode: 200,
+    statusText: 'Başarılı (200 OK)',
+    details: ['Çukurova Sera-1: Yaprak Gübresi -> Yüksek Sıcaklık (36°C) uyarısı kaydedildi'],
+  },
+  {
+    id: 'job-init-5',
+    jobName: 'Zirai Hava & Otomatik Görev Erteleme Senkronizasyonu',
+    ranAt: new Date(now.getTime() - 1000 * 60 * 60 * 48).toISOString(),
+    triggeredBy: 'Zamanlanmış Otomatik Sistem (cron-job.org)',
     source: 'cron-job.org',
+    scanned: 4,
+    moved: 0,
+    errors: [],
+    durationMs: 210,
+    statusCode: 200,
+    statusText: 'Başarılı (200 OK)',
+    details: ['Saha kontrolü tamamlandı, erteleme gerekmedi.'],
+  },
+  {
+    id: 'job-init-6',
+    jobName: 'Zirai Hava & Otomatik Görev Erteleme Senkronizasyonu',
+    ranAt: new Date(now.getTime() - 1000 * 60 * 60 * 72).toISOString(),
+    triggeredBy: 'Sistem Yöneticisi (Dashboard Manuel Tetikleme)',
+    source: 'dashboard',
+    scanned: 4,
+    moved: 2,
+    errors: [],
+    durationMs: 340,
+    statusCode: 200,
+    statusText: 'Başarılı (200 OK)',
+    details: [
+      'Manisa Zeytinliği: Halkalı Leke İlaçlaması -> Şiddetli Rüzgar nedeniyle ertelendi',
+      'Ankara Çiftliği: Damla Sulama Gübresi -> Şiddetli Yağış uyarısı',
+    ],
   },
 ]
 
@@ -289,18 +361,17 @@ export async function runWeatherAdjustCron(req: Request | PayloadRequest): Promi
       }
     }
 
-    const durationMs = Date.now() - startTime
-    const logEntry = {
-      id: `job-${Date.now()}`,
-      ranAt: new Date().toISOString(),
-      scanned: scannedCount,
-      moved: movedCount,
-      errors,
-      durationMs,
-      source: 'cron-job.org',
+    // Determine trigger source
+    const urlObj = new URL(req.url, 'http://localhost')
+    const sourceParam = urlObj.searchParams.get('source') || (urlObj.searchParams.get('test') ? 'dashboard' : 'cron-job.org')
+    let triggeredBy = 'Zamanlanmış Otomatik Sistem (cron-job.org)'
+    if (urlObj.searchParams.get('test') === 'true' || sourceParam === 'dashboard') {
+      triggeredBy = 'Sistem Yöneticisi (Dashboard Manuel Tetikleme)'
+    } else if (sourceParam === 'mobile') {
+      triggeredBy = 'Mobil Uygulama Senkronizasyonu'
     }
-    jobLogs.unshift(logEntry)
-    if (jobLogs.length > 50) jobLogs.pop()
+
+    const durationMs = Date.now() - startTime
 
     // Update last rescheduled tasks list
     const movedTasks = sampleTasks.filter((t: any) => t.weatherReason).map((t: any) => {
@@ -320,6 +391,27 @@ export async function runWeatherAdjustCron(req: Request | PayloadRequest): Promi
     if (movedTasks.length > 0) {
       lastRescheduledTasks = movedTasks
     }
+
+    const detailLines: string[] = movedTasks.length > 0
+      ? movedTasks.map((m) => `${m.fieldName}: ${m.title} -> ${m.weatherReason}`)
+      : ['Tüm tarlalar incelendi, hava şartları planlanan görevlere uygun.']
+
+    const logEntry: JobLogItem = {
+      id: `job-${Date.now()}`,
+      jobName: 'Zirai Hava & Otomatik Görev Erteleme Senkronizasyonu',
+      ranAt: new Date().toISOString(),
+      triggeredBy,
+      source: sourceParam,
+      scanned: scannedCount,
+      moved: movedCount,
+      errors,
+      durationMs,
+      statusCode: errors.length > 0 ? 207 : 200,
+      statusText: errors.length > 0 ? 'Kısmi Hata' : 'Başarılı (200 OK)',
+      details: detailLines,
+    }
+    // Store log indefinitely (sınırsız)
+    jobLogs.unshift(logEntry)
 
     return Response.json({
       ok: true,
