@@ -61,22 +61,48 @@ const InteractiveMap = dynamic(() => import('./InteractiveMap'), {
   ),
 })
 
-const WEATHER_DAYS = [
-  { day: 'Bugün (17 Ağu)', icon: '☀️', condition: 'Açık & Güneşli', min: 18, max: 31, rainProb: 0, windKmh: 11, humidity: 32, status: 'ok' as const, advice: 'İlaçlama ve gübreleme için mükemmel koşullar.' },
-  { day: 'Yarın (18 Ağu)', icon: '⛅', condition: 'Parçalı Bulutlu', min: 19, max: 30, rainProb: 15, windKmh: 22, humidity: 45, status: 'warn' as const, advice: 'Rüzgar öğleden sonra artabilir, sabah erken saatte ilaçlama yapın.' },
-  { day: '19 Ağu', icon: '🌧️', condition: 'Gök Gürültülü Sağanak', min: 16, max: 25, rainProb: 80, windKmh: 18, humidity: 75, status: 'rain' as const, advice: 'Sulama yapmayın, ilaçlama ilacın yıkanmasına sebep olur.' },
-  { day: '20 Ağu', icon: '⛅', condition: 'Bulutlu', min: 15, max: 26, rainProb: 20, windKmh: 14, humidity: 55, status: 'ok' as const, advice: 'Toprak nemini kontrol edin, çapa için uygun.' },
-  { day: '21 Ağu', icon: '☀️', condition: 'Güneşli', min: 17, max: 29, rainProb: 5, windKmh: 10, humidity: 40, status: 'ok' as const, advice: 'Vejetatif gelişim kontrolü ve damla sulama için uygun.' },
-  { day: '22 Ağu', icon: '☀️', condition: 'Sıcak & Açık', min: 20, max: 33, rainProb: 0, windKmh: 8, humidity: 30, status: 'ok' as const, advice: 'Güneş yanıklığına karşı akşam saatlerinde sulama önerilir.' },
-  { day: '23 Ağu', icon: '☀️', condition: 'Açık', min: 21, max: 34, rainProb: 0, windKmh: 9, humidity: 28, status: 'ok' as const, advice: 'Su stresi riski yüksek, sulama döngüsünü aksatmayın.' },
-  { day: '24 Ağu', icon: '⛅', condition: 'Az Bulutlu', min: 19, max: 31, rainProb: 10, windKmh: 13, humidity: 42, status: 'ok' as const, advice: 'Yaprak gübresi uygulaması için uygun hava.' },
-  { day: '25 Ağu', icon: '🌧️', condition: 'Lokal Yağış', min: 17, max: 27, rainProb: 60, windKmh: 16, humidity: 68, status: 'rain' as const, advice: 'İlaçlamayı erteleyin, drenaj kanallarını kontrol edin.' },
-  { day: '26 Ağu', icon: '☀️', condition: 'Açık', min: 18, max: 30, rainProb: 5, windKmh: 12, humidity: 38, status: 'ok' as const, advice: 'Hasat ve meyve toplama için elverişli.' },
-  { day: '27 Ağu', icon: '☀️', condition: 'Güneşli', min: 19, max: 32, rainProb: 0, windKmh: 10, humidity: 35, status: 'ok' as const, advice: 'Rutin saha denetimi.' },
-  { day: '28 Ağu', icon: '⛅', condition: 'Bulutlu', min: 18, max: 30, rainProb: 15, windKmh: 14, humidity: 48, status: 'ok' as const, advice: 'Genel tarla faaliyetleri.' },
-  { day: '29 Ağu', icon: '🌧️', condition: 'Hafif Yağmurlu', min: 16, max: 26, rainProb: 55, windKmh: 15, humidity: 65, status: 'rain' as const, advice: 'Zirai ilaçlama yapmayın.' },
-  { day: '30 Ağu', icon: '☀️', condition: 'Açık & Ferah', min: 17, max: 29, rainProb: 5, windKmh: 11, humidity: 40, status: 'ok' as const, advice: 'Ekim ve bakım işleri için uygun.' },
-]
+function getWmoWeatherInfo(code: number) {
+  switch (code) {
+    case 0: return { icon: '☀️', condition: 'Açık & Güneşli', status: 'ok' as const, advice: 'İlaçlama ve sulama için elverişli koşullar.' }
+    case 1:
+    case 2: return { icon: '⛅', condition: 'Parçalı Bulutlu', status: 'ok' as const, advice: 'İlaçlama ve gübreleme için uygun.' }
+    case 3: return { icon: '☁️', condition: 'Kapalı / Bulutlu', status: 'ok' as const, advice: 'Tarla çalışmaları ve bakım için uygun.' }
+    case 45:
+    case 48: return { icon: '🌫️', condition: 'Sisli', status: 'warn' as const, advice: 'Görüş düşük, yaprak nemliliği yüksek.' }
+    case 51:
+    case 53:
+    case 55: return { icon: '🌧️', condition: 'Çiseleyen Yağmur', status: 'warn' as const, advice: 'İlaçlamayı akşam saatlerine erteleyin.' }
+    case 61:
+    case 63:
+    case 65: return { icon: '🌧️', condition: 'Yağmurlu', status: 'rain' as const, advice: 'Zirai ilaçlama yapmayın, ilaç yıkanabilir.' }
+    case 71:
+    case 73:
+    case 75:
+    case 77: return { icon: '❄️', condition: 'Kar Yağışlı', status: 'warn' as const, advice: 'Don riski ve soğuk zararına karşı önlem alın.' }
+    case 80:
+    case 81:
+    case 82: return { icon: '🌧️', condition: 'Sağanak Yağış', status: 'rain' as const, advice: 'Sulama yapmayın, drenaj kanallarını kontrol edin.' }
+    case 85:
+    case 86: return { icon: '🌨️', condition: 'Kar Sağanağı', status: 'warn' as const, advice: 'Don nöbeti ve örtü önlemleri alın.' }
+    case 95:
+    case 96:
+    case 99: return { icon: '⛈️', condition: 'Gök Gürültülü Fırtına', status: 'rain' as const, advice: 'Açık alanda çalışmayın, saha faaliyetlerini erteleyin.' }
+    default: return { icon: '☀️', condition: 'Açık', status: 'ok' as const, advice: 'Rutin tarımsal faaliyetler.' }
+  }
+}
+
+interface WeatherDayItem {
+  day: string
+  icon: string
+  condition: string
+  min: number
+  max: number
+  rainProb: number
+  windKmh: number
+  humidity: number
+  status: 'ok' | 'warn' | 'rain'
+  advice: string
+}
 
 export default function DashboardView() {
   const [crops, setCrops] = useState<any[]>([])
@@ -152,22 +178,117 @@ export default function DashboardView() {
 
   const activeField = fields.find((f) => f.id === selectedFieldId) || fields[0] || null
 
-  const getFieldWeather = (field: FieldPolygon | null) => {
-    if (!field) return { region: 'Ankara', temp: '31°C', desc: 'Açık', wind: '11 km/s', rain: '%0', recommendation: 'İlaçlama Uygun' }
-    const nameLower = (field.name + ' ' + (field.region || '')).toLowerCase()
-    if (nameLower.includes('konya') || nameLower.includes('buğday')) {
-      return { region: 'Konya Ovası', temp: '28°C', desc: 'Parçalı Bulutlu', wind: '9 km/s', rain: '%0', recommendation: 'İlaçlama & Gübreleme Uygun' }
-    }
-    if (nameLower.includes('cukurova') || nameLower.includes('adana')) {
-      return { region: 'Çukurova', temp: '34°C', desc: 'Açık & Sıcak', wind: '14 km/s', rain: '%10', recommendation: 'Yüksek Sıcaklık (Gölgeli Saatlerde Uygulayın)' }
-    }
-    if (nameLower.includes('ege') || nameLower.includes('manisa') || nameLower.includes('zeytin')) {
-      return { region: 'Ege / Manisa', temp: '30°C', desc: 'Güneşli', wind: '12 km/s', rain: '%0', recommendation: 'İlaçlama Uygun' }
-    }
-    return { region: field.name, temp: '31°C', desc: 'Açık', wind: '11 km/s', rain: '%0', recommendation: 'İlaçlama Uygun' }
-  }
+  const [realWeatherDays, setRealWeatherDays] = useState<WeatherDayItem[]>([])
+  const [currentWeatherSummary, setCurrentWeatherSummary] = useState({
+    region: 'Taranıyor...',
+    temp: '--°C',
+    desc: 'Hava durumu yükleniyor...',
+    wind: '-- km/s',
+    rain: '%0',
+    recommendation: 'Hava durumu kontrol ediliyor...',
+  })
 
-  const activeFieldWeather = getFieldWeather(activeField)
+  // Selected field dynamic weather fetch effect from Open-Meteo
+  useEffect(() => {
+    let lat = 39.92
+    let lng = 32.85
+    let regionName = 'Genel Bölge'
+
+    if (activeField) {
+      regionName = activeField.name
+      if (Array.isArray(activeField.coordinates) && activeField.coordinates.length > 0) {
+        const sumLat = activeField.coordinates.reduce((acc, curr) => acc + (curr[0] || 0), 0)
+        const sumLng = activeField.coordinates.reduce((acc, curr) => acc + (curr[1] || 0), 0)
+        lat = sumLat / activeField.coordinates.length
+        lng = sumLng / activeField.coordinates.length
+      }
+    }
+
+    const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,precipitation&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&timezone=auto&forecast_days=14`
+
+    fetch(apiUrl)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data || !data.daily) return
+
+        const dailyList: WeatherDayItem[] = []
+        const timeArr: string[] = data.daily.time || []
+
+        timeArr.forEach((dateStr, idx) => {
+          const wCode = data.daily.weather_code?.[idx] ?? 0
+          const info = getWmoWeatherInfo(wCode)
+          const maxT = Math.round(data.daily.temperature_2m_max?.[idx] ?? 25)
+          const minT = Math.round(data.daily.temperature_2m_min?.[idx] ?? 15)
+          const pProb = Math.round(data.daily.precipitation_probability_max?.[idx] ?? 0)
+          const pSum = data.daily.precipitation_sum?.[idx] ?? 0
+          const windMax = Math.round(data.daily.wind_speed_10m_max?.[idx] ?? 10)
+
+          let dayLabel = dateStr
+          try {
+            const dObj = new Date(dateStr)
+            if (idx === 0) dayLabel = 'Bugün'
+            else if (idx === 1) dayLabel = 'Yarın'
+            else {
+              dayLabel = dObj.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })
+            }
+          } catch {}
+
+          let finalStatus: 'ok' | 'warn' | 'rain' = info.status
+          let finalAdvice = info.advice
+
+          if (pProb >= 50 || pSum >= 3) {
+            finalStatus = 'rain'
+            finalAdvice = `Yağış olasılığı yüksek (%${pProb}, ${pSum}mm). İlaçlama yapmayın.`
+          } else if (windMax >= 20) {
+            finalStatus = 'warn'
+            finalAdvice = `Aşırı rüzgar (${windMax} km/s). İlaç püskürtmesinde sürüklenme riski var.`
+          }
+
+          dailyList.push({
+            day: dayLabel,
+            icon: info.icon,
+            condition: info.condition,
+            min: minT,
+            max: maxT,
+            rainProb: pProb,
+            windKmh: windMax,
+            humidity: 45,
+            status: finalStatus,
+            advice: finalAdvice,
+          })
+        })
+
+        setRealWeatherDays(dailyList)
+
+        if (data.current) {
+          const currTemp = Math.round(data.current.temperature_2m)
+          const currWind = Math.round(data.current.wind_speed_10m)
+          const currPrecip = data.current.precipitation ?? 0
+          const todayItem = dailyList[0]
+
+          let rec = 'İlaçlama & Gübreleme Uygun'
+          if (currPrecip > 0 || todayItem?.status === 'rain') {
+            rec = 'Yağış Riski (Uygulama Yapmayın)'
+          } else if (currWind >= 18 || todayItem?.status === 'warn') {
+            rec = 'Rüzgar Yüksek (Saha Kontrollü)'
+          }
+
+          setCurrentWeatherSummary({
+            region: regionName,
+            temp: `${currTemp}°C`,
+            desc: todayItem?.condition || 'Açık',
+            wind: `${currWind} km/s`,
+            rain: `%${todayItem?.rainProb || 0}`,
+            recommendation: rec,
+          })
+        }
+      })
+      .catch((err) => {
+        console.warn('Weather fetch error:', err)
+      })
+  }, [activeField])
+
+  const activeFieldWeather = currentWeatherSummary
 
   const [plantingRecords, setPlantingRecords] = useState<PlantingRecord[]>([])
 
@@ -256,10 +377,18 @@ export default function DashboardView() {
       const res = await fetch('/api/fields')
       if (res.ok) {
         const d = await res.json()
-        if (d.success && Array.isArray(d.fields)) {
+        if (d.success && Array.isArray(d.fields) && d.fields.length > 0) {
           setFields(d.fields)
           if (typeof window !== 'undefined') {
             localStorage.setItem('eh_web_fields', JSON.stringify(d.fields))
+          }
+        } else if (typeof window !== 'undefined') {
+          const savedFields = localStorage.getItem('eh_web_fields')
+          if (savedFields) {
+            try {
+              const parsed = JSON.parse(savedFields)
+              if (Array.isArray(parsed) && parsed.length > 0) setFields(parsed)
+            } catch {}
           }
         }
       }
@@ -359,6 +488,11 @@ export default function DashboardView() {
 
     if (typeof window !== 'undefined') {
       try {
+        const savedFields = localStorage.getItem('eh_web_fields')
+        if (savedFields) {
+          const parsed = JSON.parse(savedFields)
+          if (Array.isArray(parsed) && parsed.length > 0) setFields(parsed)
+        }
         const savedRecs = localStorage.getItem('eh_web_records')
         if (savedRecs) {
           const parsed = JSON.parse(savedRecs)
@@ -406,7 +540,7 @@ export default function DashboardView() {
 
   // LocalStorage persist for other state
   useEffect(() => {
-    if (mounted && typeof window !== 'undefined') {
+    if (mounted && typeof window !== 'undefined' && fields.length > 0) {
       try {
         localStorage.setItem('eh_web_fields', JSON.stringify(fields))
       } catch {}
@@ -479,11 +613,12 @@ export default function DashboardView() {
   }, [stockList, stockFilter])
 
   const weatherList = useMemo(() => {
-    if (weatherFocus === 'rain') return WEATHER_DAYS.filter((w) => w.status === 'rain')
-    if (weatherFocus === 'spray') return WEATHER_DAYS.filter((w) => w.status === 'ok')
-    if (weatherFocus === 'today') return WEATHER_DAYS.slice(0, 1)
-    return WEATHER_DAYS
-  }, [weatherFocus])
+    const list = realWeatherDays
+    if (weatherFocus === 'rain') return list.filter((w) => w.status === 'rain')
+    if (weatherFocus === 'spray') return list.filter((w) => w.status === 'ok')
+    if (weatherFocus === 'today') return list.slice(0, 1)
+    return list
+  }, [weatherFocus, realWeatherDays])
 
   const handleSidebarAction = (action: SidebarAction) => {
     setSidebarAction(action)
