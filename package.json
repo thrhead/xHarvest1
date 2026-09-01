@@ -2,6 +2,9 @@
   "name": "ekim-hasat-monorepo",
   "version": "1.0.0",
   "private": true,
+  "workspaces": [
+    "cms"
+  ],
   "scripts": {
     "dev": "cd cms && npm run dev",
     "build": "cd cms && npm run build",

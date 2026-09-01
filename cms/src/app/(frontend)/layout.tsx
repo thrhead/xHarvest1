@@ -10,6 +10,12 @@ export const metadata = {
 }
 
 export default function Layout({ children }: { children: ReactNode }) {
-  return children
+  return (
+    <html lang="tr">
+      <body className="bg-slate-50 text-slate-900 antialiased font-sans">
+        {children}
+      </body>
+    </html>
+  )
 }
 

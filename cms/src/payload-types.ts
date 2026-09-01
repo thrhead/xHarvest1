@@ -181,17 +181,9 @@ export interface Crop {
         dayOffset: number;
         durationDays?: number | null;
         /**
-         * Görev listesi. Örnek: [{"type": "planting", "titleTr": "Fideleri dik", "title": "Plant seedlings", "description": "Açıklama"}]
+         * Görev listesi JSON formatı veya açıklama metni. Örn: [{"type": "planting", "titleTr": "Fideleri dik", "title": "Plant seedlings", "description": "Açıklama"}]
          */
-        tasks?:
-          | {
-              [k: string]: unknown;
-            }
-          | unknown[]
-          | string
-          | number
-          | boolean
-          | null;
+        tasks?: string | null;
         id?: string | null;
       }[]
     | null;

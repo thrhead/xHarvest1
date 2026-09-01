@@ -95,10 +95,39 @@ export const Crops: CollectionConfig = {
         },
         {
           name: 'tasks',
-          type: 'json',
+          type: 'textarea',
           label: 'Aşama Görevleri',
           admin: {
-            description: 'Görev listesi (JSON formatı). Örn: [{"type": "planting", "titleTr": "Fideleri dik", "title": "Plant seedlings", "description": "Açıklama"}]',
+            rows: 4,
+            description: 'Görev listesi JSON formatı veya açıklama metni. Örn: [{"type": "planting", "titleTr": "Fideleri dik", "title": "Plant seedlings", "description": "Açıklama"}]',
+          },
+          hooks: {
+            beforeChange: [
+              ({ value }) => {
+                if (value === null || value === undefined) return ''
+                if (typeof value === 'object') {
+                  try {
+                    return JSON.stringify(value, null, 2)
+                  } catch {
+                    return String(value)
+                  }
+                }
+                return value
+              },
+            ],
+            afterRead: [
+              ({ value }) => {
+                if (value === null || value === undefined) return ''
+                if (typeof value === 'object') {
+                  try {
+                    return JSON.stringify(value, null, 2)
+                  } catch {
+                    return String(value)
+                  }
+                }
+                return value
+              },
+            ],
           },
         },
       ],
