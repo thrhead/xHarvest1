@@ -1,0 +1,905 @@
+/**
+ * Firebase servis katmanı
+ *
+ * DEMO_MODE=true  → bellek içi veri (Expo Go ile UI test)
+ * DEMO_MODE=false → gerçek @react-native-firebase (EAS Build)
+ */
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+import {
+  Field,
+  FieldType,
+  Crop,
+  Task,
+  UserSettings,
+  TaskStatus,
+  ApplicationLog,
+  StockItem,
+  Farm,
+  FarmMember,
+  DiseaseDetectionResult,
+} from '../types';
+
+export const DEMO_MODE = process.env.EXPO_PUBLIC_DEMO_MODE !== 'false';
+
+let memoryCustomServerUrl: string | null = null;
+
+// Hydrate custom server url from storage if configured
+AsyncStorage.getItem('eh_custom_server_url').then((val) => {
+  if (val && val.startsWith('http')) memoryCustomServerUrl = val.replace(/\/+$/, '');
+}).catch(() => {});
+
+export function getServerBaseUrl(): string {
+  if (memoryCustomServerUrl) return memoryCustomServerUrl;
+
+  const envUrl =
+    process.env.EXPO_PUBLIC_API_URL ||
+    process.env.EXPO_PUBLIC_PAYLOAD_URL ||
+    process.env.NEXT_PUBLIC_SERVER_URL ||
+    '';
+  if (envUrl && envUrl.startsWith('http')) {
+    return envUrl.replace(/\/+$/, '');
+  }
+
+  // Web / Browser environment detection
+  if (typeof window !== 'undefined' && window.location) {
+    const loc = window.location;
+    const port = loc.port;
+    const host = loc.hostname;
+
+    // If running in browser on port 3000 or on deployed domain (e.g. *.run.app, custom domain)
+    const isBundlerPort = port === '8081' || port === '19006' || port === '8082' || port === '5173';
+    if (!isBundlerPort && (port === '3000' || host.includes('.run.app') || !port || port === '80' || port === '443')) {
+      return loc.origin;
+    }
+
+    // If running in Expo Web / Metro bundler (e.g. localhost:8081), target Next.js on port 3000
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return `http://${host}:3000`;
+    }
+  }
+
+  // Default local backend
+  return 'http://localhost:3000';
+}
+
+export function setCustomServerUrl(url: string) {
+  const clean = url.trim().replace(/\/+$/, '');
+  memoryCustomServerUrl = clean || null;
+  if (clean) {
+    AsyncStorage.setItem('eh_custom_server_url', clean).catch(() => {});
+  } else {
+    AsyncStorage.removeItem('eh_custom_server_url').catch(() => {});
+  }
+}
+
+export function resolveApiUrl(path: string): string {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const base = getServerBaseUrl();
+
+  // If in web on port 3000 or production origin, relative path works directly
+  if (
+    typeof window !== 'undefined' &&
+    window.location &&
+    Platform.OS === 'web' &&
+    window.location.origin === base
+  ) {
+    return cleanPath;
+  }
+
+  return `${base}${cleanPath}`;
+}
+
+async function safeFetchJson<T = any>(url: string, init?: RequestInit): Promise<{ ok: boolean; status: number; data?: T; error?: string }> {
+  try {
+    const res = await fetch(url, init);
+    const contentType = res.headers.get('content-type') || '';
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: `HTTP ${res.status}: ${res.statusText}` };
+    }
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      return { ok: true, status: res.status, data };
+    }
+    // Received non-JSON (like HTML fallback from Expo dev server or 404 page)
+    const text = await res.text();
+    if (text.trim().startsWith('<') || text.includes('<!DOCTYPE') || text.includes('<html')) {
+      return { ok: false, status: res.status, error: 'Sunucu beklenen JSON yerine HTML sayfası döndürdü' };
+    }
+    try {
+      const parsed = JSON.parse(text);
+      return { ok: true, status: res.status, data: parsed };
+    } catch {
+      return { ok: false, status: res.status, error: 'Geçersiz JSON formatı' };
+    }
+  } catch (err: any) {
+    return { ok: false, status: 0, error: err?.message || 'Ağ bağlantı hatası' };
+  }
+}
+
+export async function testServerConnection(): Promise<{ ok: boolean; statusText: string; url: string; count?: number }> {
+  const testUrl = resolveApiUrl('/api/fields');
+  try {
+    const start = Date.now();
+    const result = await safeFetchJson<{ count?: number; fields?: any[] }>(testUrl, { method: 'GET' });
+    const latency = Date.now() - start;
+    if (result.ok && result.data) {
+      const count = result.data.count ?? result.data.fields?.length ?? 0;
+      return {
+        ok: true,
+        statusText: `Bağlantı başarılı (${latency}ms) · ${count} tarla senkronize`,
+        url: testUrl,
+        count,
+      };
+    }
+    return { ok: false, statusText: result.error || `HTTP ${result.status}`, url: testUrl };
+  } catch (err: any) {
+    return { ok: false, statusText: err?.message || 'Bağlantı hatası', url: testUrl };
+  }
+}
+
+const plantC1 = new Date();
+plantC1.setDate(plantC1.getDate() - 40);
+const plantC2 = new Date();
+plantC2.setDate(plantC2.getDate() - 15);
+
+const initialDemo = {
+  uid: 'demo-user-id',
+  fields: [] as Field[],
+  crops: [] as Crop[],
+  tasks: [] as Task[],
+  applicationLogs: [
+    {
+      id: 'log1',
+      userId: 'demo-user-id',
+      fieldId: 'f-ankara-1',
+      inputType: 'fertilizer' as const,
+      productName: 'Üre %46',
+      quantity: 50,
+      unit: 'kg' as const,
+      method: 'broadcast' as const,
+      appliedAt: new Date(Date.now() - 86400000 * 3),
+      notes: 'Taban gübresi uygulandı',
+      unitCostTry: 18,
+      totalCostTry: 900,
+      createdAt: new Date(Date.now() - 86400000 * 3),
+    },
+    {
+      id: 'log2',
+      userId: 'demo-user-id',
+      fieldId: 'f-ankara-1',
+      inputType: 'pesticide' as const,
+      productName: 'Bakır Sülfat',
+      quantity: 2.5,
+      unit: 'L' as const,
+      method: 'spray' as const,
+      appliedAt: new Date(Date.now() - 86400000),
+      notes: 'Rüzgarsız havada püskürtüldü',
+      phiDays: 14,
+      harvestSafeDate: new Date(Date.now() - 86400000 + 14 * 86400000),
+      unitCostTry: 120,
+      totalCostTry: 300,
+      createdAt: new Date(Date.now() - 86400000),
+    },
+  ] as ApplicationLog[],
+};
+
+const STORAGE_KEY = 'eh_mobile_demo_state_v2';
+const WEB_FIELDS_KEY = 'eh_web_fields';
+
+function parseStoredData(stored: string) {
+  try {
+    const parsed = JSON.parse(stored);
+    if (parsed.fields) {
+      parsed.fields = parsed.fields.map((f: any) => ({
+        ...f,
+        createdAt: new Date(f.createdAt || Date.now()),
+      }));
+    }
+    if (parsed.crops) {
+      parsed.crops = parsed.crops.map((c: any) => ({
+        ...c,
+        plantingDate: new Date(c.plantingDate || Date.now()),
+      }));
+    }
+    if (parsed.tasks) {
+      parsed.tasks = parsed.tasks.map((t: any) => ({
+        ...t,
+        plannedDate: new Date(t.plannedDate || Date.now()),
+        originalDate: new Date(t.originalDate || Date.now()),
+        completedAt: t.completedAt ? new Date(t.completedAt) : undefined,
+      }));
+    }
+    if (parsed.applicationLogs) {
+      parsed.applicationLogs = parsed.applicationLogs.map((l: any) => ({
+        ...l,
+        appliedAt: new Date(l.appliedAt || Date.now()),
+        createdAt: new Date(l.createdAt || Date.now()),
+        harvestSafeDate: l.harvestSafeDate ? new Date(l.harvestSafeDate) : undefined,
+      }));
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const webStr = window.localStorage.getItem(WEB_FIELDS_KEY);
+    if (webStr) {
+      const webFields = JSON.parse(webStr);
+      if (Array.isArray(webFields)) {
+        const convertedFields: Field[] = webFields.map((wf: any) => {
+          const coords = wf.coordinates || [];
+          const loc = coords.length > 0 ? { lat: coords[0][0], lng: coords[0][1] } : { lat: 39.92, lng: 32.85 };
+          const poly = coords.length >= 3 ? coords.map((c: [number, number]) => ({ lat: c[0], lng: c[1] })) : undefined;
+          const cropName = wf.cropName || wf.crop || 'Domates';
+          const isSera = wf.type === 'greenhouse' || cropName.toLowerCase().includes('sera');
+
+          return {
+            id: wf.id,
+            userId: 'demo-user-id',
+            name: wf.name || 'Tarla',
+            cropName: cropName,
+            type: (isSera ? 'greenhouse' : 'field') as FieldType,
+            location: loc,
+            polygon: poly,
+            areaHectare: (wf.areaDecares || 10) / 10,
+            soilType: 'killi-tınlı',
+            createdAt: new Date(wf.createdAt || Date.now()),
+          };
+        });
+
+        targetDemo.fields = convertedFields;
+
+        const validFieldIds = new Set(convertedFields.map((f) => f.id));
+        targetDemo.crops = targetDemo.crops.filter((c) => validFieldIds.has(c.fieldId));
+
+        // Ensure matching crop entry
+        webFields.forEach((wf: any) => {
+          const cropName = wf.cropName || 'Domates';
+          const existingCrop = targetDemo.crops.find((c) => c.fieldId === wf.id);
+          if (!existingCrop) {
+            targetDemo.crops.push({
+              id: `c_${wf.id}`,
+              userId: 'demo-user-id',
+              fieldId: wf.id,
+              cropTemplateId: cropName.toLowerCase(),
+              cropName: cropName,
+              plantingDate: new Date(wf.createdAt || Date.now()),
+              status: 'active',
+            });
+          }
+        });
+      }
+    }
+  } catch {}
+}
+
+function syncDemoFieldsToWeb() {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const webFields: any[] = demo.fields.map((mf) => {
+      const matchingCrop = demo.crops.find((c) => c.fieldId === mf.id);
+      const coords = mf.polygon && mf.polygon.length >= 3
+        ? mf.polygon.map((p) => [p.lat, p.lng])
+        : [
+            [mf.location.lat, mf.location.lng],
+            [mf.location.lat + 0.004, mf.location.lng + 0.005],
+            [mf.location.lat - 0.003, mf.location.lng + 0.006],
+          ];
+
+      return {
+        id: mf.id,
+        name: mf.name,
+        cropName: mf.cropName || matchingCrop?.cropName || (mf.type === 'greenhouse' ? 'Domates (Sera)' : 'Genel Tarla'),
+        type: mf.type || 'field',
+        areaDecares: Math.round((mf.areaHectare || 1) * 10),
+        color: mf.type === 'greenhouse' ? '#059669' : '#10b981',
+        coordinates: coords,
+        createdAt: mf.createdAt?.toISOString ? mf.createdAt.toISOString() : (typeof mf.createdAt === 'string' ? mf.createdAt : new Date().toISOString()),
+      };
+    });
+
+    window.localStorage.setItem(WEB_FIELDS_KEY, JSON.stringify(webFields));
+    window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'mobile', fields: webFields } }));
+    window.dispatchEvent(new Event('storage'));
+  } catch {}
+}
+
+function loadInitialSync(): typeof initialDemo {
+  const defaultDemo = JSON.parse(JSON.stringify(initialDemo));
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      // Remove stale legacy keys that might hold old mock data
+      window.localStorage.removeItem('eh_mobile_demo_state');
+      window.localStorage.removeItem('eh_mobile_demo_state_v1');
+
+      const webStr = window.localStorage.getItem(WEB_FIELDS_KEY);
+      if (webStr) {
+        syncWebFieldsIntoDemo(defaultDemo);
+        return defaultDemo;
+      }
+
+      const s = window.localStorage.getItem(STORAGE_KEY);
+      if (s) {
+        const p = parseStoredData(s);
+        if (p) {
+          syncWebFieldsIntoDemo(p);
+          return p;
+        }
+      }
+    } catch {}
+    syncWebFieldsIntoDemo(defaultDemo);
+  }
+  return defaultDemo;
+}
+
+let demo = loadInitialSync();
+
+// Asynchronous hydration from AsyncStorage for React Native / Expo environment
+(async () => {
+  try {
+    const stored = await AsyncStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = parseStoredData(stored);
+      if (parsed) {
+        syncWebFieldsIntoDemo(parsed);
+        Object.assign(demo, parsed);
+      }
+    }
+  } catch {}
+})();
+
+function persistDemo() {
+  const json = JSON.stringify(demo);
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, json);
+      syncDemoFieldsToWeb();
+    } catch {}
+  }
+  AsyncStorage.setItem(STORAGE_KEY, json).catch(() => {});
+}
+
+function genId(prefix: string) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+// ── AUTH ──
+
+export async function signInAnonymously(): Promise<{ uid: string }> {
+  try {
+    const storedUid = await AsyncStorage.getItem('eh_user_uid');
+    if (storedUid) {
+      demo.uid = storedUid;
+      return { uid: storedUid };
+    }
+  } catch {}
+  demo.uid = 'user_' + Math.random().toString(36).slice(2, 10);
+  try {
+    await AsyncStorage.setItem('eh_user_uid', demo.uid);
+  } catch {}
+  return { uid: demo.uid };
+}
+
+export async function signInWithEmail(
+  email: string,
+  _password: string
+): Promise<{ uid: string; email: string }> {
+  demo.uid = 'usr_' + btoa(email).slice(0, 8);
+  return { uid: demo.uid, email };
+}
+
+export async function signOut(): Promise<void> {
+  // Session reset if needed
+}
+
+export function onAuthStateChanged(
+  callback: (user: { uid: string } | null) => void
+): () => void {
+  callback({ uid: demo.uid || 'demo-user-id' });
+  return () => {};
+}
+
+export function getCurrentUid(): string | null {
+  return demo.uid || 'demo-user-id';
+}
+
+// ── FIELDS ──
+
+export async function getFields(_userId?: string): Promise<Field[]> {
+  if (typeof fetch !== 'undefined') {
+    try {
+      const res = await safeFetchJson<{ fields?: any[]; count?: number }>(resolveApiUrl('/api/fields'), { method: 'GET' });
+      if (res.ok && res.data && Array.isArray(res.data.fields)) {
+        const convertedFields: Field[] = res.data.fields.map((wf: any) => {
+          const coords = wf.coordinates || [];
+          const loc =
+            coords.length > 0
+              ? { lat: coords[0][0], lng: coords[0][1] }
+              : { lat: 39.92, lng: 32.85 };
+          const poly =
+            coords.length >= 3
+              ? coords.map((c: [number, number]) => ({ lat: c[0], lng: c[1] }))
+              : undefined;
+          const cropName = wf.cropName || wf.crop || 'Domates';
+          const isSera = wf.type === 'greenhouse' || cropName.toLowerCase().includes('sera');
+
+          return {
+            id: String(wf.id),
+            userId: demo.uid || 'demo-user-id',
+            name: wf.name || 'Tarla',
+            cropName: cropName,
+            type: (isSera ? 'greenhouse' : 'field') as FieldType,
+            location: loc,
+            polygon: poly,
+            areaHectare: (wf.areaDecares || (wf.areaHectare ? wf.areaHectare * 10 : 10)) / 10,
+            soilType: 'killi-tınlı',
+            createdAt: new Date(wf.createdAt || Date.now()),
+          };
+        });
+
+        demo.fields = convertedFields;
+
+        // Reconcile crops
+        const validFieldIds = new Set(convertedFields.map((f) => f.id));
+        demo.crops = demo.crops.filter((c) => validFieldIds.has(c.fieldId));
+
+        convertedFields.forEach((f) => {
+          const cropName = f.cropName || 'Domates';
+          const existingCrop = demo.crops.find((c) => c.fieldId === f.id);
+          if (!existingCrop) {
+            demo.crops.push({
+              id: `c_${f.id}`,
+              userId: demo.uid || 'demo-user-id',
+              fieldId: f.id,
+              cropTemplateId: cropName.toLowerCase(),
+              cropName: cropName,
+              plantingDate: f.createdAt || new Date(),
+              status: 'active',
+            });
+          }
+        });
+
+        persistDemo();
+        return demo.fields;
+      }
+    } catch (e) {
+      console.warn('[Mobile Sync] /api/fields fetch warning:', e);
+    }
+  }
+  return demo.fields;
+}
+
+export async function createField(
+  data: Omit<Field, 'id' | 'createdAt'> & { createdAt?: Date }
+): Promise<string> {
+  const id = genId('f');
+  const newField: Field = { ...data, id, createdAt: data.createdAt || new Date() };
+  const cropName = newField.cropName || 'Domates';
+  const coords = newField.polygon && newField.polygon.length >= 3
+    ? newField.polygon.map((p) => [p.lat, p.lng])
+    : [
+        [newField.location.lat, newField.location.lng],
+        [newField.location.lat + 0.004, newField.location.lng + 0.005],
+        [newField.location.lat - 0.003, newField.location.lng + 0.006],
+      ];
+
+  let savedId = id;
+  if (typeof fetch !== 'undefined') {
+    try {
+      const res = await safeFetchJson<{ success: boolean; field?: { id: string | number } }>(
+        resolveApiUrl('/api/fields'),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            field: {
+              id: newField.id,
+              name: newField.name,
+              cropName: cropName,
+              type: newField.type,
+              areaDecares: Math.round((newField.areaHectare || 1) * 10),
+              coordinates: coords,
+              createdAt: newField.createdAt?.toISOString ? newField.createdAt.toISOString() : new Date().toISOString(),
+            },
+          }),
+        }
+      );
+      if (res.ok && res.data?.field?.id) {
+        savedId = String(res.data.field.id);
+        newField.id = savedId;
+      }
+    } catch (e) {
+      console.warn('[Mobile CreateField] Server POST error:', e);
+    }
+  }
+
+  demo.fields.push(newField);
+  demo.crops.push({
+    id: `c_${newField.id}`,
+    userId: newField.userId || demo.uid || 'demo-user-id',
+    fieldId: newField.id,
+    cropTemplateId: cropName.toLowerCase(),
+    cropName: cropName,
+    plantingDate: newField.createdAt || new Date(),
+    status: 'active',
+  });
+
+  persistDemo();
+  syncDemoFieldsToWeb();
+  return savedId;
+}
+
+export async function updateField(
+  fieldId: string,
+  data: Partial<Field>
+): Promise<void> {
+  const i = demo.fields.findIndex((f) => f.id === fieldId);
+  if (i >= 0) {
+    demo.fields[i] = { ...demo.fields[i], ...data };
+    const updated = demo.fields[i];
+    persistDemo();
+    syncDemoFieldsToWeb();
+    if (typeof fetch !== 'undefined') {
+      try {
+        const coords = updated.polygon && updated.polygon.length >= 3
+          ? updated.polygon.map((p) => [p.lat, p.lng])
+          : [
+              [updated.location.lat, updated.location.lng],
+              [updated.location.lat + 0.004, updated.location.lng + 0.005],
+              [updated.location.lat - 0.003, updated.location.lng + 0.006],
+            ];
+        await safeFetchJson(resolveApiUrl('/api/fields'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            field: {
+              id: updated.id,
+              name: updated.name,
+              cropName: updated.cropName,
+              type: updated.type,
+              areaDecares: Math.round((updated.areaHectare || 1) * 10),
+              coordinates: coords,
+            },
+          }),
+        });
+      } catch (e) {
+        console.warn('[Mobile UpdateField] Server POST error:', e);
+      }
+    }
+  }
+}
+
+export async function deleteField(fieldId: string): Promise<void> {
+  demo.fields = demo.fields.filter((f) => f.id !== fieldId);
+  demo.crops = demo.crops.filter((c) => c.fieldId !== fieldId);
+  persistDemo();
+  syncDemoFieldsToWeb();
+  if (typeof fetch !== 'undefined') {
+    try {
+      await safeFetchJson(resolveApiUrl(`/api/fields?id=${encodeURIComponent(fieldId)}`), { method: 'DELETE' });
+    } catch (e) {
+      console.warn('[Mobile DeleteField] Server DELETE error:', e);
+    }
+  }
+}
+
+// ── CROPS ──
+
+export async function getCrops(userId?: string): Promise<Crop[]> {
+  const uid = userId || demo.uid || 'demo-user-id';
+  return demo.crops.filter((c) => !c.userId || c.userId === uid || c.userId === 'demo-user-id');
+}
+
+export async function createCrop(data: Omit<Crop, 'id'>): Promise<string> {
+  const id = genId('c');
+  demo.crops.push({ ...data, id });
+  persistDemo();
+  return id;
+}
+
+export async function deleteCrop(cropId: string): Promise<void> {
+  demo.crops = demo.crops.filter((c) => c.id !== cropId);
+  demo.tasks = demo.tasks.filter((t) => t.cropId !== cropId);
+  persistDemo();
+}
+
+// ── TASKS ──
+
+export async function getTasks(
+  userId?: string,
+  opts?: { status?: TaskStatus[]; from?: Date; to?: Date }
+): Promise<Task[]> {
+  const uid = userId || demo.uid || 'demo-user-id';
+  let list = demo.tasks.filter((t) => !t.userId || t.userId === uid || t.userId === 'demo-user-id');
+  if (opts?.status?.length) {
+    list = list.filter((t) => opts.status!.includes(t.status));
+  }
+  if (opts?.from) list = list.filter((t) => t.plannedDate >= opts.from!);
+  if (opts?.to) list = list.filter((t) => t.plannedDate <= opts.to!);
+  return list.sort(
+    (a, b) => a.plannedDate.getTime() - b.plannedDate.getTime()
+  );
+}
+
+export async function createTasks(
+  tasks: Omit<Task, 'id'>[]
+): Promise<string[]> {
+  const ids: string[] = [];
+  for (const t of tasks) {
+    const id = genId('t');
+    demo.tasks.push({ ...t, id });
+    ids.push(id);
+  }
+  persistDemo();
+  return ids;
+}
+
+export async function updateTask(
+  taskId: string,
+  data: Partial<Task>
+): Promise<void> {
+  const i = demo.tasks.findIndex((t) => t.id === taskId);
+  if (i >= 0) {
+    demo.tasks[i] = { ...demo.tasks[i], ...data };
+    persistDemo();
+  }
+}
+
+export async function completeTask(taskId: string): Promise<void> {
+  await updateTask(taskId, { status: 'completed', completedAt: new Date() });
+}
+
+export async function deleteTask(taskId: string): Promise<void> {
+  demo.tasks = demo.tasks.filter((t) => t.id !== taskId);
+  persistDemo();
+}
+
+// ── SETTINGS + FCM ──
+
+export async function getUserSettings(_userId: string): Promise<UserSettings> {
+  return {
+    language: 'tr',
+    notificationHour: 7,
+    weatherThresholds: {
+      rainMm: 5,
+      windKmh: 15,
+      minTemp: 5,
+      maxTemp: 35,
+    },
+  };
+}
+
+export async function saveFcmToken(userId: string, token: string): Promise<void> {
+  console.log('[FCM token]', userId, token.slice(0, 12) + '...');
+}
+
+/** Ürün + görevleri birlikte yazar */
+export async function createCropWithTasks(
+  cropData: Omit<Crop, 'id'>,
+  taskList: Omit<Task, 'id'>[]
+): Promise<{ cropId: string; taskIds: string[] }> {
+  const cropId = await createCrop(cropData);
+  const tasksWithCrop = taskList.map((t) => ({ ...t, cropId }));
+  const taskIds = await createTasks(tasksWithCrop);
+  return { cropId, taskIds };
+}
+
+// ── APPLICATION LOGS ──
+
+export async function getApplicationLogs(
+  userId?: string,
+  fieldId?: string
+): Promise<ApplicationLog[]> {
+  const uid = userId || demo.uid || 'demo-user-id';
+  let list = demo.applicationLogs.filter((l) => !l.userId || l.userId === uid || l.userId === 'demo-user-id');
+  if (fieldId) {
+    list = list.filter((l) => l.fieldId === fieldId);
+  }
+  return list.sort((a, b) => b.appliedAt.getTime() - a.appliedAt.getTime());
+}
+
+export async function createApplicationLog(
+  data: Omit<ApplicationLog, 'id' | 'createdAt'>
+): Promise<string> {
+  const id = genId('log');
+  let harvestSafeDate = data.harvestSafeDate;
+  if (data.phiDays && data.phiDays > 0 && data.appliedAt) {
+    const d = new Date(data.appliedAt);
+    d.setDate(d.getDate() + data.phiDays);
+    harvestSafeDate = d;
+  }
+  let totalCostTry = data.totalCostTry;
+  if (totalCostTry == null && data.unitCostTry != null) {
+    totalCostTry = data.unitCostTry * data.quantity;
+  }
+  const newLog: ApplicationLog = {
+    ...data,
+    harvestSafeDate,
+    totalCostTry,
+    id,
+    createdAt: new Date(),
+  };
+  demo.applicationLogs.unshift(newLog);
+  persistDemo();
+  return id;
+}
+
+export async function updateApplicationLog(
+  id: string,
+  data: Partial<ApplicationLog>
+): Promise<void> {
+  const i = demo.applicationLogs.findIndex((l) => l.id === id);
+  if (i >= 0) {
+    demo.applicationLogs[i] = { ...demo.applicationLogs[i], ...data };
+    persistDemo();
+  }
+}
+
+export async function deleteApplicationLog(id: string): Promise<void> {
+  demo.applicationLogs = demo.applicationLogs.filter((l) => l.id !== id);
+  persistDemo();
+}
+
+// ── STOCK ──
+const demoStock: StockItem[] = [
+  {
+    id: 's1',
+    userId: 'demo-user-id',
+    name: 'Üre 46',
+    category: 'fertilizer',
+    quantity: 200,
+    unit: 'kg',
+    minQuantity: 50,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+  {
+    id: 's2',
+    userId: 'demo-user-id',
+    name: 'Bakır Sülfat',
+    category: 'pesticide',
+    quantity: 12,
+    unit: 'L',
+    minQuantity: 5,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+];
+
+const demoFarm: Farm = {
+  id: 'farm1',
+  name: 'Demo Çiftlik',
+  ownerId: 'demo-user-id',
+  inviteCode: 'EKIM2026',
+  createdAt: new Date(),
+};
+
+const demoMembers: FarmMember[] = [
+  {
+    id: 'm1',
+    farmId: 'farm1',
+    userId: 'demo-user-id',
+    displayName: 'Siz (Sahip)',
+    role: 'owner',
+    joinedAt: new Date(),
+  },
+  {
+    id: 'm2',
+    farmId: 'farm1',
+    userId: 'worker-demo',
+    displayName: 'Ahmet (İşçi)',
+    role: 'worker',
+    joinedAt: new Date(),
+  },
+];
+
+const demoDetections: DiseaseDetectionResult[] = [];
+
+export async function getStock(userId?: string): Promise<StockItem[]> {
+  const uid = userId || demo.uid || 'demo-user-id';
+  return demoStock.filter((s) => !s.userId || s.userId === uid || s.userId === 'demo-user-id');
+}
+
+export async function createStockItem(
+  data: Omit<StockItem, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<string> {
+  const id = genId('stk');
+  demoStock.unshift({
+    ...data,
+    id,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  return id;
+}
+
+export async function updateStockItem(
+  id: string,
+  data: Partial<StockItem>
+): Promise<void> {
+  const i = demoStock.findIndex((s) => s.id === id);
+  if (i >= 0)
+    demoStock[i] = { ...demoStock[i], ...data, updatedAt: new Date() };
+}
+
+export async function deleteStockItem(id: string): Promise<void> {
+  const i = demoStock.findIndex((s) => s.id === id);
+  if (i >= 0) demoStock.splice(i, 1);
+}
+
+export async function getFarm(_userId?: string): Promise<Farm | null> {
+  return demoFarm;
+}
+
+export async function getFarmMembers(farmId: string): Promise<FarmMember[]> {
+  return demoMembers.filter((m) => m.farmId === farmId);
+}
+
+export async function joinFarmByCode(
+  userId: string,
+  code: string,
+  displayName: string
+): Promise<boolean> {
+  if (code.trim().toUpperCase() !== demoFarm.inviteCode) return false;
+  if (!demoMembers.some((m) => m.userId === userId)) {
+    demoMembers.push({
+      id: genId('m'),
+      farmId: demoFarm.id,
+      userId,
+      displayName,
+      role: 'worker',
+      joinedAt: new Date(),
+    });
+  }
+  return true;
+}
+
+/** Stub AI */
+export async function runDiseaseDetectionStub(
+  userId: string,
+  imageUri: string,
+  fieldId?: string
+): Promise<DiseaseDetectionResult> {
+  const labels = [
+    {
+      label: 'Mildiyö (şüphe)',
+      advice: 'Bakırlı ilaçlama ve havalandırma önerilir. Laboratuvar teyidi alın.',
+    },
+    {
+      label: 'Külleme (şüphe)',
+      advice: 'Kükürt içeren preparat ve nem kontrolü düşünülebilir.',
+    },
+    {
+      label: 'Sağlıklı görünüm',
+      advice: 'Belirgin hastalık belirtisi yok. Takibe devam edin.',
+    },
+  ];
+  const pick = labels[Math.floor(Math.random() * labels.length)];
+  const conf = 0.55 + Math.random() * 0.35;
+  const result: DiseaseDetectionResult = {
+    id: genId('ai'),
+    userId,
+    fieldId,
+    imageUri,
+    predictedLabel: pick.label,
+    confidence: conf,
+    adviceTr: pick.advice,
+    createdAt: new Date(),
+    modelVersion: 'stub-v0',
+  };
+  demoDetections.unshift(result);
+  return result;
+}
+
+export async function getDiseaseDetections(
+  userId?: string
+): Promise<DiseaseDetectionResult[]> {
+  const uid = userId || demo.uid || 'demo-user-id';
+  return demoDetections.filter((d) => !d.userId || d.userId === uid || d.userId === 'demo-user-id');
+}
