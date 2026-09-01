@@ -174,6 +174,21 @@ function fmtDate(d: Date) {
   return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })
 }
 
+export function getTasksArray(tasks: any): CalTask[] {
+  if (Array.isArray(tasks)) return tasks
+  if (typeof tasks === 'string') {
+    try {
+      const parsed = JSON.parse(tasks)
+      if (Array.isArray(parsed)) return parsed
+    } catch {
+      if (tasks.trim()) {
+        return [{ type: 'other', title: tasks, titleTr: tasks, description: '' }]
+      }
+    }
+  }
+  return []
+}
+
 function mergeCrops(api: CalCrop[]): CalCrop[] {
   const withStages = api.filter((c) => (c.stages?.length || 0) > 0)
   if (withStages.length) return withStages
@@ -248,14 +263,14 @@ export default function CropCalendar({
     harvestDate = addDays(plantDateStr, totalDays)
     taskDone = selectedRecord.taskProgress || {}
     allTaskIds = stages.flatMap((s, si) =>
-      (s.tasks || []).map((_, ti) => `${selectedRecord.cropTemplateId}-${si}-${ti}`),
+      getTasksArray(s.tasks).map((_, ti) => `${selectedRecord.cropTemplateId}-${si}-${ti}`),
     )
   } else {
     crop = crops.find((c) => String(c.id) === String(cropId)) || crops[0]
     stages = crop?.stages || []
     totalDays = crop?.defaultDurationDays || Math.max(...stages.map((s) => s.dayOffset + s.durationDays), 1)
     harvestDate = addDays(plantDate, totalDays)
-    allTaskIds = stages.flatMap((s, si) => (s.tasks || []).map((_, ti) => `${crop?.id}-${si}-${ti}`))
+    allTaskIds = stages.flatMap((s, si) => getTasksArray(s.tasks).map((_, ti) => `${crop?.id}-${si}-${ti}`))
   }
 
   const doneCount = allTaskIds.filter((id) => taskDone[id]).length
@@ -499,7 +514,7 @@ export default function CropCalendar({
               const start = addDays(plantDateStr, stage.dayOffset)
               const end = addDays(plantDateStr, stage.dayOffset + stage.durationDays)
               const isCurrent = si === currentStageIdx
-              const tasks = stage.tasks || []
+              const tasks = getTasksArray(stage.tasks)
               const stageTaskIds = tasks.map((_, ti) =>
                 isRecordMode && selectedRecord
                   ? `${selectedRecord.cropTemplateId}-${si}-${ti}`
