@@ -10,5 +10,8 @@
     "build": "cd cms && npm run build",
     "start": "cd cms && npm run start",
     "lint": "echo 'Lint passed'"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
   }
 }

@@ -169,6 +169,7 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
       media_id INTEGER,
       crops_id INTEGER,
       guides_id INTEGER,
+      fields_id INTEGER,
       FOREIGN KEY (parent_id) REFERENCES payload_locked_documents(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE IF NOT EXISTS payload_preferences (
@@ -222,6 +223,7 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
     `ALTER TABLE fields ADD COLUMN area_decares NUMERIC DEFAULT 10`,
     `ALTER TABLE fields ADD COLUMN custom_id TEXT`,
     `ALTER TABLE crops_stages ADD COLUMN tasks TEXT`,
+    `ALTER TABLE payload_locked_documents_rels ADD COLUMN fields_id INTEGER`,
   ]
 
   for (const alt of safeAlters) {
