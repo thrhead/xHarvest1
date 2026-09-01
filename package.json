@@ -2,23 +2,10 @@
   "name": "ekim-hasat-monorepo",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
-  "workspaces": [
-    "cms",
-    "mobile"
-  ],
   "scripts": {
-    "dev": "cd cms && NODE_OPTIONS=--no-deprecation npx next dev -p 3000 -H 0.0.0.0",
-    "build": "cd cms && NODE_OPTIONS=\"--no-deprecation --max-old-space-size=896\" npx payload generate:importmap && NODE_OPTIONS=\"--no-deprecation --max-old-space-size=896\" npx next build",
-    "start": "cd cms && NODE_OPTIONS=--no-deprecation npx next start -p 3000",
-    "seed": "cd cms && npx tsx src/seed/index.ts",
+    "dev": "cd cms && npm run dev",
+    "build": "cd cms && npm run build",
+    "start": "cd cms && npm run start",
     "lint": "echo 'Lint passed'"
-  },
-  "dependencies": {
-    "@libsql/client": "^0.17.4"
-  },
-  "overrides": {
-    "react": "19.0.0",
-    "react-dom": "19.0.0"
   }
 }

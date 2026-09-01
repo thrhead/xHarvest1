@@ -95,11 +95,10 @@ export const Crops: CollectionConfig = {
         },
         {
           name: 'tasks',
-          type: 'textarea',
-          label: 'Aşama Görevleri (JSON)',
+          type: 'json',
+          label: 'Aşama Görevleri',
           admin: {
-            rows: 4,
-            description: 'Görev listesi. Örnek: [{"type": "planting", "titleTr": "Fideleri dik", "title": "Plant seedlings", "description": "Açıklama"}]',
+            description: 'Görev listesi (JSON formatı). Örn: [{"type": "planting", "titleTr": "Fideleri dik", "title": "Plant seedlings", "description": "Açıklama"}]',
           },
         },
       ],
