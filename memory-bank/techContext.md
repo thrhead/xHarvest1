@@ -19,3 +19,7 @@
 - `@payloadcms/next`, `@payloadcms/db-sqlite`, `@payloadcms/richtext-lexical`
 - `next`, `react`, `react-dom`
 - `firebase`, `expo-location`, `expo-notifications`
+
+## Agent Skills
+- **`systematic-debugging`**: Step-by-step root-cause tracing, test isolation, and race-condition resolution.
+- **`ui-ux-pro-max`**: Design intelligence, search engine for 79 styles, 192 product palettes, 74 font pairings, 119 UX guidelines, and stack recommendations.

@@ -58,7 +58,7 @@ export default function CropPlanScreen() {
   const [openStage, setOpenStage] = useState<number | null>(0);
   const [localDone, setLocalDone] = useState<Record<string, boolean>>({});
 
-  const crop = crops.find((c) => c.id === cropId);
+  const crop = (cropId ? crops.find((c) => c.id === cropId) : null) || crops[0];
   const field = fields.find((f) => f.id === crop?.fieldId);
 
   useEffect(() => {
@@ -100,7 +100,7 @@ export default function CropPlanScreen() {
     (s) => todayOffset >= s.dayOffset && todayOffset < s.dayOffset + s.durationDays
   );
 
-  const cropTasks = tasks.filter((t) => t.cropId === cropId);
+  const cropTasks = tasks.filter((t) => crop && t.cropId === crop.id);
 
   const isDone = (stageIdx: number, taskIdx: number, titleTr: string) => {
     const key = `${stageIdx}-${taskIdx}`;
@@ -130,9 +130,23 @@ export default function CropPlanScreen() {
   if (!crop) {
     return (
       <View style={styles.center}>
-        <Text style={styles.empty}>Ekim kaydı bulunamadı</Text>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.link}>Geri</Text>
+        <Text style={styles.empty}>Henüz aktif bir ekim kaydı bulunmuyor.</Text>
+        <TouchableOpacity
+          style={{
+            backgroundColor: '#10B981',
+            paddingHorizontal: 18,
+            paddingVertical: 10,
+            borderRadius: 12,
+            marginTop: 14,
+          }}
+          onPress={() => router.push('/add-crop')}
+        >
+          <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 }}>
+            + Yeni Ekim Kaydı Ekle
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ marginTop: 12 }} onPress={() => router.back()}>
+          <Text style={styles.link}>Geri Dön</Text>
         </TouchableOpacity>
       </View>
     );

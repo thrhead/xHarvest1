@@ -117,6 +117,7 @@ export default function TasksScreen() {
     tasks,
     fields,
     crops,
+    createTask,
     completeTask,
     deleteTask,
     updateTask,
@@ -148,10 +149,17 @@ export default function TasksScreen() {
 
   const getFieldInfo = (fieldId: string) => {
     const f = fields.find((item) => item.id === fieldId);
+    if (!f) {
+      return {
+        name: 'Genel Arazi',
+        cropName: 'Mevsimlik',
+        area: '',
+      };
+    }
     return {
-      name: f?.name || 'Tarla',
-      cropName: f?.cropName || 'Ürün',
-      area: f?.areaHectare ? `${(f.areaHectare * 10).toFixed(0)} da` : '',
+      name: f.name,
+      cropName: f.cropName || (f.type === 'greenhouse' ? 'Sera Ürünü' : 'Açık Tarla'),
+      area: f.areaHectare ? `${(f.areaHectare * 10).toFixed(0)} da` : '',
     };
   };
 
@@ -364,8 +372,7 @@ export default function TasksScreen() {
       const crop = crops.find((c) => c.fieldId === targetFieldId);
       const plannedDate = new Date(newTaskDate + 'T09:00:00');
 
-      // Add to store via direct update or store method
-      await updateTask(`custom-${Date.now()}`, {
+      await createTask({
         userId: uid || 'anon',
         fieldId: targetFieldId,
         cropId: crop?.id || 'general',
@@ -379,10 +386,17 @@ export default function TasksScreen() {
       });
 
       await refreshTasks();
+      // Ensure the filter shows the newly added task
+      if (filter === 'completed' || filter === 'skipped') {
+        setFilter('open');
+      }
+      if (selectedFieldId !== 'all' && selectedFieldId !== targetFieldId) {
+        setSelectedFieldId('all');
+      }
       setShowAddModal(false);
       setNewTaskTitle('');
       setNewTaskNotes('');
-      Alert.alert('Başarılı', 'Yeni tarımsal görev başarıyla eklendi.');
+      Alert.alert('Başarılı', `"${newTaskTitle.trim()}" görevi başarıyla kaydedildi.`);
     } catch (e: any) {
       Alert.alert('Hata', e?.message || 'Görev kaydedilemedi.');
     } finally {

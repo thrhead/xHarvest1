@@ -69,7 +69,7 @@ function getCropIcon(nameTr?: string, name?: string): string {
 
 export default function AddCropScreen() {
   const router = useRouter();
-  const { fields, refreshTasks } = useAppStore();
+  const { fields, refreshTasks, refreshCrops, refreshFields } = useAppStore();
   const [templates, setTemplates] = useState<CropTemplate[]>(LOCAL_CROP_TEMPLATES);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(() => LOCAL_CROP_TEMPLATES[0]?.id || null);
@@ -167,7 +167,7 @@ export default function AddCropScreen() {
         'pending-crop'
       );
 
-      const { taskIds } = await createCropWithTasks(
+      const { cropId, taskIds } = await createCropWithTasks(
         {
           userId: uid,
           fieldId: selectedField,
@@ -179,12 +179,25 @@ export default function AddCropScreen() {
         taskList
       );
 
-      await refreshTasks();
-      Alert.alert(
-        'Takvim oluşturuldu',
-        `${activeTemplate.nameTr} ekimi (${formatDateTr(plantingDate)}) için ${taskIds.length} görev planlandı.`,
-        [{ text: 'Görevlere git', onPress: () => router.replace('/tasks') }]
-      );
+      await Promise.all([
+        refreshCrops(),
+        refreshTasks(),
+        refreshFields(),
+      ]);
+
+      if (Platform.OS === 'web') {
+        alert(`✅ Ekim Kaydı Başarıyla Oluşturuldu!\n${activeTemplate.nameTr} ekimi için ${taskIds.length} adet görev planlandı.`);
+        router.replace(`/crop-plan?cropId=${encodeURIComponent(cropId)}`);
+      } else {
+        Alert.alert(
+          '✅ Takvim ve Plan Oluşturuldu',
+          `${activeTemplate.nameTr} ekimi (${formatDateTr(plantingDate)}) için ${taskIds.length} görev planlandı.`,
+          [
+            { text: 'Planı Aç', onPress: () => router.replace(`/crop-plan?cropId=${encodeURIComponent(cropId)}`) },
+            { text: 'Görevlere Git', onPress: () => router.replace('/tasks') },
+          ]
+        );
+      }
     } catch (e: any) {
       Alert.alert('Hata', e?.message || 'Kayıt başarısız');
     } finally {

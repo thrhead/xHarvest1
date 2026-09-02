@@ -35,21 +35,13 @@ export default function CalendarScreen() {
     }
   };
 
-  // Fallback sample crop list if user hasn't added crops yet
   const displayedCrops = useMemo(() => {
-    if (crops.length > 0) {
-      return crops.map((c) => ({
-        id: c.id,
-        name: c.cropName,
-        field: fieldName(c.fieldId),
-        date: fmt(c.plantingDate),
-      }));
-    }
-    return [
-      { id: '1', name: 'Domates', field: 'Örnek Domates Tarlası', date: '20.06.2026' },
-      { id: '2', name: 'Buğday', field: 'Güney Buğday Parseli', date: '15.03.2026' },
-      { id: '3', name: 'Domates (sera)', field: 'Sera 1', date: '01.07.2026' },
-    ];
+    return crops.map((c) => ({
+      id: c.id,
+      name: c.cropName,
+      field: fieldName(c.fieldId),
+      date: fmt(c.plantingDate),
+    }));
   }, [crops, fields]);
 
   const sortedTasks = useMemo(() => {
@@ -110,23 +102,37 @@ export default function CalendarScreen() {
 
       {/* Crop Cards */}
       <View style={styles.cropList}>
-        {displayedCrops.map((c) => (
-          <Pressable
-            key={c.id + c.name}
-            style={({ pressed }) => [
-              styles.cropCard,
-              pressed && { opacity: 0.85, transform: [{ scale: 0.99 }] },
-            ]}
-            onPress={() => openPlan(c.id)}
-            accessibilityRole="button"
+        {displayedCrops.length === 0 ? (
+          <TouchableOpacity
+            style={[styles.cropCard, { borderStyle: 'dashed', backgroundColor: '#F8FAFC', alignItems: 'center', paddingVertical: 18 }]}
+            onPress={() => router.push('/add-crop')}
           >
-            <Text style={styles.cropName}>{c.name}</Text>
-            <Text style={styles.cropMeta}>
-              {c.field} · Ekim {c.date}
+            <Text style={{ fontSize: 24, marginBottom: 4 }}>🌱</Text>
+            <Text style={[styles.cropName, { color: '#0F766E' }]}>Henüz ekim kaydı yok</Text>
+            <Text style={[styles.cropMeta, { textAlign: 'center', marginTop: 2 }]}>
+              Yeni bir ekim kaydı ekleyerek sezonluk takviminizi başlatın
             </Text>
-            <Text style={styles.cropCta}>Ekim → Hasat planını aç →</Text>
-          </Pressable>
-        ))}
+            <Text style={[styles.cropCta, { marginTop: 6 }]}>+ Yeni ekim kaydı oluştur →</Text>
+          </TouchableOpacity>
+        ) : (
+          displayedCrops.map((c) => (
+            <Pressable
+              key={c.id + c.name}
+              style={({ pressed }) => [
+                styles.cropCard,
+                pressed && { opacity: 0.85, transform: [{ scale: 0.99 }] },
+              ]}
+              onPress={() => openPlan(c.id)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.cropName}>{c.name}</Text>
+              <Text style={styles.cropMeta}>
+                {c.field} · Ekim {c.date}
+              </Text>
+              <Text style={styles.cropCta}>Ekim → Hasat planını aç →</Text>
+            </Pressable>
+          ))
+        )}
       </View>
 
       {/* Görev Listesi (Exact Simulator Match) */}

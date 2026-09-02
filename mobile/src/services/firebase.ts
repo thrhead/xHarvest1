@@ -627,6 +627,15 @@ export async function getTasks(
   );
 }
 
+export async function createTask(
+  task: Omit<Task, 'id'>
+): Promise<string> {
+  const id = genId('t');
+  demo.tasks.push({ ...task, id });
+  persistDemo();
+  return id;
+}
+
 export async function createTasks(
   tasks: Omit<Task, 'id'>[]
 ): Promise<string[]> {
