@@ -5,8 +5,11 @@ import { FieldPolygon } from '../types/field'
 
 interface MobileSimulatorProps {
   fields: FieldPolygon[]
+  plantingRecords?: any[]
+  webRecords?: any[]
   onAddField: (field: Omit<FieldPolygon, 'id'>) => void
   onDeleteField: (id: string) => void
+  onAddWebRecord?: (record: any) => void
 }
 
 interface TaskItem {
@@ -124,7 +127,14 @@ function SimulatorMap({
   )
 }
 
-export default function MobileSimulator({ fields, onAddField, onDeleteField }: MobileSimulatorProps) {
+export default function MobileSimulator({
+  fields,
+  plantingRecords = [],
+  webRecords = [],
+  onAddField,
+  onDeleteField,
+  onAddWebRecord,
+}: MobileSimulatorProps) {
   const [activeTab, setActiveTab] = useState<'home' | 'tasks' | 'records' | 'map' | 'calendar' | 'weather'>('home')
   const [taskFilter, setTaskFilter] = useState<'all' | 'spraying' | 'fertilizing' | 'irrigation' | 'planting' | 'harvesting'>('all')
   const [taskStatusFilter, setTaskStatusFilter] = useState<'open' | 'all' | 'pending' | 'delayed' | 'completed'>('open')
@@ -229,24 +239,40 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
     e.preventDefault()
     if (!newTaskTitle.trim()) return
     const selectedField = fields.find((f) => f.id === newTaskFieldId) || fields[0]
-    setTasks((prev) => [
-      {
-        id: `t-${Date.now()}`,
-        fieldId: selectedField?.id || 'f-custom',
-        fieldName: selectedField?.name || 'Genel Tarla',
-        cropName: selectedField?.cropName || 'Ürün',
-        title: newTaskTitle.trim(),
+    const taskTitle = newTaskTitle.trim()
+    const newTaskObj = {
+      id: `t-${Date.now()}`,
+      fieldId: selectedField?.id || 'f-custom',
+      fieldName: selectedField?.name || 'Genel Tarla',
+      cropName: selectedField?.cropName || 'Ürün',
+      title: taskTitle,
+      type: newTaskType,
+      date: newTaskDate || new Date().toISOString().slice(0, 10),
+      status: 'pending' as const,
+      productName: newTaskProduct.trim() || undefined,
+      dosage: newTaskDosage.trim() || undefined,
+      targetPestOrPurpose: newTaskTarget.trim() || undefined,
+    }
+    setTasks((prev) => [newTaskObj, ...prev])
+
+    if (onAddWebRecord && (newTaskType === 'spraying' || newTaskType === 'fertilizing')) {
+      onAddWebRecord({
+        id: `wr-${Date.now()}`,
+        fieldName: selectedField?.name || 'Tarla',
+        title: taskTitle,
         type: newTaskType,
-        date: newTaskDate || new Date().toISOString().slice(0, 10),
-        status: 'pending',
-        productName: newTaskProduct.trim() || undefined,
+        productName: newTaskProduct.trim() || 'Uygulama',
         dosage: newTaskDosage.trim() || undefined,
-        targetPestOrPurpose: newTaskTarget.trim() || undefined,
-      },
-      ...prev,
-    ])
+        appliedAt: newTaskDate || new Date().toISOString().slice(0, 10),
+        status: 'pending',
+      })
+    }
+
     setNewTaskTitle('')
     setShowAddTaskModal(false)
+    if (typeof window !== 'undefined') {
+      alert(`✅ Görev Başarıyla Oluşturuldu!\n"${taskTitle}" görevi planlandı ve Görevler listesine eklendi.`)
+    }
   }
 
   const pendingTasksCount = tasks.filter((t) => t.status !== 'completed').length
@@ -727,6 +753,34 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
                           <button type="button" onClick={() => setShowAddTaskModal(true)} className="text-xs bg-emerald-600 text-white px-2.5 py-1 rounded-lg font-semibold">+ Yeni ekim kaydı</button>
                         </div>
                         <p className="text-[10px] text-slate-500">Kayıda dokunun → Ekim → Hasat planı</p>
+
+                        {/* Web ve Mobil Ortak Ekim Kayıtları */}
+                        {plantingRecords.length > 0 && (
+                          <div className="space-y-2">
+                            {plantingRecords.map((rec) => {
+                              const cropInfo = {
+                                id: rec.id,
+                                name: rec.cropNameTr || 'Ürün Kaydı',
+                                field: rec.fieldName || 'Tarla',
+                                plantDate: rec.plantingDate ? String(rec.plantingDate).slice(0, 10) : '2026-06-20',
+                              }
+                              return (
+                                <div key={rec.id} className="w-full bg-emerald-50 border border-emerald-300 rounded-xl p-3 hover:bg-emerald-100 flex items-center justify-between gap-2 shadow-2xs">
+                                  <button
+                                    type="button"
+                                    onClick={() => { setPlanCrop(cropInfo); setCalendarView('plan') }}
+                                    className="text-left flex-1"
+                                  >
+                                    <div className="font-extrabold text-xs text-emerald-950">🌱 {cropInfo.name}</div>
+                                    <div className="text-[10px] text-emerald-700 font-medium">📍 {cropInfo.field} · Ekim {cropInfo.plantDate}</div>
+                                  </button>
+                                  <span className="text-[10px] font-bold text-emerald-800 bg-white/80 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">Web Kaydı</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+
                         {fields.map((f) => {
                           const cropInfo = {
                             id: f.id,
@@ -735,7 +789,7 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
                             plantDate: f.createdAt ? String(f.createdAt).slice(0, 10) : '2026-06-20',
                           }
                           return (
-                            <div key={f.id} className="w-full bg-emerald-50 border border-emerald-200 rounded-xl p-3 hover:bg-emerald-100 flex items-center justify-between gap-2">
+                            <div key={f.id} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 hover:bg-slate-100 flex items-center justify-between gap-2">
                               <button
                                 type="button"
                                 onClick={() => { setPlanCrop(cropInfo); setCalendarView('plan') }}

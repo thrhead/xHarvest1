@@ -517,8 +517,15 @@ export default function DashboardView() {
         fetchFieldsFromApi()
       }
       const onSyncEvent = (e: any) => {
-        if (e?.detail?.source === 'mobile') {
-          fetchFieldsFromApi()
+        fetchFieldsFromApi()
+        if (typeof window !== 'undefined') {
+          try {
+            const savedPlantings = localStorage.getItem('eh_web_plantings')
+            if (savedPlantings) {
+              const parsed = JSON.parse(savedPlantings)
+              if (Array.isArray(parsed)) setPlantingRecords(parsed)
+            }
+          } catch {}
         }
       }
       window.addEventListener('focus', onFocus)
@@ -1968,8 +1975,11 @@ export default function DashboardView() {
               <div className="space-y-4">
                 <MobileSimulator
                   fields={fields}
+                  plantingRecords={plantingRecords}
+                  webRecords={webRecords}
                   onAddField={(f) => handleCreateField({ ...f, id: `f-${Date.now()}` })}
                   onDeleteField={(id) => handleDeleteField(id)}
+                  onAddWebRecord={(rec) => setWebRecords((prev) => [rec, ...prev])}
                 />
               </div>
             )}
@@ -2269,20 +2279,25 @@ export default function DashboardView() {
               const cropNameTr = crop?.nameTr || field?.cropName || 'Ürün'
               const cropTemplateId = crop ? String(crop.id) : newPlantCropId || 'demo-domates'
               const newRecordId = `pr-${Date.now()}`
-              setPlantingRecords((p) => [
-                {
-                  id: newRecordId,
-                  fieldId: field?.id || 'f-1',
-                  fieldName: field?.name || 'Tarla',
-                  cropTemplateId,
-                  cropNameTr,
-                  plantingDate: newPlantDate,
-                  status: 'planlandi',
-                  areaDa: field?.areaDecares,
-                  taskProgress: {},
-                },
-                ...p,
-              ])
+              const newRecord = {
+                id: newRecordId,
+                fieldId: field?.id || 'f-1',
+                fieldName: field?.name || 'Tarla',
+                cropTemplateId,
+                cropNameTr,
+                plantingDate: newPlantDate,
+                status: 'planlandi' as const,
+                areaDa: field?.areaDecares,
+                taskProgress: {},
+              }
+              setPlantingRecords((p) => {
+                const next = [newRecord, ...p]
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('eh_web_plantings', JSON.stringify(next))
+                  window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', plantings: next } }))
+                }
+                return next
+              })
               setShowAddPlantingModal(false)
               if (typeof window !== 'undefined') {
                 alert(`✅ Yeni Ekim Kaydı Başarıyla Eklendi!\nTarla: ${field?.name || 'Tarla'}\nÜrün: ${cropNameTr}\nEkim Tarihi: ${newPlantDate}`)
