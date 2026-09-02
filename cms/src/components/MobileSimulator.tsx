@@ -141,41 +141,7 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
 
   const activeField = fields.find((f) => f.id === selectedWeatherFieldId) || fields[0]
 
-  const [tasks, setTasks] = useState<TaskItem[]>(() => [
-    {
-      id: 't-1', fieldId: 'f-ankara-1', fieldName: 'Kuzey Parsel (Ankara)', cropName: 'Domates',
-      title: 'İlk Azotlu Gübreleme & Çapa', type: 'fertilizing', date: '2026-08-05', status: 'completed',
-      productName: 'Üre %46 Azot Gübresi', dosage: '15 kg / Dönüm', targetPestOrPurpose: 'Kök gelişimi',
-      notes: 'Toprak nemi iyi. Damlama ile verildi.',
-      photos: ['https://images.unsplash.com/photo-1592417817098-8f3d6eb1b755?w=400&q=80'],
-    },
-    {
-      id: 't-2', fieldId: 'f-ankara-1', fieldName: 'Kuzey Parsel (Ankara)', cropName: 'Domates',
-      title: 'Damlama Sulama & Potasyum Desteği', type: 'fertilizing', date: '2026-08-06', status: 'pending',
-      productName: 'Potasyum Nitrat (13-0-46)', dosage: '3 kg / Dekar',
-    },
-    {
-      id: 't-3', fieldId: 'f-konya-1', fieldName: 'Konya Ovası Buğday', cropName: 'Buğday',
-      title: 'Pas Hastalığı Koruyucu İlaçlama', type: 'spraying', date: '2026-08-07', status: 'delayed',
-      productName: 'Bakır Sülfat', dosage: '250 ml / 100 LT',
-      weatherReason: 'Rüzgar 22 km/s, sabah 06:00 ertelendi',
-    },
-    {
-      id: 't-4', fieldId: 'f-cukurova-1', fieldName: 'Çukurova Sera-1', cropName: 'Biber',
-      title: 'Üst Gübre Dağıtımı', type: 'fertilizing', date: '2026-08-04', status: 'completed',
-      productName: 'NPK 15-15-15', dosage: '20 kg / Dönüm',
-    },
-    {
-      id: 't-5', fieldId: 'f-ankara-1', fieldName: 'Kuzey Parsel (Ankara)', cropName: 'Domates',
-      title: 'Kırmızı Örümcek & Yaprak Biti İlaçlaması', type: 'spraying', date: '2026-08-08', status: 'skipped',
-      productName: 'Sistemik İnsektisit', dosage: '150 ml / Dekar',
-    },
-    {
-      id: 't-6', fieldId: 'f-konya-1', fieldName: 'Konya Ovası Buğday', cropName: 'Buğday',
-      title: 'Geniş Yapraklı Ot İlaçlaması', type: 'spraying', date: '2026-08-02', status: 'completed',
-      productName: 'Selektif Herbisit', dosage: '100 ml / Dekar',
-    },
-  ])
+  const [tasks, setTasks] = useState<TaskItem[]>([])
 
   const [showAddFieldModal, setShowAddFieldModal] = useState(false)
   const [newFieldName, setNewFieldName] = useState('')
@@ -937,11 +903,12 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
                       {fields.map((f) => (<option key={f.id} value={f.id}>{f.name}</option>))}
                     </select>
                     <select value={newTaskType} onChange={(e) => setNewTaskType(e.target.value as any)} className="w-full px-2.5 py-2 border rounded-lg">
+                      <option value="spraying">🛡️ İlaçlama</option>
                       <option value="fertilizing">🧪 Gübreleme</option>
                       <option value="irrigation">💧 Sulama</option>
-                      <option value="spraying">🛡️ İlaçlama</option>
-                      <option value="planting">🌱 Ekim</option>
+                      <option value="planting">🌱 Ekim / Dikim</option>
                       <option value="harvesting">🌾 Hasat</option>
+                      <option value="other">📋 Bakım / Çapa</option>
                     </select>
                     <input type="date" value={newTaskDate} onChange={(e) => setNewTaskDate(e.target.value)} className="w-full px-2.5 py-2 border rounded-lg" />
                     <div className="flex gap-2"><button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-bold rounded-lg">Ekle</button><button type="button" onClick={() => setShowAddTaskModal(false)} className="px-3 bg-slate-200 rounded-lg">İptal</button></div>

@@ -512,11 +512,7 @@ export default function DashboardView() {
         console.error('Storage parse error:', e)
       }
 
-      // Background sync polling & focus sync
-      const interval = setInterval(() => {
-        fetchFieldsFromApi()
-      }, 5000)
-
+      // Background sync focus & event sync
       const onFocus = () => {
         fetchFieldsFromApi()
       }
@@ -530,7 +526,6 @@ export default function DashboardView() {
       window.addEventListener('eh_fields_sync', onSyncEvent)
 
       return () => {
-        clearInterval(interval)
         window.removeEventListener('focus', onFocus)
         window.removeEventListener('storage', onFocus)
         window.removeEventListener('eh_fields_sync', onSyncEvent)
@@ -2273,9 +2268,10 @@ export default function DashboardView() {
               const crop = crops.find((c) => String(c.id) === String(newPlantCropId)) || crops[0]
               const cropNameTr = crop?.nameTr || field?.cropName || 'Ürün'
               const cropTemplateId = crop ? String(crop.id) : newPlantCropId || 'demo-domates'
+              const newRecordId = `pr-${Date.now()}`
               setPlantingRecords((p) => [
                 {
-                  id: `pr-${Date.now()}`,
+                  id: newRecordId,
                   fieldId: field?.id || 'f-1',
                   fieldName: field?.name || 'Tarla',
                   cropTemplateId,
@@ -2288,6 +2284,9 @@ export default function DashboardView() {
                 ...p,
               ])
               setShowAddPlantingModal(false)
+              if (typeof window !== 'undefined') {
+                alert(`✅ Yeni Ekim Kaydı Başarıyla Eklendi!\nTarla: ${field?.name || 'Tarla'}\nÜrün: ${cropNameTr}\nEkim Tarihi: ${newPlantDate}`)
+              }
             }}
           >
             <div className="flex items-center justify-between">
