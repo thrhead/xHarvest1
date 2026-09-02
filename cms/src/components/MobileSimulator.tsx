@@ -127,6 +127,9 @@ function SimulatorMap({
 export default function MobileSimulator({ fields, onAddField, onDeleteField }: MobileSimulatorProps) {
   const [activeTab, setActiveTab] = useState<'home' | 'tasks' | 'records' | 'map' | 'calendar' | 'weather'>('home')
   const [taskFilter, setTaskFilter] = useState<'all' | 'spraying' | 'fertilizing' | 'irrigation' | 'planting' | 'harvesting'>('all')
+  const [taskStatusFilter, setTaskStatusFilter] = useState<'open' | 'all' | 'pending' | 'delayed' | 'completed'>('open')
+  const [taskSearchQuery, setTaskSearchQuery] = useState('')
+  const [taskSelectedField, setTaskSelectedField] = useState('all')
   const [recordFilter, setRecordFilter] = useState<'all' | 'spraying' | 'fertilizing'>('all')
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<TaskItem | null>(null)
   const [editingNotes, setEditingNotes] = useState('')
@@ -428,29 +431,200 @@ export default function MobileSimulator({ fields, onAddField, onDeleteField }: M
                 {activeTab === 'tasks' && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-sm text-slate-900">Tarımsal Görev Listesi</h4>
-                      <button type="button" onClick={() => setShowAddTaskModal(true)} className="text-xs bg-emerald-600 text-white px-2.5 py-1 rounded-lg font-semibold">+ Görev Ekle</button>
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900">Tarımsal Görevler</h4>
+                        <p className="text-[10px] text-slate-500">{tasks.filter((t) => t.status !== 'completed').length} bekleyen işlem</p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={handleSimulateWeatherCheck} className="text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 px-2 py-1 rounded-lg font-bold flex items-center gap-1">
+                          <span>🌤️</span> Hava Kontrolü
+                        </button>
+                        <button type="button" onClick={() => setShowAddTaskModal(true)} className="text-xs bg-emerald-700 text-white px-2 py-1 rounded-lg font-semibold">+ Görev</button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[11px]">
+
+                    {/* KPI Quick Filter Bar */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setTaskStatusFilter(taskStatusFilter === 'pending' ? 'open' : 'pending')}
+                        className={`p-2 rounded-xl border text-center transition ${taskStatusFilter === 'pending' ? 'bg-emerald-50 border-emerald-400' : 'bg-white border-slate-200'}`}
+                      >
+                        <div className="text-xs font-black text-slate-900">{tasks.filter((t) => t.status === 'pending').length}</div>
+                        <div className="text-[9px] font-bold text-slate-500">⏳ Bekleyen</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTaskStatusFilter(taskStatusFilter === 'delayed' ? 'open' : 'delayed')}
+                        className={`p-2 rounded-xl border text-center transition ${taskStatusFilter === 'delayed' ? 'bg-amber-50 border-amber-400' : 'bg-white border-slate-200'}`}
+                      >
+                        <div className="text-xs font-black text-amber-600">{tasks.filter((t) => t.status === 'delayed').length}</div>
+                        <div className="text-[9px] font-bold text-amber-700">🌦️ Ertelenen</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTaskStatusFilter(taskStatusFilter === 'completed' ? 'open' : 'completed')}
+                        className={`p-2 rounded-xl border text-center transition ${taskStatusFilter === 'completed' ? 'bg-emerald-50 border-emerald-400' : 'bg-white border-slate-200'}`}
+                      >
+                        <div className="text-xs font-black text-emerald-700">{tasks.filter((t) => t.status === 'completed').length}</div>
+                        <div className="text-[9px] font-bold text-emerald-700">✅ Yapılan</div>
+                      </button>
+                    </div>
+
+                    {/* Search Input */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Görev, ürün veya tarla ara..."
+                        value={taskSearchQuery}
+                        onChange={(e) => setTaskSearchQuery(e.target.value)}
+                        className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-1.5 pl-7 text-slate-800 placeholder-slate-400 outline-none focus:border-emerald-600"
+                      />
+                      <span className="absolute left-2.5 top-1.5 text-xs text-slate-400">🔍</span>
+                      {taskSearchQuery && (
+                        <button type="button" onClick={() => setTaskSearchQuery('')} className="absolute right-2.5 top-1 text-xs text-slate-400 hover:text-slate-600">✕</button>
+                      )}
+                    </div>
+
+                    {/* Field & Status Tabs */}
+                    <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[11px] no-scrollbar">
                       {([
-                        ['all', 'Tümü'], ['spraying', '🛡️ İlaçlama'], ['fertilizing', '🧪 Gübreleme'],
-                        ['irrigation', '💧 Sulama'], ['planting', '🌱 Ekim'], ['harvesting', '🌾 Hasat'],
+                        ['open', 'Açık Görevler'],
+                        ['all', 'Tümü'],
+                        ['delayed', 'Ertelenen 🌦️'],
+                        ['completed', 'Tamamlanan ✓'],
                       ] as const).map(([id, label]) => (
-                        <button key={id} type="button" onClick={() => setTaskFilter(id)} className={`px-2.5 py-1 rounded-full whitespace-nowrap font-semibold ${taskFilter === id ? 'bg-emerald-800 text-white' : 'bg-slate-200 text-slate-700'}`}>{label}</button>
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setTaskStatusFilter(id)}
+                          className={`px-2.5 py-1 rounded-full whitespace-nowrap font-bold text-[10px] transition ${
+                            taskStatusFilter === id ? 'bg-emerald-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {label}
+                        </button>
                       ))}
                     </div>
+
+                    {/* Task List */}
                     <div className="space-y-2">
-                      {tasks.filter((t) => taskFilter === 'all' || t.type === taskFilter).map((t) => (
-                        <div key={t.id} onClick={() => openTaskDetail(t)} className={`p-3 rounded-xl border cursor-pointer ${t.status === 'completed' ? 'bg-emerald-50/60 border-emerald-200' : t.status === 'delayed' ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] bg-slate-200 text-slate-800 font-bold px-1.5 py-0.5 rounded">{t.cropName}</span>
-                            <span className="text-[11px] font-semibold text-slate-500">{t.fieldName}</span>
-                          </div>
-                          <h5 className="text-xs font-bold text-slate-900 mt-1">{t.title}</h5>
-                          {t.productName && <p className="text-[11px] text-emerald-800 mt-0.5">💊 {t.productName} {t.dosage && `(${t.dosage})`}</p>}
-                          <p className="text-[11px] text-slate-500 mt-0.5">🗓️ {t.date}</p>
+                      {tasks
+                        .filter((t) => {
+                          if (taskStatusFilter === 'open' && t.status === 'completed') return false
+                          if (taskStatusFilter !== 'open' && taskStatusFilter !== 'all' && t.status !== taskStatusFilter) return false
+                          if (taskFilter !== 'all' && t.type !== taskFilter) return false
+                          if (taskSearchQuery.trim()) {
+                            const q = taskSearchQuery.toLowerCase()
+                            return (
+                              t.title.toLowerCase().includes(q) ||
+                              t.fieldName.toLowerCase().includes(q) ||
+                              t.cropName.toLowerCase().includes(q) ||
+                              (t.productName && t.productName.toLowerCase().includes(q))
+                            )
+                          }
+                          return true
+                        })
+                        .map((t) => {
+                          const isDone = t.status === 'completed'
+                          const isDelayed = t.status === 'delayed'
+                          const typeBorder =
+                            t.type === 'fertilizing'
+                              ? '#f59e0b'
+                              : t.type === 'spraying'
+                              ? '#a855f7'
+                              : t.type === 'irrigation'
+                              ? '#0ea5e9'
+                              : t.type === 'planting'
+                              ? '#10b981'
+                              : '#eab308'
+
+                          return (
+                            <div
+                              key={t.id}
+                              onClick={() => openTaskDetail(t)}
+                              style={{ borderLeftColor: typeBorder, borderLeftWidth: '4px' }}
+                              className={`p-3 rounded-xl border cursor-pointer transition shadow-2xs ${
+                                isDone
+                                  ? 'bg-slate-50/80 border-slate-200 opacity-75'
+                                  : isDelayed
+                                  ? 'bg-amber-50/60 border-amber-200'
+                                  : 'bg-white border-slate-200 hover:border-emerald-300'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[9px] bg-slate-100 text-slate-700 font-bold px-1.5 py-0.5 rounded">
+                                    📍 {t.fieldName}
+                                  </span>
+                                  <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                                    🌱 {t.cropName}
+                                  </span>
+                                </div>
+                                <span
+                                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                    isDone
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : isDelayed
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-slate-100 text-slate-600'
+                                  }`}
+                                >
+                                  {isDone ? '✓ Yapıldı' : isDelayed ? '🌦️ Ertelendi' : '⏳ Bekliyor'}
+                                </span>
+                              </div>
+
+                              <h5 className={`text-xs font-bold mt-1.5 ${isDone ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                                {t.title}
+                              </h5>
+
+                              {t.productName && (
+                                <p className="text-[10px] text-emerald-800 mt-0.5 font-medium">
+                                  💊 {t.productName} {t.dosage && `(${t.dosage})`}
+                                </p>
+                              )}
+
+                              {t.weatherReason && (
+                                <div className="bg-amber-100/60 border border-amber-200 rounded-md p-1 mt-1 text-[10px] text-amber-900 font-semibold flex items-center gap-1">
+                                  <span>🌤️</span>
+                                  <span>{t.weatherReason}</span>
+                                </div>
+                              )}
+
+                              <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-100 text-[10px]">
+                                <span className="text-slate-500 font-medium">🗓️ {t.date}</span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      toggleTaskStatus(t.id)
+                                    }}
+                                    className={`px-2 py-0.5 rounded-md font-bold text-[10px] transition ${
+                                      isDone
+                                        ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                                        : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                                    }`}
+                                  >
+                                    {isDone ? 'Geri Al' : '✓ Tamamla'}
+                                  </button>
+                                  <span className="text-emerald-700 font-bold hover:underline">Detay →</span>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+
+                      {tasks.filter((t) => {
+                        if (taskStatusFilter === 'open' && t.status === 'completed') return false
+                        if (taskStatusFilter !== 'open' && taskStatusFilter !== 'all' && t.status !== taskStatusFilter) return false
+                        if (taskFilter !== 'all' && t.type !== taskFilter) return false
+                        return true
+                      }).length === 0 && (
+                        <div className="p-6 text-center text-slate-400 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                          Seçili filtreye uygun görev bulunamadı.
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
                 )}
