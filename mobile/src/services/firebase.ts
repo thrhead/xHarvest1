@@ -154,6 +154,8 @@ const initialDemo = {
 
 const STORAGE_KEY = 'eh_mobile_demo_state_v2';
 const WEB_FIELDS_KEY = 'eh_web_fields';
+const WEB_PLANTINGS_KEY = 'eh_web_plantings';
+const WEB_RECORDS_KEY = 'eh_web_records';
 
 function parseStoredData(stored: string) {
   try {
@@ -238,6 +240,28 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
               cropName: cropName,
               plantingDate: new Date(wf.createdAt || Date.now()),
               status: 'active',
+            });
+          }
+        });
+      }
+    }
+
+    // Sync Web Planting Records (eh_web_plantings) into Mobile Crops
+    const webPlantingStr = window.localStorage.getItem(WEB_PLANTINGS_KEY);
+    if (webPlantingStr) {
+      const webPlantings = JSON.parse(webPlantingStr);
+      if (Array.isArray(webPlantings)) {
+        webPlantings.forEach((wp: any) => {
+          const existing = targetDemo.crops.find((c) => c.id === wp.id || (c.fieldId === wp.fieldId && c.cropName === wp.cropNameTr));
+          if (!existing) {
+            targetDemo.crops.push({
+              id: wp.id || `pr_${Date.now()}`,
+              userId: 'demo-user-id',
+              fieldId: wp.fieldId,
+              cropTemplateId: wp.cropTemplateId || 'demo-domates',
+              cropName: wp.cropNameTr || 'Ürün',
+              plantingDate: new Date(wp.plantingDate || Date.now()),
+              status: wp.status === 'hasat_edildi' ? 'completed' : 'active',
             });
           }
         });
