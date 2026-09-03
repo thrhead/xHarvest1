@@ -904,57 +904,11 @@ export async function deleteApplicationLog(id: string): Promise<void> {
 }
 
 // ── STOCK ──
-const demoStock: StockItem[] = [
-  {
-    id: 's1',
-    userId: 'demo-user-id',
-    name: 'Üre 46',
-    category: 'fertilizer',
-    quantity: 200,
-    unit: 'kg',
-    minQuantity: 50,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 's2',
-    userId: 'demo-user-id',
-    name: 'Bakır Sülfat',
-    category: 'pesticide',
-    quantity: 12,
-    unit: 'L',
-    minQuantity: 5,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
+const demoStock: StockItem[] = [];
 
-const demoFarm: Farm = {
-  id: 'farm1',
-  name: 'Demo Çiftlik',
-  ownerId: 'demo-user-id',
-  inviteCode: 'EKIM2026',
-  createdAt: new Date(),
-};
+const demoFarm: Farm | null = null;
 
-const demoMembers: FarmMember[] = [
-  {
-    id: 'm1',
-    farmId: 'farm1',
-    userId: 'demo-user-id',
-    displayName: 'Siz (Sahip)',
-    role: 'owner',
-    joinedAt: new Date(),
-  },
-  {
-    id: 'm2',
-    farmId: 'farm1',
-    userId: 'worker-demo',
-    displayName: 'Ahmet (İşçi)',
-    role: 'worker',
-    joinedAt: new Date(),
-  },
-];
+const demoMembers: FarmMember[] = [];
 
 const demoDetections: DiseaseDetectionResult[] = [];
 
@@ -1003,7 +957,7 @@ export async function joinFarmByCode(
   code: string,
   displayName: string
 ): Promise<boolean> {
-  if (code.trim().toUpperCase() !== demoFarm.inviteCode) return false;
+  if (!demoFarm || code.trim().toUpperCase() !== demoFarm.inviteCode) return false;
   if (!demoMembers.some((m) => m.userId === userId)) {
     demoMembers.push({
       id: genId('m'),
