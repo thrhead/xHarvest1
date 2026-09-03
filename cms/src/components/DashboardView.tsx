@@ -177,7 +177,10 @@ export default function DashboardView() {
 
   // Global Tasks (Web & Mobile Synchronized State)
   const [tasks, setTasks] = useState<any[]>([])
-  const [recordsSubTab, setRecordsSubTab] = useState<'tasks' | 'records'>('tasks')
+  const [recordsSubTab, setRecordsSubTab] = useState<'tasks' | 'agenda' | 'records'>('tasks')
+  const [taskViewMode, setTaskViewMode] = useState<'timeline' | 'by_field' | 'by_type'>('timeline')
+  const [selectedAgendaDate, setSelectedAgendaDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [agendaTimeScope, setAgendaTimeScope] = useState<'day' | 'week' | 'month' | 'all'>('week')
   const [taskTabFilter, setTaskTabFilter] = useState<'all' | 'spraying' | 'fertilizing' | 'irrigation' | 'planting' | 'harvesting' | 'other'>('all')
   const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'pending' | 'completed' | 'delayed' | 'skipped'>('all')
   const [taskSearch, setTaskSearch] = useState('')
@@ -210,15 +213,15 @@ export default function DashboardView() {
     }
   }
 
-  const handleToggleTaskStatus = async (taskId: string) => {
+  const handleToggleTaskStatus = async (taskId: string, targetStatus?: string) => {
     const currentTask = tasks.find((t) => t.id === taskId)
     if (!currentTask) return
     const order = ['pending', 'completed', 'delayed', 'skipped']
     const nextIdx = (order.indexOf(currentTask.status) + 1) % order.length
-    const nextStatus = order[nextIdx]
+    const nextStatus = targetStatus || order[nextIdx]
 
     setTasks((prev) => {
-      const next = prev.map((t) => (t.id === taskId ? { ...t, status: nextStatus } : t))
+      const next = prev.map((t) => (t.id === taskId ? { ...t, status: nextStatus as any } : t))
       if (typeof window !== 'undefined') {
         localStorage.setItem('eh_mobile_tasks', JSON.stringify(next))
         window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { id: taskId, status: nextStatus } }))
@@ -228,9 +231,9 @@ export default function DashboardView() {
 
     try {
       await fetch('/api/tasks', {
-        method: 'PATCH',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: taskId, status: nextStatus }),
+        body: JSON.stringify({ action: 'update_status', id: taskId, status: nextStatus }),
       })
     } catch (e) {
       console.warn('Task status update error:', e)
@@ -316,7 +319,7 @@ export default function DashboardView() {
       await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTask),
+        body: JSON.stringify({ task: newTask }),
       })
       fetchTasksFromApi()
     } catch (e) {
@@ -784,6 +787,61 @@ export default function DashboardView() {
     })
   }, [tasks, taskTabFilter, taskStatusFilter, taskSearch])
 
+  const groupedTasks = useMemo(() => {
+    if (taskViewMode === 'by_field') {
+      const map: Record<string, any[]> = {}
+      filteredTasks.forEach((t) => {
+        const key = t.fieldName || 'Genel Parsel'
+        if (!map[key]) map[key] = []
+        map[key].push(t)
+      })
+      return Object.entries(map).map(([title, items]) => ({ title: `📍 Parsel: ${title}`, items }))
+    }
+
+    if (taskViewMode === 'by_type') {
+      const typeLabels: Record<string, { label: string; icon: string }> = {
+        harvesting: { label: 'Hasat & Toplama', icon: '🌾' },
+        spraying: { label: 'İlaçlama Görevleri', icon: '🛡️' },
+        fertilizing: { label: 'Gübreleme & Besleme', icon: '🧪' },
+        irrigation: { label: 'Sulama İşlemleri', icon: '💧' },
+        planting: { label: 'Ekim & Dikim', icon: '🌱' },
+        other: { label: 'Bakım & Diğer Saha İşleri', icon: '📋' },
+      }
+      const map: Record<string, any[]> = {}
+      filteredTasks.forEach((t) => {
+        const key = t.type || 'other'
+        if (!map[key]) map[key] = []
+        map[key].push(t)
+      })
+      return Object.entries(map).map(([typeKey, items]) => {
+        const meta = typeLabels[typeKey] || { label: 'Saha İşleri', icon: '📋' }
+        return { title: `${meta.icon} ${meta.label}`, items }
+      })
+    }
+
+    // Default: 'timeline'
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const delayed = filteredTasks.filter((t) => t.status === 'delayed' || ((t.plannedDate || t.date) < todayStr && t.status === 'pending'))
+    const active = filteredTasks.filter((t) => t.status === 'pending' && (t.plannedDate || t.date) >= todayStr)
+    const completedOrSkipped = filteredTasks.filter((t) => t.status === 'completed' || t.status === 'skipped')
+
+    const groups: { title: string; items: any[]; badgeBg?: string }[] = []
+    if (delayed.length > 0) {
+      groups.push({ title: '⏰ Geciken veya Ertelenen Görevler', items: delayed, badgeBg: 'bg-amber-100 text-amber-900 border-amber-300' })
+    }
+    if (active.length > 0) {
+      groups.push({ title: '📅 Bugünden İtibaren Yaklaşan Görevler', items: active, badgeBg: 'bg-sky-100 text-sky-900 border-sky-300' })
+    }
+    if (completedOrSkipped.length > 0) {
+      groups.push({ title: '✅ Tamamlanan ve Atlanan Görevler (Arşiv)', items: completedOrSkipped, badgeBg: 'bg-emerald-100 text-emerald-900 border-emerald-300' })
+    }
+    if (groups.length === 0 && filteredTasks.length > 0) {
+      groups.push({ title: '📋 Tüm Saha Görevleri', items: filteredTasks })
+    }
+
+    return groups
+  }, [filteredTasks, taskViewMode])
+
   const filteredStocks = useMemo(() => {
     return stockList.filter((s) => {
       if (stockFilter === 'fertilizer') return s.category === 'fertilizer'
@@ -1198,10 +1256,23 @@ export default function DashboardView() {
                       }`}
                     >
                       <ClipboardList size={15} className={recordsSubTab === 'tasks' ? 'text-emerald-600' : 'text-slate-400'} />
-                      <span>📋 Saha Görevleri & Ajanda</span>
+                      <span>📋 Saha Görevleri</span>
                       <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
                         {tasks.length}
                       </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRecordsSubTab('agenda')}
+                      className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                        recordsSubTab === 'agenda'
+                          ? 'bg-white text-amber-800 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Calendar size={15} className={recordsSubTab === 'agenda' ? 'text-amber-600' : 'text-slate-400'} />
+                      <span>📅 Takvim & Ajanda</span>
                     </button>
 
                     <button
@@ -1226,7 +1297,7 @@ export default function DashboardView() {
                       <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
                       Mobil & Web Canlı Senkronize
                     </span>
-                    {recordsSubTab === 'tasks' ? (
+                    {recordsSubTab === 'tasks' || recordsSubTab === 'agenda' ? (
                       <button
                         type="button"
                         onClick={() => {
@@ -1256,8 +1327,57 @@ export default function DashboardView() {
                 </div>
 
                 {/* --- SUB-TAB 1: SAHA GÖREVLERİ & AJANDA --- */}
+                {/* --- SUB-TAB 1: SAHA GÖREVLERİ --- */}
                 {recordsSubTab === 'tasks' && (
                   <div className="space-y-4">
+                    {/* View Mode Switcher Bar */}
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-3 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Görünüm Modu:</span>
+                        <div className="p-1 bg-slate-100 rounded-xl flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setTaskViewMode('timeline')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                              taskViewMode === 'timeline'
+                                ? 'bg-white text-emerald-800 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <span>⏱️ Zaman Çizelgesi</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setTaskViewMode('by_field')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                              taskViewMode === 'by_field'
+                                ? 'bg-white text-emerald-800 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <span>📍 Parsel Bazlı</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setTaskViewMode('by_type')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                              taskViewMode === 'by_type'
+                                ? 'bg-white text-emerald-800 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <span>🏷️ İşlem Türü Bazlı</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="text-[11px] text-slate-500 font-semibold">
+                        Toplam <strong className="text-slate-900">{filteredTasks.length}</strong> görev listeleniyor
+                      </div>
+                    </div>
+
                     {/* Filter and Search Bar for Tasks */}
                     <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1303,11 +1423,11 @@ export default function DashboardView() {
                       <div className="flex items-center gap-2 pt-2 border-t border-slate-100 flex-wrap">
                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Durum:</span>
                         {[
-                          { id: 'all', label: 'Tümü', icon: null },
-                          { id: 'pending', label: '○ Bekliyor', icon: '○' },
-                          { id: 'completed', label: '✓ Yapıldı', icon: '✓' },
-                          { id: 'delayed', label: '⏰ Ertelendi', icon: '⏰' },
-                          { id: 'skipped', label: '⏭️ Atlandı', icon: '⏭️' },
+                          { id: 'all', label: 'Tümü' },
+                          { id: 'pending', label: '○ Bekliyor' },
+                          { id: 'completed', label: '✓ Yapıldı' },
+                          { id: 'delayed', label: '⏰ Ertelendi' },
+                          { id: 'skipped', label: '⏭️ Atlandı' },
                         ].map((st) => (
                           <button
                             key={st.id}
@@ -1325,9 +1445,9 @@ export default function DashboardView() {
                       </div>
                     </div>
 
-                    {/* Task Cards List */}
-                    <div className="space-y-2.5">
-                      {filteredTasks.length === 0 ? (
+                    {/* Task Cards Grouped List */}
+                    <div className="space-y-6">
+                      {groupedTasks.length === 0 ? (
                         <div className="bg-white border border-slate-200/80 rounded-2xl p-8 text-center text-slate-400 text-xs font-medium space-y-2">
                           <p>Bu filtre kriterlerine uyan saha görevi bulunamadı.</p>
                           <button
@@ -1343,147 +1463,307 @@ export default function DashboardView() {
                           </button>
                         </div>
                       ) : (
-                        filteredTasks.map((t) => {
-                          const isCustom = isCustomTask(t)
-
-                          const getTypeBadge = (type: string) => {
-                            switch (type) {
-                              case 'harvesting':
-                                return { label: 'HASAT', bg: 'bg-amber-100 text-amber-900', icon: '🌾' }
-                              case 'spraying':
-                                return { label: 'İLAÇLAMA', bg: 'bg-blue-100 text-blue-900', icon: '🛡️' }
-                              case 'fertilizing':
-                                return { label: 'GÜBRELEME', bg: 'bg-emerald-100 text-emerald-900', icon: '🧪' }
-                              case 'irrigation':
-                                return { label: 'SULAMA', bg: 'bg-cyan-100 text-cyan-900', icon: '💧' }
-                              case 'planting':
-                                return { label: 'EKİM', bg: 'bg-lime-100 text-lime-900', icon: '🌱' }
-                              default:
-                                return { label: 'BAKIM', bg: 'bg-purple-100 text-purple-900', icon: '📋' }
-                            }
-                          }
-
-                          const getStatusStyle = (st: string) => {
-                            switch (st) {
-                              case 'completed':
-                                return { bg: 'bg-emerald-100 text-emerald-900 border-emerald-300', text: '✓ Yapıldı' }
-                              case 'delayed':
-                                return { bg: 'bg-amber-100 text-amber-900 border-amber-300', text: '⏰ Ertelendi' }
-                              case 'skipped':
-                                return { bg: 'bg-slate-200 text-slate-700 border-slate-300', text: '⏭️ Atlandı' }
-                              default:
-                                return { bg: 'bg-sky-50 text-sky-800 border-sky-200', text: '○ Bekliyor' }
-                            }
-                          }
-
-                          const badge = getTypeBadge(t.type)
-                          const statusStyle = getStatusStyle(t.status)
-
-                          return (
-                            <div
-                              key={t.id}
-                              className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-emerald-300 transition-all"
-                            >
-                              <div className="flex items-start gap-3 flex-1 min-w-0">
-                                <div className="size-10 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-center text-lg shrink-0">
-                                  {badge.icon}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <h4 className="text-xs font-bold text-slate-900">{t.title}</h4>
-                                    <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md ${badge.bg}`}>
-                                      {badge.label}
-                                    </span>
-                                    {isCustom ? (
-                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200/60">
-                                        📱 Mobilden / Manuel
-                                      </span>
-                                    ) : (
-                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200/60">
-                                        🌱 Ekim Planı (Otomatik)
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <p className="text-[11px] text-slate-500 font-medium mt-1">
-                                    📍 <strong>{t.fieldName}</strong> · {t.cropName || 'Genel'} · 📅 {t.date || t.plannedDate}
-                                  </p>
-
-                                  {t.weatherReason && (
-                                    <p className="text-[10px] text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200/60 mt-1 font-medium inline-flex items-center gap-1">
-                                      <span>⚠️ {t.weatherReason}</span>
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Status Action & Conditional Delete */}
-                              <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                                <div className="text-right">
-                                  <span className="text-[11px] font-bold text-slate-700 block">{t.date || t.plannedDate}</span>
-                                  <span className="text-[10px] text-slate-400">
-                                    {t.status === 'completed' ? 'Tamamlandı' : t.status === 'delayed' ? 'Ertelendi' : t.status === 'skipped' ? 'Atlandı' : 'Sıradaki İşlem'}
-                                  </span>
-                                </div>
-
-                                {/* Status Cycle Selector */}
-                                <select
-                                  value={t.status || 'pending'}
-                                  onChange={async (e) => {
-                                    const nextStatus = e.target.value
-                                    setTasks((prev) =>
-                                      prev.map((item) => (item.id === t.id ? { ...item, status: nextStatus } : item))
-                                    )
-                                    if (typeof window !== 'undefined') {
-                                      window.dispatchEvent(
-                                        new CustomEvent('eh_tasks_sync', { detail: { id: t.id, status: nextStatus } })
-                                      )
-                                    }
-                                    try {
-                                      await fetch('/api/tasks', {
-                                        method: 'PATCH',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ id: t.id, status: nextStatus }),
-                                      })
-                                    } catch {}
-                                  }}
-                                  className={`text-[11px] font-bold px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer outline-none ${statusStyle.bg}`}
-                                >
-                                  <option value="pending">○ Bekliyor</option>
-                                  <option value="completed">✓ Yapıldı</option>
-                                  <option value="delayed">⏰ Ertelendi</option>
-                                  <option value="skipped">⏭️ Atlandı</option>
-                                </select>
-
-                                {/* Delete button: Only for custom/manual tasks! Not for system crop records */}
-                                {isCustom ? (
-                                  <button
-                                    type="button"
-                                    title="Bu görevi sil"
-                                    onClick={() => handleDeleteTask(t.id)}
-                                    className="size-8 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all border border-slate-200/60"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                ) : (
-                                  <span
-                                    title="Bu görev ekim takvimi kaydıdır (silinemez; dilerseniz durumunu 'Atlandı' yapabilirsiniz)"
-                                    className="px-2 py-1 bg-slate-50 text-slate-400 text-[10px] font-semibold rounded-lg border border-slate-200/60 flex items-center gap-1 cursor-help"
-                                  >
-                                    <Lock size={11} />
-                                    <span>Plan Kaydı</span>
-                                  </span>
-                                )}
-                              </div>
+                        groupedTasks.map((group, groupIdx) => (
+                          <div key={groupIdx} className="space-y-3">
+                            <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                              <h3 className="text-xs font-extrabold text-slate-800 flex items-center gap-2">
+                                <span>{group.title}</span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${group.badgeBg || 'bg-slate-100 text-slate-700'}`}>
+                                  {group.items.length} Görev
+                                </span>
+                              </h3>
                             </div>
-                          )
-                        })
+
+                            <div className="space-y-2.5">
+                              {group.items.map((t) => {
+                                const isCustom = isCustomTask(t)
+
+                                const getTypeBadge = (type: string) => {
+                                  switch (type) {
+                                    case 'harvesting':
+                                      return { label: 'HASAT', bg: 'bg-amber-100 text-amber-900', icon: '🌾' }
+                                    case 'spraying':
+                                      return { label: 'İLAÇLAMA', bg: 'bg-blue-100 text-blue-900', icon: '🛡️' }
+                                    case 'fertilizing':
+                                      return { label: 'GÜBRELEME', bg: 'bg-emerald-100 text-emerald-900', icon: '🧪' }
+                                    case 'irrigation':
+                                      return { label: 'SULAMA', bg: 'bg-cyan-100 text-cyan-900', icon: '💧' }
+                                    case 'planting':
+                                      return { label: 'EKİM', bg: 'bg-lime-100 text-lime-900', icon: '🌱' }
+                                    default:
+                                      return { label: 'BAKIM', bg: 'bg-purple-100 text-purple-900', icon: '📋' }
+                                  }
+                                }
+
+                                const getStatusStyle = (st: string) => {
+                                  switch (st) {
+                                    case 'completed':
+                                      return { bg: 'bg-emerald-100 text-emerald-900 border-emerald-300', text: '✓ Yapıldı' }
+                                    case 'delayed':
+                                      return { bg: 'bg-amber-100 text-amber-900 border-amber-300', text: '⏰ Ertelendi' }
+                                    case 'skipped':
+                                      return { bg: 'bg-slate-200 text-slate-700 border-slate-300', text: '⏭️ Atlandı' }
+                                    default:
+                                      return { bg: 'bg-sky-50 text-sky-800 border-sky-200', text: '○ Bekliyor' }
+                                  }
+                                }
+
+                                const badge = getTypeBadge(t.type)
+                                const statusStyle = getStatusStyle(t.status)
+
+                                return (
+                                  <div
+                                    key={t.id}
+                                    className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-emerald-300 transition-all"
+                                  >
+                                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                                      <div className="size-10 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-center text-lg shrink-0">
+                                        {badge.icon}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <h4 className="text-xs font-bold text-slate-900">{t.title}</h4>
+                                          <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md ${badge.bg}`}>
+                                            {badge.label}
+                                          </span>
+                                          {isCustom ? (
+                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200/60">
+                                              📱 Mobilden / Manuel
+                                            </span>
+                                          ) : (
+                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200/60">
+                                              🌱 Ekim Planı (Otomatik)
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <p className="text-[11px] text-slate-500 font-medium mt-1">
+                                          📍 <strong>{t.fieldName}</strong> · {t.cropName || 'Genel'} · 📅 {t.plannedDate || t.date}
+                                        </p>
+
+                                        {t.weatherReason && (
+                                          <p className="text-[10px] text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200/60 mt-1 font-medium inline-flex items-center gap-1">
+                                            <span>⚠️ {t.weatherReason}</span>
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Status Action & Conditional Delete */}
+                                    <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                                      <div className="text-right">
+                                        <span className="text-[11px] font-bold text-slate-700 block">{t.plannedDate || t.date}</span>
+                                        <span className="text-[10px] text-slate-400">
+                                          {t.status === 'completed' ? 'Tamamlandı' : t.status === 'delayed' ? 'Ertelendi' : t.status === 'skipped' ? 'Atlandı' : 'Sıradaki İşlem'}
+                                        </span>
+                                      </div>
+
+                                      {/* Status Cycle Selector */}
+                                      <select
+                                        value={t.status || 'pending'}
+                                        onChange={(e) => handleToggleTaskStatus(t.id, e.target.value)}
+                                        className={`text-[11px] font-bold px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer outline-none ${statusStyle.bg}`}
+                                      >
+                                        <option value="pending">○ Bekliyor</option>
+                                        <option value="completed">✓ Yapıldı</option>
+                                        <option value="delayed">⏰ Ertelendi</option>
+                                        <option value="skipped">⏭️ Atlandı</option>
+                                      </select>
+
+                                      {/* Delete button: Only for custom/manual tasks */}
+                                      {isCustom ? (
+                                        <button
+                                          type="button"
+                                          title="Bu görevi sil"
+                                          onClick={() => handleDeleteTask(t.id)}
+                                          className="size-8 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all border border-slate-200/60"
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      ) : (
+                                        <span
+                                          title="Bu görev ekim takvimi kaydıdır (silinemez; dilerseniz durumunu 'Atlandı' yapabilirsiniz)"
+                                          className="px-2 py-1 bg-slate-50 text-slate-400 text-[10px] font-semibold rounded-lg border border-slate-200/60 flex items-center gap-1 cursor-help"
+                                        >
+                                          <Lock size={11} />
+                                          <span>Plan Kaydı</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ))
                       )}
                     </div>
                   </div>
                 )}
 
-                {/* --- SUB-TAB 2: RESMİ DEFTER (İLAÇ & GÜBRE) --- */}
+                {/* --- SUB-TAB 2: TAKVİM & AJANDA --- */}
+                {recordsSubTab === 'agenda' && (
+                  <div className="space-y-4">
+                    {/* Time Scope & Date Picker Bar */}
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Kapsam:</span>
+                          <div className="p-1 bg-slate-100 rounded-xl flex items-center gap-1">
+                            {[
+                              { id: 'day', label: 'Gün' },
+                              { id: 'week', label: 'Bu Hafta' },
+                              { id: 'month', label: 'Bu Ay' },
+                              { id: 'all', label: 'Tüm Zamanlar' },
+                            ].map((sc) => (
+                              <button
+                                key={sc.id}
+                                type="button"
+                                onClick={() => setAgendaTimeScope(sc.id as any)}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                                  agendaTimeScope === sc.id
+                                    ? 'bg-amber-600 text-white shadow-2xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                {sc.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-500">Seçili Tarih:</span>
+                          <input
+                            type="date"
+                            value={selectedAgendaDate}
+                            onChange={(e) => setSelectedAgendaDate(e.target.value)}
+                            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-amber-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Interactive 7-Day Horizontal Strip */}
+                      <div className="grid grid-cols-7 gap-2 pt-2 border-t border-slate-100">
+                        {Array.from({ length: 7 }).map((_, idx) => {
+                          const curr = new Date()
+                          curr.setDate(curr.getDate() + (idx - 3))
+                          const dateStr = curr.toISOString().slice(0, 10)
+                          const isSelected = dateStr === selectedAgendaDate
+                          const dayName = curr.toLocaleDateString('tr-TR', { weekday: 'short' })
+                          const dayNum = curr.getDate()
+
+                          const countOnDay = tasks.filter((t) => (t.plannedDate || t.date) === dateStr).length
+
+                          return (
+                            <button
+                              key={dateStr}
+                              type="button"
+                              onClick={() => {
+                                setSelectedAgendaDate(dateStr)
+                                setAgendaTimeScope('day')
+                              }}
+                              className={`p-2.5 rounded-2xl flex flex-col items-center justify-center transition-all border ${
+                                isSelected
+                                  ? 'bg-amber-500 text-white border-amber-600 shadow-md scale-105 font-bold'
+                                  : 'bg-slate-50 text-slate-700 border-slate-200/80 hover:bg-slate-100'
+                              }`}
+                            >
+                              <span className="text-[10px] uppercase tracking-wider font-semibold opacity-80">{dayName}</span>
+                              <span className="text-sm font-extrabold my-0.5">{dayNum}</span>
+                              {countOnDay > 0 && (
+                                <span
+                                  className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full ${
+                                    isSelected ? 'bg-white text-amber-900' : 'bg-amber-100 text-amber-800'
+                                  }`}
+                                >
+                                  {countOnDay} Görev
+                                </span>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Agenda Items List */}
+                    <div className="space-y-3">
+                      {(() => {
+                        const scopeTasks = tasks.filter((t) => {
+                          const d = t.plannedDate || t.date || ''
+                          if (agendaTimeScope === 'day') return d === selectedAgendaDate
+                          if (agendaTimeScope === 'week') {
+                            const now = new Date(selectedAgendaDate)
+                            const start = new Date(now)
+                            start.setDate(now.getDate() - 3)
+                            const end = new Date(now)
+                            end.setDate(now.getDate() + 3)
+                            const startStr = start.toISOString().slice(0, 10)
+                            const endStr = end.toISOString().slice(0, 10)
+                            return d >= startStr && d <= endStr
+                          }
+                          if (agendaTimeScope === 'month') {
+                            return d.slice(0, 7) === selectedAgendaDate.slice(0, 7)
+                          }
+                          return true
+                        })
+
+                        if (scopeTasks.length === 0) {
+                          return (
+                            <div className="bg-white border border-slate-200/80 rounded-2xl p-8 text-center text-slate-400 text-xs font-medium space-y-2">
+                              <p>Seçilen ajanda zaman aralığında kayıtlı görev bulunmuyor.</p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNewWebTaskDate(selectedAgendaDate)
+                                  if (fields.length > 0) setNewWebTaskFieldId(fields[0].id)
+                                  setShowAddWebTaskModal(true)
+                                }}
+                                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 shadow-2xs"
+                              >
+                                <Plus size={13} />
+                                <span>+ {selectedAgendaDate} Tarihine Görev Ekle</span>
+                              </button>
+                            </div>
+                          )
+                        }
+
+                        return scopeTasks.map((t) => (
+                          <div
+                            key={t.id}
+                            className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex items-center justify-between gap-3 hover:border-amber-400 transition-all"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="size-10 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center justify-center font-bold text-sm shrink-0">
+                                📅
+                              </div>
+                              <div className="min-w-0">
+                                <h4 className="text-xs font-bold text-slate-900 truncate">{t.title}</h4>
+                                <p className="text-[11px] text-slate-500 font-medium">
+                                  📍 <strong>{t.fieldName}</strong> · 📅 {t.plannedDate || t.date}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <select
+                                value={t.status || 'pending'}
+                                onChange={(e) => handleToggleTaskStatus(t.id, e.target.value)}
+                                className="text-[11px] font-bold px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 outline-none"
+                              >
+                                <option value="pending">○ Bekliyor</option>
+                                <option value="completed">✓ Yapıldı</option>
+                                <option value="delayed">⏰ Ertelendi</option>
+                                <option value="skipped">⏭️ Atlandı</option>
+                              </select>
+                            </div>
+                          </div>
+                        ))
+                      })()}
+                    </div>
+                  </div>
+                )}
+
                 {recordsSubTab === 'records' && (
                   <div className="space-y-4">
                     {/* PHI Safety Notification Banner */}
