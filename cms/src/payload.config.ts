@@ -78,10 +78,12 @@ export default buildConfig({
     '*',
     'http://localhost:3000',
     'https://ekim-hasat-cms.vercel.app',
+    'https://x-harvest1-cms.vercel.app',
     'https://ekim-hasat-cms-tahirs-projects-4b50ac9a.vercel.app',
   ],
   csrf: [
     'https://ekim-hasat-cms.vercel.app',
+    'https://x-harvest1-cms.vercel.app',
     'https://ekim-hasat-cms-tahirs-projects-4b50ac9a.vercel.app',
     'http://localhost:3000',
   ],
