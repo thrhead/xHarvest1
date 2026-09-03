@@ -1,27 +1,39 @@
 # Active Context
 
 ## Current Work Focus
-- Real-time synchronization between Web Portal (`/cms`) and Mobile App / Mobile Simulator (`/mobile`).
-- Interactive Map enhancements: click-to-focus navigation from field lists to map polygons.
-- Planting Date selector functionality across web and mobile.
+- Ensuring robust bi-directional data synchronization between the Web Dashboard (`DashboardView.tsx`), Mobile Simulator (`MobileSimulator.tsx`), and Expo React Native mobile client (`/mobile`).
+- Real-time event-driven state updates across planting records, spraying/fertilizing application logs, and parcel polygons without aggressive polling.
+- Weather-adaptive cron automation and field safety verifications.
 
 ## Recent Architectural & Feature Fixes
-- **Dev Server & Build Recovery**: Restarted the development server and verified successful zero-error compilation across all Next.js App Router and Payload CMS route handlers.
-- **cron-job.org Weather Adjustment Route (`/api/cron/weather-adjust`)**:
-  - Implemented the secure endpoint handling both `GET` and `POST` methods from cron-job.org.
-  - Added secret verification supporting `Authorization: Bearer <CRON_SECRET>` and `X-Cron-Secret: <CRON_SECRET>`.
-  - Configured Open-Meteo 14-day forecast analysis per field, adjusting pending spraying/fertilizing tasks if rain (≥5 mm), wind (≥15 km/h), or temperature limits are breached.
-  - Implemented JobLog history and structured JSON summary response (`{ ok, scanned, moved, errors }`).
-- **Web <-> Mobile Field Synchronization**: Harmonized `syncWebFieldsIntoDemo` in `/mobile/src/services/firebase.ts` and `DashboardView.tsx` so fields created or updated in the Web dashboard are consistently mirrored into the mobile demo state and simulator.
-- **Click-to-Focus Map Interaction**:
-  - In `MobileSimulator.tsx` (web simulator): Clicking on a field card in the live map view triggers `flyToBounds` on the Leaflet map instance, opens the field popup, and highlights the polygon.
-  - In `FieldMap.tsx` and `/mobile/app/map.tsx` (mobile app): Added `focusRegion`, `selectedMarkerId`, and `onMarkerPress` to animate the map directly to the tapped field coordinates with clear visual feedback.
-- **Planting Date Picker**: Added direct date selection in `InteractiveMap.tsx` and mobile `add-crop.tsx` flow.
+1. **Web <-> Mobile Planting Records Synchronization**:
+   - Web `DashboardView.tsx` now writes planting additions directly to `localStorage['eh_web_plantings']` and broadcasts `eh_fields_sync` custom events with `{ source: 'web', plantings }`.
+   - `MobileSimulator.tsx` accepts `plantingRecords` as props and renders them seamlessly inside the Mobile Calendar view ("Ekim -> Hasat Planı") alongside field-level crops.
+   - Mobile service layer (`/mobile/src/services/firebase.ts`) synchronizes `eh_web_plantings` into `targetDemo.crops` upon start and focus events.
+2. **Mobile Simulator Task to Web Log Dispatch**:
+   - Tasks created in `MobileSimulator.tsx` (especially spraying and fertilizing) now automatically trigger `onAddWebRecord`, creating live application records in the Web Portal's `webRecords` state without page reloads.
+3. **Clean Slate / Zero Synthetic Data**:
+   - Removed pre-seeded mock tasks (`t-1` to `t-6`) and mock application logs (`log1`, `log2`) from initial simulator and demo states so farmers manage only authentic tasks.
+4. **Event-Driven Reactive Sync Architecture**:
+   - Replaced continuous 5-second `setInterval` polling in `DashboardView.tsx` with targeted event listeners on `window` (`focus`, `storage`, `eh_fields_sync`), reducing CPU/memory footprint and preventing UI race conditions.
+5. **Enhanced Task Types & User Feedback**:
+   - Expanded mobile task categories to include: İlaçlama (Spraying), Gübreleme (Fertilizing), Sulama (Irrigation), Ekim/Dikim (Planting), Hasat (Harvesting), and Bakım/Çapa (Maintenance).
+   - Added user confirmation alert dialogs on task creation and planting schedule registration.
+6. **Dev Server & Next.js 15 App Router Hardening**:
+   - Resolved Next.js 15 prerendering 404 boundary issue by removing nested `<html>`/`<body>` elements from `cms/src/app/(frontend)/not-found.tsx`.
+   - Deleted defunct `/api/test-route-data` endpoint that previously blocked builds.
+   - Configured `page.tsx` with `export const dynamic = 'force-dynamic'` for server/client synchronization.
+   - Verified that `compile_applet` and `lint_applet` run completely green.
 
 ## Active Decisions & Considerations
-- Next.js App Router structure in `/cms`: Route group `(payload)` manages the CMS admin panel, while `(frontend)` manages web portal components.
-- Mobile demo mode synchronizes through `localStorage` keys (`eh_web_fields`, `eh_mobile_demo_state_v2`) and `CustomEvent('eh_fields_sync')`.
+- **Storage Keys**:
+  - `eh_web_fields`: Parcel boundaries, decares, coordinates, and crop assignments.
+  - `eh_web_plantings`: Active planting schedules with crop templates and target harvest dates.
+  - `eh_web_records`: Application logs for spraying, fertilizing, and treatments.
+  - `eh_web_stocks`: Seed and chemical inventory tracking.
+- **Event Channel**: `CustomEvent('eh_fields_sync', { detail: { source, fields, plantings } })` provides sub-millisecond local tab synchronization.
 
 ## Next Steps
-1. Continue fine-tuning multi-platform field management.
-2. Verify notifications and weather-adjusted spraying/fertilizing schedules.
+1. Monitor live webhook performance on `/api/cron/weather-adjust` with production Open-Meteo forecasts.
+2. Expand crop templates in Payload CMS (`/admin`) for regional varieties (e.g. Pamuk, Zeytin, Mısır).
+
