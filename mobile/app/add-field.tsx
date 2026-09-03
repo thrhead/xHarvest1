@@ -120,6 +120,14 @@ export default function AddFieldScreen() {
       return;
     }
 
+    const parsedLat = parseFloat(lat.replace(',', '.'));
+    const parsedLng = parseFloat(lng.replace(',', '.'));
+    if (isNaN(parsedLat) || isNaN(parsedLng)) {
+      const msg = 'Lütfen geçerli enlem ve boylam koordinatları giriniz.';
+      if (Platform.OS === 'web') alert(msg); else Alert.alert('Geçersiz Koordinat', msg);
+      return;
+    }
+
     const selectedCrop = isCustomCrop ? customCrop.trim() || 'Diğer' : cropName;
     const uid = getCurrentUid() || useAppStore.getState().uid || 'demo-user-id';
     const decares = parseFloat(area.replace(',', '.')) || 20;
@@ -132,8 +140,8 @@ export default function AddFieldScreen() {
         cropName: selectedCrop,
         type,
         location: {
-          lat: parseFloat(lat) || 39.92,
-          lng: parseFloat(lng) || 32.85,
+          lat: parsedLat,
+          lng: parsedLng,
         },
         polygon: polygon && polygon.length >= 3 ? polygon : undefined,
         areaHectare: decares / 10,
@@ -143,8 +151,8 @@ export default function AddFieldScreen() {
       await refreshFields();
       setShowSuccessModal(true);
     } catch (e: any) {
-      const msg = e?.message || 'Kayıt başarısız';
-      if (Platform.OS === 'web') alert(msg); else Alert.alert('Hata', msg);
+      const msg = e?.message || 'Kayıt başarısız. Lütfen internet bağlantınızı ve sunucuyu kontrol ediniz.';
+      if (Platform.OS === 'web') alert(`Hata: ${msg}`); else Alert.alert('Kayıt Başarısız', msg);
     } finally {
       setSaving(false);
     }
