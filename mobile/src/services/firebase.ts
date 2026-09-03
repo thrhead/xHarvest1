@@ -168,35 +168,14 @@ const initialDemo = {
   applicationLogs: [] as ApplicationLog[],
 };
 
-const STORAGE_KEY = 'eh_mobile_state_v4';
+const STORAGE_KEY = 'eh_mobile_state_v5';
 const WEB_FIELDS_KEY = 'eh_web_fields';
 const WEB_PLANTINGS_KEY = 'eh_web_plantings';
 const WEB_RECORDS_KEY = 'eh_web_records';
 
-function isLegacyMockTask(t: any): boolean {
-  if (!t) return false;
-  const id = String(t.id || '');
-  const title = String(t.title || '').toLowerCase();
-  const fieldName = String(t.fieldName || '').toLowerCase();
-  const fieldId = String(t.fieldId || '');
-
-  return (
-    id === 't-hasat-domates-1' ||
-    id === 't-ilac-1' ||
-    id === 't-gubre-1' ||
-    id === 't-sulama-1' ||
-    id === 't-bakim-1' ||
-    id === 't-cron-1' ||
-    id === 't-cron-2' ||
-    title.includes('koltuk alma ve ipe alma') ||
-    title.includes('koltuk alma') ||
-    fieldName.includes('güney domates') ||
-    fieldName.includes('kuzey biber') ||
-    fieldName.includes('doğu mısır') ||
-    fieldName.includes('anadolu tarlası') ||
-    fieldName.includes('salatalık tarlası') ||
-    fieldId === 'genel-mevsimlik'
-  );
+function isValidTask(t: any): boolean {
+  if (!t || !t.id || !t.title) return false;
+  return true;
 }
 
 function parseStoredData(stored: string) {
@@ -216,7 +195,7 @@ function parseStoredData(stored: string) {
     }
     if (parsed.tasks) {
       parsed.tasks = parsed.tasks
-        .filter((t: any) => !isLegacyMockTask(t))
+        .filter((t: any) => isValidTask(t))
         .map((t: any) => ({
           ...t,
           plannedDate: new Date(t.plannedDate || Date.now()),
@@ -228,6 +207,15 @@ function parseStoredData(stored: string) {
       parsed.applicationLogs = parsed.applicationLogs.map((l: any) => ({
         ...l,
         appliedAt: new Date(l.appliedAt || Date.now()),
+        createdAt: new Date(l.createdAt || Date.now()),
+        harvestSafeDate: l.harvestSafeDate ? new Date(l.harvestSafeDate) : undefined,
+      }));
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
         createdAt: new Date(l.createdAt || Date.now()),
         harvestSafeDate: l.harvestSafeDate ? new Date(l.harvestSafeDate) : undefined,
       }));
@@ -401,7 +389,7 @@ export async function syncTasksFromServer(): Promise<Task[]> {
     const res = await safeFetchJson<{ success: boolean; tasks: any[] }>(url, { method: 'GET' }, 6000);
     if (res.ok && res.data?.success && Array.isArray(res.data.tasks)) {
       const serverTasks: Task[] = res.data.tasks
-        .filter((st: any) => !isLegacyMockTask(st))
+        .filter((st: any) => isValidTask(st))
         .map((st: any) => ({
           id: String(st.id),
           userId: st.userId || 'demo-user-id',
@@ -421,10 +409,10 @@ export async function syncTasksFromServer(): Promise<Task[]> {
           completedAt: st.completedAt ? new Date(st.completedAt) : undefined,
         }));
 
-      // Combine server tasks with any unsaved local tasks (excluding mock tasks)
+      // Combine server tasks with any unsaved local tasks
       const serverIds = new Set(serverTasks.map((t) => t.id));
       const localOnlyTasks = demo.tasks
-        .filter((lt) => !isLegacyMockTask(lt))
+        .filter((lt) => isValidTask(lt))
         .filter((lt) => !serverIds.has(lt.id));
 
       if (localOnlyTasks.length > 0) {
@@ -752,6 +740,8 @@ export async function deleteField(fieldId: string): Promise<void> {
 
   demo.fields = demo.fields.filter((f) => f.id !== fieldId);
   demo.crops = demo.crops.filter((c) => c.fieldId !== fieldId);
+  demo.tasks = demo.tasks.filter((t) => t.fieldId !== fieldId);
+  demo.applicationLogs = demo.applicationLogs.filter((l) => l.fieldId !== fieldId);
   persistDemo();
   syncDemoFieldsToWeb();
 }

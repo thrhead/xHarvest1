@@ -554,7 +554,7 @@ export default function DashboardView() {
   }
 
   const handleDeleteField = async (id: string, name?: string) => {
-    if (name && typeof window !== 'undefined' && !window.confirm(`"${name}" tarlasını silmek istediğinize emin misiniz?`)) return
+    if (name && typeof window !== 'undefined' && !window.confirm(`"${name}" tarlasını ve tarlaya bağlı tüm ekim kayıtlarını ve görevleri silmek istediğinize emin misiniz?`)) return
     setFields((prev) => {
       const remaining = prev.filter((f) => f.id !== id)
       if (typeof window !== 'undefined') {
@@ -563,6 +563,35 @@ export default function DashboardView() {
       }
       return remaining
     })
+
+    // Cascade delete tasks of this field
+    setTasks((prev) => {
+      const remaining = prev.filter((t) => t.fieldId !== id)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('eh_mobile_tasks', JSON.stringify(remaining))
+        window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { source: 'web', fieldId: id, deleted: true } }))
+      }
+      return remaining
+    })
+
+    // Cascade delete plantings of this field
+    setPlantingRecords((prev) => {
+      const remaining = prev.filter((r) => r.fieldId !== id)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('eh_web_plantings', JSON.stringify(remaining))
+      }
+      return remaining
+    })
+
+    // Cascade delete records of this field
+    setWebRecords((prev) => {
+      const remaining = prev.filter((rec) => rec.fieldId !== id)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('eh_web_records', JSON.stringify(remaining))
+      }
+      return remaining
+    })
+
     try {
       await fetch(`/api/fields?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
     } catch (e) {
@@ -772,8 +801,17 @@ export default function DashboardView() {
     })
   }, [webRecords, recordTabFilter, recordSearch])
 
+  const isValidTask = (t: any): boolean => {
+    if (!t || !t.id || !t.title) return false
+    return true
+  }
+
+  const activeTasksList = useMemo(() => {
+    return tasks.filter((t) => isValidTask(t))
+  }, [tasks])
+
   const filteredTasks = useMemo(() => {
-    return tasks.filter((t) => {
+    return activeTasksList.filter((t) => {
       if (taskTabFilter !== 'all' && t.type !== taskTabFilter) return false
       if (taskStatusFilter !== 'all' && t.status !== taskStatusFilter) return false
       if (taskSearch.trim()) {
@@ -785,7 +823,7 @@ export default function DashboardView() {
       }
       return true
     })
-  }, [tasks, taskTabFilter, taskStatusFilter, taskSearch])
+  }, [activeTasksList, taskTabFilter, taskStatusFilter, taskSearch])
 
   const groupedTasks = useMemo(() => {
     if (taskViewMode === 'by_field') {
@@ -1217,7 +1255,7 @@ export default function DashboardView() {
                 <CropCalendar
                   crops={crops}
                   records={plantingRecords}
-                  tasks={tasks}
+                  tasks={activeTasksList}
                   focus={timelineFocus}
                   onAddRecord={() => {
                     setNewPlantCropId(crops[0] ? String(crops[0].id) : 'demo-domates')
@@ -1297,7 +1335,7 @@ export default function DashboardView() {
                       <ClipboardList size={15} className={recordsSubTab === 'tasks' ? 'text-emerald-600' : 'text-slate-400'} />
                       <span>📋 Saha Görevleri</span>
                       <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
-                        {tasks.length}
+                        {activeTasksList.length}
                       </span>
                     </button>
 

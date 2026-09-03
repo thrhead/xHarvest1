@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getDbFields, saveDbField, deleteDbField, type DbField } from '@/lib/fieldDb'
+import { deleteDbTasksByFieldId } from '@/lib/taskDb'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,6 +79,7 @@ export async function DELETE(req: Request) {
     }
 
     const success = await deleteDbField(id)
+    await deleteDbTasksByFieldId(id)
     return NextResponse.json(
       { success, deletedId: id },
       { headers: corsHeaders },

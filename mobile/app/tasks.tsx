@@ -164,38 +164,17 @@ export default function TasksScreen() {
     };
   };
 
-  const isMockTask = (t: Task) => {
-    const id = String(t.id || '');
-    const title = String(t.title || '').toLowerCase();
-    const fieldId = String(t.fieldId || '');
-    return (
-      id.startsWith('t-hasat-domates') ||
-      id.startsWith('t-ilac-') ||
-      id.startsWith('t-gubre-') ||
-      id.startsWith('t-sulama-') ||
-      id.startsWith('t-bakim-') ||
-      id.startsWith('t-cron-') ||
-      title.includes('koltuk alma ve ipe alma') ||
-      title.includes('koltuk alma') ||
-      fieldId === 'genel-mevsimlik'
-    );
-  };
-
-  const activeTasks = useMemo(() => {
-    return tasks.filter((t) => !isMockTask(t));
+  const counts = useMemo(() => {
+    const open = tasks.filter((t) => t.status === 'pending' || t.status === 'rescheduled').length;
+    const pending = tasks.filter((t) => t.status === 'pending').length;
+    const rescheduled = tasks.filter((t) => t.status === 'rescheduled').length;
+    const completed = tasks.filter((t) => t.status === 'completed').length;
+    const skipped = tasks.filter((t) => t.status === 'skipped').length;
+    return { open, pending, rescheduled, completed, skipped, all: tasks.length };
   }, [tasks]);
 
-  const counts = useMemo(() => {
-    const open = activeTasks.filter((t) => t.status === 'pending' || t.status === 'rescheduled').length;
-    const pending = activeTasks.filter((t) => t.status === 'pending').length;
-    const rescheduled = activeTasks.filter((t) => t.status === 'rescheduled').length;
-    const completed = activeTasks.filter((t) => t.status === 'completed').length;
-    const skipped = activeTasks.filter((t) => t.status === 'skipped').length;
-    return { open, pending, rescheduled, completed, skipped, all: activeTasks.length };
-  }, [activeTasks]);
-
   const filteredTasks = useMemo(() => {
-    return activeTasks.filter((t) => {
+    return tasks.filter((t) => {
       // Status filter
       if (filter === 'open' && t.status !== 'pending' && t.status !== 'rescheduled') return false;
       if (filter !== 'open' && filter !== 'all' && t.status !== filter) return false;
@@ -224,7 +203,7 @@ export default function TasksScreen() {
 
       return true;
     });
-  }, [activeTasks, filter, selectedFieldId, searchQuery, fields]);
+  }, [tasks, filter, selectedFieldId, searchQuery, fields]);
 
   // Group filtered tasks based on viewMode
   const groupedTasks = useMemo(() => {

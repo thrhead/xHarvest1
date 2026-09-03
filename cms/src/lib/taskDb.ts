@@ -282,6 +282,15 @@ export async function deleteDbTask(id: string): Promise<boolean> {
   return true
 }
 
+export async function deleteDbTasksByFieldId(fieldId: string): Promise<boolean> {
+  await ensureTasksTable()
+  await executeSql({
+    sql: `DELETE FROM tasks WHERE field_id = ?`,
+    args: [fieldId],
+  })
+  return true
+}
+
 export async function updateDbTaskStatus(
   id: string,
   status: 'pending' | 'completed' | 'skipped' | 'rescheduled' | 'delayed',
