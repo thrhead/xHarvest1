@@ -129,23 +129,33 @@ export async function ensureFieldsTable(): Promise<void> {
     )
   `
   await executeSql(ddl)
+
+  // Check existing columns to avoid duplicate column name errors
   try {
-    await executeSql(`ALTER TABLE fields ADD COLUMN custom_id TEXT`)
-  } catch {}
-  try {
-    await executeSql(`ALTER TABLE fields ADD COLUMN color TEXT`)
-  } catch {}
-  try {
-    await executeSql(`ALTER TABLE fields ADD COLUMN coordinates TEXT`)
-  } catch {}
-  try {
-    await executeSql(`ALTER TABLE fields ADD COLUMN crop_name TEXT`)
-  } catch {}
-  try {
-    await executeSql(`ALTER TABLE fields ADD COLUMN area_decares NUMERIC DEFAULT 10`)
-  } catch {}
-  try {
-    await executeSql(`UPDATE fields SET crop_name = 'Domates' WHERE crop_name = '5' OR crop_name IS NULL OR crop_name = ''`)
+    const tableInfo = await executeSql(`PRAGMA table_info(fields)`)
+    const existingColumns = new Set(
+      (tableInfo.rows || []).map((col: any) => String(col.name).toLowerCase())
+    )
+
+    if (!existingColumns.has('custom_id')) {
+      await executeSql(`ALTER TABLE fields ADD COLUMN custom_id TEXT`).catch(() => {})
+    }
+    if (!existingColumns.has('color')) {
+      await executeSql(`ALTER TABLE fields ADD COLUMN color TEXT`).catch(() => {})
+    }
+    if (!existingColumns.has('coordinates')) {
+      await executeSql(`ALTER TABLE fields ADD COLUMN coordinates TEXT`).catch(() => {})
+    }
+    if (!existingColumns.has('crop_name')) {
+      await executeSql(`ALTER TABLE fields ADD COLUMN crop_name TEXT`).catch(() => {})
+    }
+    if (!existingColumns.has('area_decares')) {
+      await executeSql(`ALTER TABLE fields ADD COLUMN area_decares NUMERIC DEFAULT 10`).catch(() => {})
+    }
+
+    await executeSql(
+      `UPDATE fields SET crop_name = 'Domates' WHERE crop_name = '5' OR crop_name IS NULL OR crop_name = ''`
+    ).catch(() => {})
   } catch {}
 }
 
@@ -187,28 +197,10 @@ export async function getDbFields(): Promise<DbField[]> {
   await ensureFieldsTable()
   try {
     const res = await executeSql(`SELECT * FROM fields ORDER BY id ASC`)
-    if (res.rows && res.rows.length > 0) {
+    if (res.rows) {
       return res.rows.map(rowToField)
     }
-
-    // Auto-seed initial fields if DB has 0 fields
-    for (const sf of SEED_FIELDS) {
-      await executeSql({
-        sql: `INSERT INTO fields (name, crop_name, type, area_decares, coordinates, color, custom_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          sf.name,
-          sf.cropName,
-          sf.type,
-          sf.areaDecares,
-          JSON.stringify(sf.coordinates),
-          sf.color,
-          sf.customId,
-        ],
-      })
-    }
-
-    const seededRes = await executeSql(`SELECT * FROM fields ORDER BY id ASC`)
-    return seededRes.rows.map(rowToField)
+    return []
   } catch (err) {
     console.error('[fieldDb] getDbFields fallback error:', err)
     return SEED_FIELDS.map((sf, idx) => ({
