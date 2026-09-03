@@ -19,6 +19,7 @@ import {
   User,
   Sprout,
   X,
+  ClipboardList,
 } from 'lucide-react'
 
 export type PortalTab =
@@ -44,6 +45,8 @@ export type SidebarAction =
   | 'timeline.pickCrop'
   | 'timeline.duration'
   | 'records.all'
+  | 'records.tasks'
+  | 'records.harvesting'
   | 'records.spraying'
   | 'records.fertilizing'
   | 'records.new'
@@ -79,7 +82,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'map', label: 'Tarla Haritası', icon: Map },
   { id: 'timeline', label: 'Ekim-Hasat Takvimi', icon: Calendar },
-  { id: 'records', label: 'İlaç & Gübre', icon: Shield },
+  { id: 'records', label: 'Saha Görevleri & Defter', icon: ClipboardList },
   { id: 'weather', label: 'Zirai Hava', icon: CloudSun, badge: '14G' },
   { id: 'season', label: 'Sezon & Rapor', icon: BarChart3 },
   { id: 'stock', label: 'Depo & Stok', icon: Package },
@@ -135,22 +138,24 @@ const DETAIL: Record<
     ],
   },
   records: {
-    title: 'İlaç & Gübre',
-    subtitle: 'Uygulama & PHI Takibi',
+    title: 'Saha Görevleri & Defter',
+    subtitle: 'Tüm Görevler, Hasat & PHI',
     sections: [
       {
-        title: 'Filtreler',
+        title: 'Görevler & İşlemler',
         items: [
-          { label: 'Tüm Kayıtlar', action: 'records.all' },
-          { label: 'Yalnızca İlaçlama', action: 'records.spraying' },
-          { label: 'Yalnızca Gübreleme', action: 'records.fertilizing' },
+          { label: '📋 Tüm Saha Görevleri', action: 'records.tasks' },
+          { label: '🌾 Hasat & Toplama', action: 'records.harvesting' },
+          { label: '🧪 İlaçlama Görevleri', action: 'records.spraying' },
+          { label: '🌱 Gübreleme Görevleri', action: 'records.fertilizing' },
         ],
       },
       {
-        title: 'İşlemler',
+        title: 'Resmi Defter',
         items: [
-          { label: '+ Yeni Uygulama Ekle', action: 'records.new' },
-          { label: 'PHI Bekleme Uyarısı', action: 'records.phi' },
+          { label: '📖 İlaç & Gübre Kayıtları', action: 'records.all' },
+          { label: '+ Yeni Görev / Kayıt Ekle', action: 'records.new' },
+          { label: '🛡️ PHI Bekleme Uyarısı', action: 'records.phi' },
         ],
       },
     ],

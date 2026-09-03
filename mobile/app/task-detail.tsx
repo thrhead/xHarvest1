@@ -39,6 +39,7 @@ export default function TaskDetailScreen() {
 
   const field = fields.find((f) => f.id === task.fieldId);
   const fieldName = field?.name ?? 'Tarla';
+  const isCustom = Boolean(task.isCustom === true || task.source === 'manual');
 
   const handleSave = async () => {
     setSaving(true);
@@ -71,22 +72,31 @@ export default function TaskDetailScreen() {
   };
 
   const handleDelete = () => {
+    const doDelete = async () => {
+      setSaving(true);
+      try {
+        await deleteTask(task.id);
+        router.back();
+      } catch {
+        Alert.alert('Hata', 'Görev silinemedi');
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(`"${task.title}" görevini silmek istediğinize emin misiniz?`)) {
+        doDelete();
+      }
+      return;
+    }
+
     Alert.alert('Görevi Sil', `"${task.title}" görevini silmek istediğinize emin misiniz?`, [
       { text: 'İptal', style: 'cancel' },
       {
         text: 'Sil',
         style: 'destructive',
-        onPress: async () => {
-          setSaving(true);
-          try {
-            await deleteTask(task.id);
-            router.back();
-          } catch {
-            Alert.alert('Hata', 'Görev silinemedi');
-          } finally {
-            setSaving(false);
-          }
-        },
+        onPress: doDelete,
       },
     ]);
   };
@@ -206,15 +216,23 @@ export default function TaskDetailScreen() {
         <Text style={s.saveBtnText}>{saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'}</Text>
       </TouchableOpacity>
 
-      {/* Delete Button */}
-      <TouchableOpacity
-        style={s.deleteBtn}
-        onPress={handleDelete}
-        disabled={saving}
-        activeOpacity={0.8}
-      >
-        <Text style={s.deleteBtnText}>🗑️ Bu Görevi Sil</Text>
-      </TouchableOpacity>
+      {/* Delete Button (Only for user-created custom tasks) */}
+      {isCustom ? (
+        <TouchableOpacity
+          style={s.deleteBtn}
+          onPress={handleDelete}
+          disabled={saving}
+          activeOpacity={0.8}
+        >
+          <Text style={s.deleteBtnText}>🗑️ Bu Görevi Sil</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={s.cropPlanNotice}>
+          <Text style={s.cropPlanNoticeText}>
+            🌱 Bu işlem ekim-hasat planının bir parçasıdır. Takvimin agronomik bütünlüğü için silinemez; dilerseniz yukarıdan durumu "Atlandı" olarak işaretleyebilirsiniz.
+          </Text>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -348,5 +366,20 @@ const s = StyleSheet.create({
     marginTop: 10,
   },
   deleteBtnText: { color: '#dc2626', fontWeight: '800', fontSize: 13 },
+  cropPlanNotice: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+  },
+  cropPlanNoticeText: {
+    fontSize: 11,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 16,
+    fontWeight: '500',
+  },
 });
 

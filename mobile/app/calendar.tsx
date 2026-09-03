@@ -394,7 +394,10 @@ export default function CalendarScreen() {
                   <TouchableOpacity
                     style={[
                       styles.toggleCheckBtn,
-                      isDone ? styles.toggleCheckBtnDone : styles.toggleCheckBtnPending,
+                      t.status === 'completed' && styles.toggleCheckBtnDone,
+                      t.status === 'rescheduled' && styles.toggleCheckBtnRescheduled,
+                      t.status === 'skipped' && styles.toggleCheckBtnSkipped,
+                      t.status === 'pending' && styles.toggleCheckBtnPending,
                     ]}
                     onPress={() => toggleTask(t)}
                     activeOpacity={0.7}
@@ -402,10 +405,17 @@ export default function CalendarScreen() {
                     <Text
                       style={[
                         styles.toggleCheckText,
-                        isDone ? styles.toggleCheckTextDone : styles.toggleCheckTextPending,
+                        t.status === 'completed' && styles.toggleCheckTextDone,
+                        (t.status === 'rescheduled' || t.status === 'skipped') && { color: '#ffffff', fontSize: 13 },
                       ]}
                     >
-                      {isDone ? '✓' : '○'}
+                      {t.status === 'completed'
+                        ? '✓'
+                        : t.status === 'rescheduled'
+                        ? '⏰'
+                        : t.status === 'skipped'
+                        ? '⏭️'
+                        : '○'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -820,8 +830,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   toggleCheckBtnDone: {
-    borderColor: '#10b981',
+    borderColor: '#059669',
     backgroundColor: '#10b981',
+  },
+  toggleCheckBtnRescheduled: {
+    borderColor: '#d97706',
+    backgroundColor: '#f59e0b',
+  },
+  toggleCheckBtnSkipped: {
+    borderColor: '#475569',
+    backgroundColor: '#64748b',
   },
   toggleCheckText: {
     fontSize: 14,

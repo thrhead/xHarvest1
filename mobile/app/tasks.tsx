@@ -428,15 +428,33 @@ export default function TasksScreen() {
     }
   };
 
+  const isCustomTask = (item: Task) => {
+    return Boolean(item.isCustom === true || item.source === 'manual');
+  };
+
   const onDelete = (item: Task) => {
+    const doDelete = async () => {
+      try {
+        await deleteTask(item.id);
+        await refreshTasks();
+      } catch (e: any) {
+        Alert.alert('Hata', e?.message || 'Görev silinemedi.');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(`"${item.title}" görevini silmek istediğinizden emin misiniz?`)) {
+        doDelete();
+      }
+      return;
+    }
+
     Alert.alert('Görevi Sil', `"${item.title}" görevini silmek istediğinizden emin misiniz?`, [
       { text: 'Vazgeç', style: 'cancel' },
       {
         text: 'Sil',
         style: 'destructive',
-        onPress: async () => {
-          await deleteTask(item.id);
-        },
+        onPress: doDelete,
       },
     ]);
   };
@@ -469,6 +487,8 @@ export default function TasksScreen() {
         originalDate: plannedDate,
         status: 'pending',
         notes: newTaskNotes.trim() || undefined,
+        isCustom: true,
+        source: 'manual',
       });
 
       await refreshTasks();
@@ -564,30 +584,48 @@ export default function TasksScreen() {
           ) : null}
         </View>
 
-        {/* Right Actions: Complete circle & Delete */}
+        {/* Right Actions: Status circle & Delete (only for custom tasks) */}
         <View style={styles.compactRightActions}>
           <TouchableOpacity
             style={[
               styles.compactCheckCircle,
-              isCompleted ? styles.compactCheckCircleDone : styles.compactCheckCirclePending,
+              item.status === 'completed' && styles.compactCheckCircleDone,
+              item.status === 'rescheduled' && styles.compactCheckCircleRescheduled,
+              item.status === 'skipped' && styles.compactCheckCircleSkipped,
+              item.status === 'pending' && styles.compactCheckCirclePending,
             ]}
             onPress={() => onComplete(item)}
             activeOpacity={0.7}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={[styles.compactCheckIcon, isCompleted && styles.compactCheckIconDone]}>
-              {isCompleted ? '✓' : '○'}
+            <Text
+              style={[
+                styles.compactCheckIcon,
+                item.status === 'completed' && styles.compactCheckIconDone,
+                (item.status === 'rescheduled' || item.status === 'skipped') && styles.compactCheckIconWhite,
+                (item.status === 'rescheduled' || item.status === 'skipped') && { fontSize: 13 },
+              ]}
+            >
+              {item.status === 'completed'
+                ? '✓'
+                : item.status === 'rescheduled'
+                ? '⏰'
+                : item.status === 'skipped'
+                ? '⏭️'
+                : '○'}
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.compactDeleteBtn}
-            onPress={() => onDelete(item)}
-            activeOpacity={0.6}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={{ fontSize: 13, opacity: 0.4 }}>🗑️</Text>
-          </TouchableOpacity>
+          {isCustomTask(item) && (
+            <TouchableOpacity
+              style={styles.compactDeleteBtn}
+              onPress={() => onDelete(item)}
+              activeOpacity={0.6}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={{ fontSize: 14, opacity: 0.6 }}>🗑️</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -1366,8 +1404,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   compactCheckCircleDone: {
-    borderColor: '#10b981',
+    borderColor: '#059669',
     backgroundColor: '#10b981',
+  },
+  compactCheckCircleRescheduled: {
+    borderColor: '#d97706',
+    backgroundColor: '#f59e0b',
+  },
+  compactCheckCircleSkipped: {
+    borderColor: '#475569',
+    backgroundColor: '#64748b',
   },
   compactCheckIcon: {
     fontSize: 14,
@@ -1375,6 +1421,9 @@ const styles = StyleSheet.create({
     color: '#cbd5e1',
   },
   compactCheckIconDone: {
+    color: '#ffffff',
+  },
+  compactCheckIconWhite: {
     color: '#ffffff',
   },
   compactDeleteBtn: {

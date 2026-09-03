@@ -44,6 +44,8 @@ import {
   Zap,
   Pencil,
   FileText,
+  Lock,
+  ClipboardList,
 } from 'lucide-react'
 import { FieldPolygon } from '../types/field'
 import MobileSimulator from './MobileSimulator'
@@ -172,6 +174,155 @@ export default function DashboardView() {
   const [newStockUnit, setNewStockUnit] = useState('kg')
 
   const [webRecords, setWebRecords] = useState<any[]>([])
+
+  // Global Tasks (Web & Mobile Synchronized State)
+  const [tasks, setTasks] = useState<any[]>([])
+  const [recordsSubTab, setRecordsSubTab] = useState<'tasks' | 'records'>('tasks')
+  const [taskTabFilter, setTaskTabFilter] = useState<'all' | 'spraying' | 'fertilizing' | 'irrigation' | 'planting' | 'harvesting' | 'other'>('all')
+  const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'pending' | 'completed' | 'delayed' | 'skipped'>('all')
+  const [taskSearch, setTaskSearch] = useState('')
+  const [showAddWebTaskModal, setShowAddWebTaskModal] = useState(false)
+  const [newWebTaskTitle, setNewWebTaskTitle] = useState('')
+  const [newWebTaskNotes, setNewWebTaskNotes] = useState('')
+  const [newWebTaskFieldId, setNewWebTaskFieldId] = useState('')
+  const [newWebTaskType, setNewWebTaskType] = useState('harvesting')
+  const [newWebTaskDate, setNewWebTaskDate] = useState(() => new Date().toISOString().slice(0, 10))
+
+  const isCustomTask = (t: any) => {
+    if (t.source === 'crop_plan') return false
+    return Boolean(t.isCustom === true || t.source === 'manual')
+  }
+
+  const fetchTasksFromApi = async () => {
+    try {
+      const res = await fetch('/api/tasks')
+      if (res.ok) {
+        const d = await res.json()
+        if (d.success && Array.isArray(d.tasks)) {
+          setTasks(d.tasks)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('eh_mobile_tasks', JSON.stringify(d.tasks))
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Fetch tasks error:', e)
+    }
+  }
+
+  const handleToggleTaskStatus = async (taskId: string) => {
+    const currentTask = tasks.find((t) => t.id === taskId)
+    if (!currentTask) return
+    const order = ['pending', 'completed', 'delayed', 'skipped']
+    const nextIdx = (order.indexOf(currentTask.status) + 1) % order.length
+    const nextStatus = order[nextIdx]
+
+    setTasks((prev) => {
+      const next = prev.map((t) => (t.id === taskId ? { ...t, status: nextStatus } : t))
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('eh_mobile_tasks', JSON.stringify(next))
+        window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { id: taskId, status: nextStatus } }))
+      }
+      return next
+    })
+
+    try {
+      await fetch('/api/tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: taskId, status: nextStatus }),
+      })
+    } catch (e) {
+      console.warn('Task status update error:', e)
+    }
+  }
+
+  const handleDeleteTask = async (taskId: string) => {
+    const taskToDelete = tasks.find((t) => t.id === taskId)
+    if (!taskToDelete) return
+
+    if (typeof window !== 'undefined' && !window.confirm(`"${taskToDelete.title}" görevini silmek istediğinize emin misiniz?`)) {
+      return
+    }
+
+    setTasks((prev) => {
+      const next = prev.filter((t) => t.id !== taskId)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('eh_mobile_tasks', JSON.stringify(next))
+        window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { id: taskId, deleted: true } }))
+      }
+      return next
+    })
+
+    try {
+      await fetch(`/api/tasks?id=${encodeURIComponent(taskId)}`, { method: 'DELETE' })
+    } catch (e) {
+      console.warn('Task delete error:', e)
+    }
+  }
+
+  const handleCreateWebTask = async (taskOrEvent: any) => {
+    let newTask: any
+    if (taskOrEvent && taskOrEvent.preventDefault) {
+      taskOrEvent.preventDefault()
+      if (!newWebTaskTitle.trim()) return
+      const selectedField = fields.find((f) => f.id === newWebTaskFieldId) || fields[0]
+      newTask = {
+        id: `task-${Date.now()}`,
+        fieldId: selectedField?.id || 'f-1',
+        fieldName: selectedField?.name || 'Tarla',
+        cropName: selectedField?.cropName || selectedField?.cropType || 'Genel',
+        title: newWebTaskTitle.trim(),
+        type: newWebTaskType,
+        date: newWebTaskDate || new Date().toISOString().slice(0, 10),
+        status: 'pending',
+        notes: newWebTaskNotes.trim(),
+        isCustom: true,
+        source: 'manual',
+      }
+    } else if (taskOrEvent && typeof taskOrEvent === 'object') {
+      newTask = {
+        id: taskOrEvent.id || `task-${Date.now()}`,
+        fieldId: taskOrEvent.fieldId || 'f-1',
+        fieldName: taskOrEvent.fieldName || 'Tarla',
+        cropName: taskOrEvent.cropName || 'Genel',
+        title: taskOrEvent.title || 'Yeni Görev',
+        type: taskOrEvent.type || 'other',
+        date: taskOrEvent.date || taskOrEvent.plannedDate || new Date().toISOString().slice(0, 10),
+        status: taskOrEvent.status || 'pending',
+        notes: taskOrEvent.notes || '',
+        isCustom: true,
+        source: 'manual',
+        ...taskOrEvent,
+      }
+    } else {
+      return
+    }
+
+    setTasks((prev) => {
+      const next = [newTask, ...prev]
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('eh_mobile_tasks', JSON.stringify(next))
+        window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { task: newTask } }))
+      }
+      return next
+    })
+
+    setShowAddWebTaskModal(false)
+    setNewWebTaskTitle('')
+    setNewWebTaskNotes('')
+
+    try {
+      await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTask),
+      })
+      fetchTasksFromApi()
+    } catch (e) {
+      console.warn('Create task error:', e)
+    }
+  }
 
   const [fields, setFields] = useState<FieldPolygon[]>([])
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
@@ -485,6 +636,7 @@ export default function DashboardView() {
     setMounted(true)
     fetchCronLogs()
     fetchFieldsFromApi()
+    fetchTasksFromApi()
 
     if (typeof window !== 'undefined') {
       try {
@@ -508,6 +660,11 @@ export default function DashboardView() {
           const parsed = JSON.parse(savedStocks)
           if (Array.isArray(parsed) && parsed.length > 0) setStockList(parsed)
         }
+        const savedTasks = localStorage.getItem('eh_mobile_tasks')
+        if (savedTasks) {
+          const parsed = JSON.parse(savedTasks)
+          if (Array.isArray(parsed) && parsed.length > 0) setTasks(parsed)
+        }
       } catch (e) {
         console.error('Storage parse error:', e)
       }
@@ -515,6 +672,7 @@ export default function DashboardView() {
       // Background sync focus & event sync
       const onFocus = () => {
         fetchFieldsFromApi()
+        fetchTasksFromApi()
       }
       const onSyncEvent = (e: any) => {
         fetchFieldsFromApi()
@@ -528,14 +686,20 @@ export default function DashboardView() {
           } catch {}
         }
       }
+      const onTasksSync = () => {
+        fetchTasksFromApi()
+      }
+
       window.addEventListener('focus', onFocus)
       window.addEventListener('storage', onFocus)
       window.addEventListener('eh_fields_sync', onSyncEvent)
+      window.addEventListener('eh_tasks_sync', onTasksSync)
 
       return () => {
         window.removeEventListener('focus', onFocus)
         window.removeEventListener('storage', onFocus)
         window.removeEventListener('eh_fields_sync', onSyncEvent)
+        window.removeEventListener('eh_tasks_sync', onTasksSync)
       }
     }
   }, [])
@@ -605,6 +769,21 @@ export default function DashboardView() {
     })
   }, [webRecords, recordTabFilter, recordSearch])
 
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (taskTabFilter !== 'all' && t.type !== taskTabFilter) return false
+      if (taskStatusFilter !== 'all' && t.status !== taskStatusFilter) return false
+      if (taskSearch.trim()) {
+        const q = taskSearch.toLowerCase()
+        const matchTitle = (t.title || '').toLowerCase().includes(q)
+        const matchField = (t.fieldName || '').toLowerCase().includes(q)
+        const matchCrop = (t.cropName || '').toLowerCase().includes(q)
+        if (!matchTitle && !matchField && !matchCrop) return false
+      }
+      return true
+    })
+  }, [tasks, taskTabFilter, taskStatusFilter, taskSearch])
+
   const filteredStocks = useMemo(() => {
     return stockList.filter((s) => {
       if (stockFilter === 'fertilizer') return s.category === 'fertilizer'
@@ -628,7 +807,10 @@ export default function DashboardView() {
       setActiveTab,
       setSelectedCropId,
       setRecordTabFilter,
+      setRecordsSubTab,
+      setTaskTabFilter,
       setShowAddWebRecordModal,
+      setShowAddWebTaskModal,
       setShowPhiBanner,
       setMapFocus,
       setTimelineFocus,
@@ -1000,80 +1182,63 @@ export default function DashboardView() {
               </div>
             )}
 
-            {/* 3. İLAÇLAMA & GÜBRELEME (RECORDS) */}
+            {/* 3. SAHA GÖREVLERİ & DEFTER (RECORDS) */}
             {activeTab === 'records' && (
               <div className="space-y-4">
-                {/* PHI Safety Notification Banner */}
-                {showPhiBanner && (
-                  <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-4 text-xs flex items-start justify-between gap-3 shadow-2xs">
-                    <div className="flex items-start gap-2.5">
-                      <ShieldAlert size={18} className="text-amber-700 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-extrabold text-amber-900">Hasat Öncesi Bekleme Süresi (PHI) Kuralı</p>
-                        <p className="text-amber-800 mt-0.5 leading-relaxed">
-                          Zirai ilaç uygulamasından sonra hasat yapabilmek için etikette belirtilen PHI gününe mutlaka uyun. Erken hasat edilen ürünlerde kimyasal kalıntı riski oluşur.
-                        </p>
-                      </div>
-                    </div>
+                {/* Segmented Sub-Navigation: Saha Görevleri & Ajanda vs Resmi Defter */}
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-2 shadow-2xs flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl">
                     <button
                       type="button"
-                      onClick={() => setShowPhiBanner(false)}
-                      className="text-amber-900 hover:text-black font-bold text-xs shrink-0"
+                      onClick={() => setRecordsSubTab('tasks')}
+                      className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                        recordsSubTab === 'tasks'
+                          ? 'bg-white text-emerald-800 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
                     >
-                      Kapat
+                      <ClipboardList size={15} className={recordsSubTab === 'tasks' ? 'text-emerald-600' : 'text-slate-400'} />
+                      <span>📋 Saha Görevleri & Ajanda</span>
+                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
+                        {tasks.length}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRecordsSubTab('records')}
+                      className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                        recordsSubTab === 'records'
+                          ? 'bg-white text-purple-800 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <FileText size={15} className={recordsSubTab === 'records' ? 'text-purple-600' : 'text-slate-400'} />
+                      <span>📖 Zirai İlaç & Gübre Defteri (PHI)</span>
+                      <span className="bg-purple-100 text-purple-800 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
+                        {webRecords.length}
+                      </span>
                     </button>
                   </div>
-                )}
 
-                {/* Filter and Search Bar */}
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    {(['all', 'spraying', 'fertilizing'] as const).map((type) => (
+                  <div className="flex items-center gap-2 px-1">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60">
+                      <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                      Mobil & Web Canlı Senkronize
+                    </span>
+                    {recordsSubTab === 'tasks' ? (
                       <button
-                        key={type}
                         type="button"
-                        onClick={() => setRecordTabFilter(type)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                          recordTabFilter === type
-                            ? 'bg-purple-700 text-white shadow-2xs'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
+                        onClick={() => {
+                          if (fields.length > 0) setNewWebTaskFieldId(fields[0].id)
+                          setShowAddWebTaskModal(true)
+                        }}
+                        className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-2xs"
                       >
-                        {type === 'all' ? 'Tüm Kayıtlar' : type === 'spraying' ? 'İlaçlama' : 'Gübreleme'}
+                        <Plus size={14} className="stroke-[3]" />
+                        <span>+ Yeni Saha Görevi</span>
                       </button>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1 sm:w-60">
-                      <Search size={13} className="absolute left-3 top-2.5 text-slate-400" />
-                      <input
-                        value={recordSearch}
-                        onChange={(e) => setRecordSearch(e.target.value)}
-                        placeholder="Kayıtlarda ara..."
-                        className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-600"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewRecType(recordTabFilter === 'fertilizing' ? 'fertilizing' : 'spraying')
-                        if (fields.length > 0) setNewRecFieldId(fields[0].id)
-                        setShowAddWebRecordModal(true)
-                      }}
-                      className="px-3.5 py-1.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-2xs shrink-0"
-                    >
-                      <Plus size={14} className="stroke-[3]" />
-                      <span>Yeni Kayıt</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Records List Table / Cards */}
-                <div className="space-y-2.5">
-                  {filteredRecords.length === 0 ? (
-                    <div className="bg-white border border-slate-200/80 rounded-2xl p-8 text-center text-slate-400 text-xs font-medium space-y-2">
-                      <p>Henüz bu kriterde ilaçlama veya gübreleme kaydı bulunamadı.</p>
+                    ) : (
                       <button
                         type="button"
                         onClick={() => {
@@ -1081,122 +1246,442 @@ export default function DashboardView() {
                           if (fields.length > 0) setNewRecFieldId(fields[0].id)
                           setShowAddWebRecordModal(true)
                         }}
-                        className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1"
+                        className="px-3.5 py-1.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-2xs"
                       >
-                        <Plus size={13} />
-                        <span>Yeni Uygulama Kaydı Ekle</span>
+                        <Plus size={14} className="stroke-[3]" />
+                        <span>+ Yeni Defter Kaydı</span>
                       </button>
-                    </div>
-                  ) : (
-                    filteredRecords.map((r) => {
-                      const getStatusColor = (st: string) => {
-                        if (st === 'completed') return 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                        if (st === 'postponed' || st === 'ertelendi' || st === 'rescheduled') return 'bg-amber-100 text-amber-800 border-amber-200'
-                        return 'bg-blue-100 text-blue-800 border-blue-200'
-                      }
+                    )}
+                  </div>
+                </div>
 
-                      return (
-                        <div
-                          key={r.id}
-                          className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-purple-300 transition-all"
-                        >
-                          <div
-                            className="flex items-start gap-3 cursor-pointer flex-1"
-                            onClick={() => openEditRecordModal(r)}
-                          >
-                            <div
-                              className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${
-                                r.type === 'spraying'
-                                  ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
-                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                {/* --- SUB-TAB 1: SAHA GÖREVLERİ & AJANDA --- */}
+                {recordsSubTab === 'tasks' && (
+                  <div className="space-y-4">
+                    {/* Filter and Search Bar for Tasks */}
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        {/* Task Type Filters */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {[
+                            { id: 'all', label: 'Tüm Görevler' },
+                            { id: 'harvesting', label: '🌾 Hasat' },
+                            { id: 'spraying', label: '🛡️ İlaçlama' },
+                            { id: 'fertilizing', label: '🧪 Gübreleme' },
+                            { id: 'irrigation', label: '💧 Sulama' },
+                            { id: 'planting', label: '🌱 Ekim' },
+                            { id: 'other', label: '📋 Bakım & Diğer' },
+                          ].map((tab) => (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={() => setTaskTabFilter(tab.id as any)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                taskTabFilter === tab.id
+                                  ? 'bg-emerald-700 text-white shadow-2xs'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                               }`}
                             >
-                              {r.type === 'spraying' ? <Shield size={18} /> : <Droplets size={18} />}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h4 className="text-xs font-bold text-slate-900 hover:text-purple-700 transition-colors">
-                                  {r.title}
-                                </h4>
-                                <span
-                                  className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md ${
-                                    r.type === 'spraying'
-                                      ? 'bg-blue-100 text-blue-800'
-                                      : 'bg-emerald-100 text-emerald-800'
-                                  }`}
-                                >
-                                  {r.type === 'spraying' ? 'İLAÇLAMA' : 'GÜBRELEME'}
-                                </span>
+                              {tab.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Search input */}
+                        <div className="relative w-full sm:w-64">
+                          <Search size={13} className="absolute left-3 top-2.5 text-slate-400" />
+                          <input
+                            value={taskSearch}
+                            onChange={(e) => setTaskSearch(e.target.value)}
+                            placeholder="Görev, tarla veya ürün ara..."
+                            className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Status Filter Chips */}
+                      <div className="flex items-center gap-2 pt-2 border-t border-slate-100 flex-wrap">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Durum:</span>
+                        {[
+                          { id: 'all', label: 'Tümü', icon: null },
+                          { id: 'pending', label: '○ Bekliyor', icon: '○' },
+                          { id: 'completed', label: '✓ Yapıldı', icon: '✓' },
+                          { id: 'delayed', label: '⏰ Ertelendi', icon: '⏰' },
+                          { id: 'skipped', label: '⏭️ Atlandı', icon: '⏭️' },
+                        ].map((st) => (
+                          <button
+                            key={st.id}
+                            type="button"
+                            onClick={() => setTaskStatusFilter(st.id as any)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                              taskStatusFilter === st.id
+                                ? 'bg-slate-900 text-white shadow-2xs font-bold'
+                                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/60'
+                            }`}
+                          >
+                            {st.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Task Cards List */}
+                    <div className="space-y-2.5">
+                      {filteredTasks.length === 0 ? (
+                        <div className="bg-white border border-slate-200/80 rounded-2xl p-8 text-center text-slate-400 text-xs font-medium space-y-2">
+                          <p>Bu filtre kriterlerine uyan saha görevi bulunamadı.</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (fields.length > 0) setNewWebTaskFieldId(fields[0].id)
+                              setShowAddWebTaskModal(true)
+                            }}
+                            className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1"
+                          >
+                            <Plus size={13} />
+                            <span>+ Yeni Saha Görevi Ekle</span>
+                          </button>
+                        </div>
+                      ) : (
+                        filteredTasks.map((t) => {
+                          const isCustom = isCustomTask(t)
+
+                          const getTypeBadge = (type: string) => {
+                            switch (type) {
+                              case 'harvesting':
+                                return { label: 'HASAT', bg: 'bg-amber-100 text-amber-900', icon: '🌾' }
+                              case 'spraying':
+                                return { label: 'İLAÇLAMA', bg: 'bg-blue-100 text-blue-900', icon: '🛡️' }
+                              case 'fertilizing':
+                                return { label: 'GÜBRELEME', bg: 'bg-emerald-100 text-emerald-900', icon: '🧪' }
+                              case 'irrigation':
+                                return { label: 'SULAMA', bg: 'bg-cyan-100 text-cyan-900', icon: '💧' }
+                              case 'planting':
+                                return { label: 'EKİM', bg: 'bg-lime-100 text-lime-900', icon: '🌱' }
+                              default:
+                                return { label: 'BAKIM', bg: 'bg-purple-100 text-purple-900', icon: '📋' }
+                            }
+                          }
+
+                          const getStatusStyle = (st: string) => {
+                            switch (st) {
+                              case 'completed':
+                                return { bg: 'bg-emerald-100 text-emerald-900 border-emerald-300', text: '✓ Yapıldı' }
+                              case 'delayed':
+                                return { bg: 'bg-amber-100 text-amber-900 border-amber-300', text: '⏰ Ertelendi' }
+                              case 'skipped':
+                                return { bg: 'bg-slate-200 text-slate-700 border-slate-300', text: '⏭️ Atlandı' }
+                              default:
+                                return { bg: 'bg-sky-50 text-sky-800 border-sky-200', text: '○ Bekliyor' }
+                            }
+                          }
+
+                          const badge = getTypeBadge(t.type)
+                          const statusStyle = getStatusStyle(t.status)
+
+                          return (
+                            <div
+                              key={t.id}
+                              className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-emerald-300 transition-all"
+                            >
+                              <div className="flex items-start gap-3 flex-1 min-w-0">
+                                <div className="size-10 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-center text-lg shrink-0">
+                                  {badge.icon}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h4 className="text-xs font-bold text-slate-900">{t.title}</h4>
+                                    <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md ${badge.bg}`}>
+                                      {badge.label}
+                                    </span>
+                                    {isCustom ? (
+                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200/60">
+                                        📱 Mobilden / Manuel
+                                      </span>
+                                    ) : (
+                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200/60">
+                                        🌱 Ekim Planı (Otomatik)
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <p className="text-[11px] text-slate-500 font-medium mt-1">
+                                    📍 <strong>{t.fieldName}</strong> · {t.cropName || 'Genel'} · 📅 {t.date || t.plannedDate}
+                                  </p>
+
+                                  {t.weatherReason && (
+                                    <p className="text-[10px] text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200/60 mt-1 font-medium inline-flex items-center gap-1">
+                                      <span>⚠️ {t.weatherReason}</span>
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                                📍 {r.fieldName} · <strong>{r.productName}</strong> ({r.dosage})
-                              </p>
-                              {r.notes ? (
-                                <p className="text-[10px] text-slate-600 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 mt-1.5 font-medium flex items-center gap-1.5">
-                                  <FileText size={12} className="text-purple-600 shrink-0" />
-                                  <span>{r.notes}</span>
-                                </p>
-                              ) : (
-                                <p className="text-[10px] text-purple-600 font-semibold mt-1 hover:underline flex items-center gap-1">
-                                  <Pencil size={10} />
-                                  <span>+ Not & Detay Ekle</span>
-                                </p>
-                              )}
+
+                              {/* Status Action & Conditional Delete */}
+                              <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                                <div className="text-right">
+                                  <span className="text-[11px] font-bold text-slate-700 block">{t.date || t.plannedDate}</span>
+                                  <span className="text-[10px] text-slate-400">
+                                    {t.status === 'completed' ? 'Tamamlandı' : t.status === 'delayed' ? 'Ertelendi' : t.status === 'skipped' ? 'Atlandı' : 'Sıradaki İşlem'}
+                                  </span>
+                                </div>
+
+                                {/* Status Cycle Selector */}
+                                <select
+                                  value={t.status || 'pending'}
+                                  onChange={async (e) => {
+                                    const nextStatus = e.target.value
+                                    setTasks((prev) =>
+                                      prev.map((item) => (item.id === t.id ? { ...item, status: nextStatus } : item))
+                                    )
+                                    if (typeof window !== 'undefined') {
+                                      window.dispatchEvent(
+                                        new CustomEvent('eh_tasks_sync', { detail: { id: t.id, status: nextStatus } })
+                                      )
+                                    }
+                                    try {
+                                      await fetch('/api/tasks', {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ id: t.id, status: nextStatus }),
+                                      })
+                                    } catch {}
+                                  }}
+                                  className={`text-[11px] font-bold px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer outline-none ${statusStyle.bg}`}
+                                >
+                                  <option value="pending">○ Bekliyor</option>
+                                  <option value="completed">✓ Yapıldı</option>
+                                  <option value="delayed">⏰ Ertelendi</option>
+                                  <option value="skipped">⏭️ Atlandı</option>
+                                </select>
+
+                                {/* Delete button: Only for custom/manual tasks! Not for system crop records */}
+                                {isCustom ? (
+                                  <button
+                                    type="button"
+                                    title="Bu görevi sil"
+                                    onClick={() => handleDeleteTask(t.id)}
+                                    className="size-8 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all border border-slate-200/60"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                ) : (
+                                  <span
+                                    title="Bu görev ekim takvimi kaydıdır (silinemez; dilerseniz durumunu 'Atlandı' yapabilirsiniz)"
+                                    className="px-2 py-1 bg-slate-50 text-slate-400 text-[10px] font-semibold rounded-lg border border-slate-200/60 flex items-center gap-1 cursor-help"
+                                  >
+                                    <Lock size={11} />
+                                    <span>Plan Kaydı</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
 
-                          <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                            <div className="text-right">
-                              <span className="text-[11px] font-bold text-slate-700 block">{r.date}</span>
-                              {r.phiDays > 0 ? (
-                                <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded">
-                                  PHI: {r.phiDays} Gün
-                                </span>
-                              ) : (
-                                <span className="text-[10px] text-slate-400">Bekleme Yok</span>
-                              )}
-                            </div>
-
-                            <select
-                              value={r.status || 'completed'}
-                              onChange={(e) => {
-                                const newSt = e.target.value as 'completed' | 'pending' | 'postponed'
-                                setWebRecords((prev) =>
-                                  prev.map((item) => (item.id === r.id ? { ...item, status: newSt } : item)),
-                                )
-                              }}
-                              className={`text-[10px] font-bold px-2 py-1 rounded-lg transition-all border outline-none cursor-pointer ${getStatusColor(r.status)}`}
-                            >
-                              <option value="completed">✓ Yapıldı</option>
-                              <option value="pending">⏳ Planlandı</option>
-                              <option value="postponed">⏸ Ertelendi</option>
-                            </select>
-
-                            <button
-                              type="button"
-                              title="Kaydı & Notları Düzenle"
-                              onClick={() => openEditRecordModal(r)}
-                              className="size-7 rounded-lg bg-slate-50 hover:bg-purple-50 text-slate-500 hover:text-purple-700 flex items-center justify-center transition-all border border-slate-200/60"
-                            >
-                              <Pencil size={12} />
-                            </button>
-
-                            <button
-                              type="button"
-                              title="Kaydı Sil"
-                              onClick={() => {
-                                setWebRecords((prev) => prev.filter((item) => item.id !== r.id))
-                              }}
-                              className="size-7 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all border border-slate-200/60"
-                            >
-                              <Trash2 size={13} />
-                            </button>
+                {/* --- SUB-TAB 2: RESMİ DEFTER (İLAÇ & GÜBRE) --- */}
+                {recordsSubTab === 'records' && (
+                  <div className="space-y-4">
+                    {/* PHI Safety Notification Banner */}
+                    {showPhiBanner && (
+                      <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-4 text-xs flex items-start justify-between gap-3 shadow-2xs">
+                        <div className="flex items-start gap-2.5">
+                          <ShieldAlert size={18} className="text-amber-700 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-extrabold text-amber-900">Hasat Öncesi Bekleme Süresi (PHI) Kuralı</p>
+                            <p className="text-amber-800 mt-0.5 leading-relaxed">
+                              Zirai ilaç uygulamasından sonra hasat yapabilmek için etikette belirtilen PHI gününe mutlaka uyun. Erken hasat edilen ürünlerde kimyasal kalıntı riski oluşur.
+                            </p>
                           </div>
                         </div>
-                      )
-                    })
-                  )}
-                </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowPhiBanner(false)}
+                          className="text-amber-900 hover:text-black font-bold text-xs shrink-0"
+                        >
+                          Kapat
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Filter and Search Bar */}
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        {(['all', 'spraying', 'fertilizing'] as const).map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setRecordTabFilter(type)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                              recordTabFilter === type
+                                ? 'bg-purple-700 text-white shadow-2xs'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {type === 'all' ? 'Tüm Kayıtlar' : type === 'spraying' ? 'İlaçlama' : 'Gübreleme'}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1 sm:w-60">
+                          <Search size={13} className="absolute left-3 top-2.5 text-slate-400" />
+                          <input
+                            value={recordSearch}
+                            onChange={(e) => setRecordSearch(e.target.value)}
+                            placeholder="Kayıtlarda ara..."
+                            className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-600"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewRecType(recordTabFilter === 'fertilizing' ? 'fertilizing' : 'spraying')
+                            if (fields.length > 0) setNewRecFieldId(fields[0].id)
+                            setShowAddWebRecordModal(true)
+                          }}
+                          className="px-3.5 py-1.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-2xs shrink-0"
+                        >
+                          <Plus size={14} className="stroke-[3]" />
+                          <span>Yeni Kayıt</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Records List Table / Cards */}
+                    <div className="space-y-2.5">
+                      {filteredRecords.length === 0 ? (
+                        <div className="bg-white border border-slate-200/80 rounded-2xl p-8 text-center text-slate-400 text-xs font-medium space-y-2">
+                          <p>Henüz bu kriterde ilaçlama veya gübreleme kaydı bulunamadı.</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewRecType(recordTabFilter === 'fertilizing' ? 'fertilizing' : 'spraying')
+                              if (fields.length > 0) setNewRecFieldId(fields[0].id)
+                              setShowAddWebRecordModal(true)
+                            }}
+                            className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1"
+                          >
+                            <Plus size={13} />
+                            <span>Yeni Uygulama Kaydı Ekle</span>
+                          </button>
+                        </div>
+                      ) : (
+                        filteredRecords.map((r) => {
+                          const getStatusColor = (st: string) => {
+                            if (st === 'completed') return 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                            if (st === 'postponed' || st === 'ertelendi' || st === 'rescheduled') return 'bg-amber-100 text-amber-800 border-amber-200'
+                            return 'bg-blue-100 text-blue-800 border-blue-200'
+                          }
+
+                          return (
+                            <div
+                              key={r.id}
+                              className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-purple-300 transition-all"
+                            >
+                              <div
+                                className="flex items-start gap-3 cursor-pointer flex-1"
+                                onClick={() => openEditRecordModal(r)}
+                              >
+                                <div
+                                  className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${
+                                    r.type === 'spraying'
+                                      ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
+                                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                                  }`}
+                                >
+                                  {r.type === 'spraying' ? <Shield size={18} /> : <Droplets size={18} />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h4 className="text-xs font-bold text-slate-900 hover:text-purple-700 transition-colors">
+                                      {r.title}
+                                    </h4>
+                                    <span
+                                      className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md ${
+                                        r.type === 'spraying'
+                                          ? 'bg-blue-100 text-blue-800'
+                                          : 'bg-emerald-100 text-emerald-800'
+                                      }`}
+                                    >
+                                      {r.type === 'spraying' ? 'İLAÇLAMA' : 'GÜBRELEME'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                                    📍 {r.fieldName} · <strong>{r.productName}</strong> ({r.dosage})
+                                  </p>
+                                  {r.notes ? (
+                                    <p className="text-[10px] text-slate-600 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 mt-1.5 font-medium flex items-center gap-1.5">
+                                      <FileText size={12} className="text-purple-600 shrink-0" />
+                                      <span>{r.notes}</span>
+                                    </p>
+                                  ) : (
+                                    <p className="text-[10px] text-purple-600 font-semibold mt-1 hover:underline flex items-center gap-1">
+                                      <Pencil size={10} />
+                                      <span>+ Not & Detay Ekle</span>
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                                <div className="text-right">
+                                  <span className="text-[11px] font-bold text-slate-700 block">{r.date}</span>
+                                  {r.phiDays > 0 ? (
+                                    <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded">
+                                      PHI: {r.phiDays} Gün
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400">Bekleme Yok</span>
+                                  )}
+                                </div>
+
+                                <select
+                                  value={r.status || 'completed'}
+                                  onChange={(e) => {
+                                    const newSt = e.target.value as 'completed' | 'pending' | 'postponed'
+                                    setWebRecords((prev) =>
+                                      prev.map((item) => (item.id === r.id ? { ...item, status: newSt } : item)),
+                                    )
+                                  }}
+                                  className={`text-[10px] font-bold px-2 py-1 rounded-lg transition-all border outline-none cursor-pointer ${getStatusColor(r.status)}`}
+                                >
+                                  <option value="completed">✓ Yapıldı</option>
+                                  <option value="pending">⏳ Planlandı</option>
+                                  <option value="postponed">⏸ Ertelendi</option>
+                                </select>
+
+                                <button
+                                  type="button"
+                                  title="Kaydı & Notları Düzenle"
+                                  onClick={() => openEditRecordModal(r)}
+                                  className="size-7 rounded-lg bg-slate-50 hover:bg-purple-50 text-slate-500 hover:text-purple-700 flex items-center justify-center transition-all border border-slate-200/60"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  title="Kaydı Sil"
+                                  onClick={() => {
+                                    setWebRecords((prev) => prev.filter((item) => item.id !== r.id))
+                                  }}
+                                  className="size-7 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all border border-slate-200/60"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1977,9 +2462,13 @@ export default function DashboardView() {
                   fields={fields}
                   plantingRecords={plantingRecords}
                   webRecords={webRecords}
+                  tasks={tasks}
                   onAddField={(f) => handleCreateField({ ...f, id: `f-${Date.now()}` })}
                   onDeleteField={(id) => handleDeleteField(id)}
                   onAddWebRecord={(rec) => setWebRecords((prev) => [rec, ...prev])}
+                  onAddTask={handleCreateWebTask}
+                  onUpdateTaskStatus={handleToggleTaskStatus}
+                  onDeleteTask={handleDeleteTask}
                 />
               </div>
             )}
@@ -2155,6 +2644,146 @@ export default function DashboardView() {
                 className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-xs"
               >
                 Kaydet
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Add New Saha Görevi Modal */}
+      {showAddWebTaskModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!newWebTaskTitle.trim()) return
+              const f = fields.find((item) => item.id === newWebTaskFieldId) || fields[0]
+              handleCreateWebTask({
+                title: newWebTaskTitle.trim(),
+                type: newWebTaskType,
+                fieldId: f?.id || 'f1',
+                fieldName: f?.name || 'Ana Parsel',
+                cropName: f?.cropType || 'Genel Ürün',
+                date: newWebTaskDate || new Date().toISOString().slice(0, 10),
+                plannedDate: newWebTaskDate || new Date().toISOString().slice(0, 10),
+                status: 'pending',
+                notes: newWebTaskNotes.trim(),
+                isCustom: true,
+                source: 'manual',
+              })
+              setNewWebTaskTitle('')
+              setNewWebTaskNotes('')
+              setShowAddWebTaskModal(false)
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                  Yeni Saha Görevi
+                </span>
+                <h3 className="font-extrabold text-sm text-slate-900 mt-1">Görev / İşlem Planla</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddWebTaskModal(false)}
+                className="size-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">Görev Türü</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: 'harvesting', label: '🌾 Hasat' },
+                    { id: 'spraying', label: '🛡️ İlaçlama' },
+                    { id: 'fertilizing', label: '🧪 Gübreleme' },
+                    { id: 'irrigation', label: '💧 Sulama' },
+                    { id: 'planting', label: '🌱 Ekim' },
+                    { id: 'other', label: '📋 Bakım' },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setNewWebTaskType(t.id as any)}
+                      className={`py-1.5 px-2 rounded-xl text-xs font-bold border text-center transition-all ${
+                        newWebTaskType === t.id
+                          ? 'bg-emerald-700 text-white border-emerald-700 shadow-2xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">Görev Başlığı *</label>
+                <input
+                  required
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-emerald-600"
+                  placeholder="Örn: Domates için hasat görevi veya 2. sıra çapa"
+                  value={newWebTaskTitle}
+                  onChange={(e) => setNewWebTaskTitle(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Uygulanacak Tarla</label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none"
+                    value={newWebTaskFieldId}
+                    onChange={(e) => setNewWebTaskFieldId(e.target.value)}
+                  >
+                    {fields.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name} ({f.cropType || 'Ürün belirtilmedi'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Tarih</label>
+                  <input
+                    type="date"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none"
+                    value={newWebTaskDate}
+                    onChange={(e) => setNewWebTaskDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">Notlar & Açıklama (Opsiyonel)</label>
+                <textarea
+                  rows={2}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-emerald-600"
+                  placeholder="Traktör şoförüne talimatlar, dozajlar veya hava uyarısı..."
+                  value={newWebTaskNotes}
+                  onChange={(e) => setNewWebTaskNotes(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddWebTaskModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700"
+              >
+                İptal
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-xs"
+              >
+                Görevi Oluştur
               </button>
             </div>
           </form>

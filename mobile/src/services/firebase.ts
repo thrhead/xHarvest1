@@ -325,12 +325,6 @@ function loadInitialSync(): typeof initialDemo {
       window.localStorage.removeItem('eh_mobile_demo_state');
       window.localStorage.removeItem('eh_mobile_demo_state_v1');
 
-      const webStr = window.localStorage.getItem(WEB_FIELDS_KEY);
-      if (webStr) {
-        syncWebFieldsIntoDemo(defaultDemo);
-        return defaultDemo;
-      }
-
       const s = window.localStorage.getItem(STORAGE_KEY);
       if (s) {
         const p = parseStoredData(s);
@@ -347,7 +341,7 @@ function loadInitialSync(): typeof initialDemo {
 
 let demo = loadInitialSync();
 
-// Asynchronous hydration from AsyncStorage for React Native / Expo environment
+// Asynchronous hydration from AsyncStorage & Server API
 (async () => {
   try {
     const stored = await AsyncStorage.getItem(STORAGE_KEY);
@@ -359,7 +353,135 @@ let demo = loadInitialSync();
       }
     }
   } catch {}
+
+  // Sync tasks from server database to share across all browsers and devices
+  try {
+    await syncTasksFromServer();
+  } catch {}
 })();
+
+// Re-sync from server on web window focus or network resume
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('focus', () => {
+    syncTasksFromServer().catch(() => {});
+  });
+}
+
+export async function syncTasksFromServer(): Promise<Task[]> {
+  try {
+    const url = resolveApiUrl('/api/tasks');
+    const res = await safeFetchJson<{ success: boolean; tasks: any[] }>(url, { method: 'GET' }, 6000);
+    if (res.ok && res.data?.success && Array.isArray(res.data.tasks)) {
+      const serverTasks: Task[] = res.data.tasks.map((st: any) => ({
+        id: String(st.id),
+        userId: st.userId || 'demo-user-id',
+        fieldId: String(st.fieldId),
+        cropId: st.cropId || '',
+        type: st.type,
+        title: st.title,
+        description: st.description,
+        plannedDate: new Date(st.plannedDate),
+        originalDate: new Date(st.originalDate || st.plannedDate),
+        status: st.status || 'pending',
+        weatherReason: st.weatherReason,
+        notes: st.notes,
+        photoUris: st.photoUris || [],
+        isCustom: Boolean(st.isCustom),
+        source: st.source || (st.isCustom ? 'manual' : 'crop_plan'),
+        completedAt: st.completedAt ? new Date(st.completedAt) : undefined,
+      }));
+
+      // Combine server tasks with any unsaved local tasks
+      const serverIds = new Set(serverTasks.map((t) => t.id));
+      const localOnlyTasks = demo.tasks.filter((lt) => !serverIds.has(lt.id));
+
+      if (localOnlyTasks.length > 0) {
+        // Upload local-only tasks to server so other browsers get them
+        saveTasksBatchToServer(localOnlyTasks).catch(() => {});
+        serverTasks.push(...localOnlyTasks);
+      }
+
+      demo.tasks = serverTasks;
+      persistDemo();
+      return serverTasks;
+    }
+  } catch (err) {
+    console.warn('[firebase.ts] Server task sync error:', err);
+  }
+  return demo.tasks;
+}
+
+export async function saveTaskToServer(t: Task): Promise<void> {
+  try {
+    const url = resolveApiUrl('/api/tasks');
+    const dbTask = {
+      id: t.id,
+      userId: t.userId || 'demo-user-id',
+      fieldId: t.fieldId,
+      cropId: t.cropId,
+      type: t.type,
+      title: t.title,
+      description: t.description,
+      plannedDate: t.plannedDate instanceof Date ? t.plannedDate.toISOString().slice(0, 10) : String(t.plannedDate),
+      originalDate: t.originalDate instanceof Date ? t.originalDate.toISOString().slice(0, 10) : String(t.originalDate),
+      status: t.status,
+      weatherReason: t.weatherReason,
+      notes: t.notes,
+      photoUris: t.photoUris,
+      isCustom: t.isCustom,
+      source: t.source,
+      completedAt: t.completedAt instanceof Date ? t.completedAt.toISOString() : undefined,
+    };
+    await safeFetchJson(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task: dbTask }),
+    }, 5000);
+  } catch (e) {
+    console.warn('[firebase.ts] Failed to save task to server:', e);
+  }
+}
+
+export async function saveTasksBatchToServer(tasks: Task[]): Promise<void> {
+  if (!tasks.length) return;
+  try {
+    const url = resolveApiUrl('/api/tasks');
+    const dbTasks = tasks.map((t) => ({
+      id: t.id,
+      userId: t.userId || 'demo-user-id',
+      fieldId: t.fieldId,
+      cropId: t.cropId,
+      type: t.type,
+      title: t.title,
+      description: t.description,
+      plannedDate: t.plannedDate instanceof Date ? t.plannedDate.toISOString().slice(0, 10) : String(t.plannedDate),
+      originalDate: t.originalDate instanceof Date ? t.originalDate.toISOString().slice(0, 10) : String(t.originalDate),
+      status: t.status,
+      weatherReason: t.weatherReason,
+      notes: t.notes,
+      photoUris: t.photoUris,
+      isCustom: t.isCustom,
+      source: t.source,
+      completedAt: t.completedAt instanceof Date ? t.completedAt.toISOString() : undefined,
+    }));
+    await safeFetchJson(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tasks: dbTasks }),
+    }, 6000);
+  } catch (e) {
+    console.warn('[firebase.ts] Failed to batch save tasks to server:', e);
+  }
+}
+
+export async function deleteTaskFromServer(taskId: string): Promise<void> {
+  try {
+    const url = resolveApiUrl(`/api/tasks?id=${encodeURIComponent(taskId)}`);
+    await safeFetchJson(url, { method: 'DELETE' }, 5000);
+  } catch (e) {
+    console.warn('[firebase.ts] Failed to delete task on server:', e);
+  }
+}
 
 function persistDemo() {
   const json = JSON.stringify(demo);
@@ -628,6 +750,11 @@ export async function getTasks(
   userId?: string,
   opts?: { status?: TaskStatus[]; from?: Date; to?: Date }
 ): Promise<Task[]> {
+  // Try background/initial sync with server
+  try {
+    await syncTasksFromServer();
+  } catch {}
+
   const uid = userId || demo.uid || 'demo-user-id';
   let list = demo.tasks.filter((t) => !t.userId || t.userId === uid || t.userId === 'demo-user-id');
   if (opts?.status?.length) {
@@ -644,8 +771,10 @@ export async function createTask(
   task: Omit<Task, 'id'>
 ): Promise<string> {
   const id = genId('t');
-  demo.tasks.push({ ...task, id });
+  const fullTask: Task = { ...task, id };
+  demo.tasks.push(fullTask);
   persistDemo();
+  saveTaskToServer(fullTask).catch(() => {});
   return id;
 }
 
@@ -653,12 +782,16 @@ export async function createTasks(
   tasks: Omit<Task, 'id'>[]
 ): Promise<string[]> {
   const ids: string[] = [];
+  const fullTasks: Task[] = [];
   for (const t of tasks) {
     const id = genId('t');
-    demo.tasks.push({ ...t, id });
+    const ft: Task = { ...t, id };
+    demo.tasks.push(ft);
+    fullTasks.push(ft);
     ids.push(id);
   }
   persistDemo();
+  saveTasksBatchToServer(fullTasks).catch(() => {});
   return ids;
 }
 
@@ -670,6 +803,7 @@ export async function updateTask(
   if (i >= 0) {
     demo.tasks[i] = { ...demo.tasks[i], ...data };
     persistDemo();
+    saveTaskToServer(demo.tasks[i]).catch(() => {});
   }
 }
 
@@ -680,6 +814,7 @@ export async function completeTask(taskId: string): Promise<void> {
 export async function deleteTask(taskId: string): Promise<void> {
   demo.tasks = demo.tasks.filter((t) => t.id !== taskId);
   persistDemo();
+  deleteTaskFromServer(taskId).catch(() => {});
 }
 
 // ── SETTINGS + FCM ──

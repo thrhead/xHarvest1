@@ -4,7 +4,10 @@ export type SidebarActionDeps = {
   setActiveTab: (t: PortalTab) => void
   setSelectedCropId: (id: string) => void
   setRecordTabFilter: (f: 'all' | 'spraying' | 'fertilizing') => void
+  setRecordsSubTab?: (t: 'tasks' | 'records') => void
+  setTaskTabFilter?: (f: 'all' | 'spraying' | 'fertilizing' | 'irrigation' | 'planting' | 'harvesting' | 'other') => void
   setShowAddWebRecordModal: (v: boolean) => void
+  setShowAddWebTaskModal?: (v: boolean) => void
   setShowPhiBanner: (v: boolean) => void
   setMapFocus: (v: 'draw' | 'list' | 'assign' | null) => void
   setTimelineFocus: (v: 'stages' | 'tasks' | 'done' | 'pick' | 'duration' | null) => void
@@ -63,21 +66,36 @@ export function runSidebarAction(action: SidebarAction, d: SidebarActionDeps) {
       d.setTimelineFocus('duration')
       break
     case 'records.all':
+      d.setRecordsSubTab?.('records')
       d.setRecordTabFilter('all')
       d.setShowPhiBanner(false)
       break
+    case 'records.tasks':
+      d.setRecordsSubTab?.('tasks')
+      d.setTaskTabFilter?.('all')
+      break
+    case 'records.harvesting':
+      d.setRecordsSubTab?.('tasks')
+      d.setTaskTabFilter?.('harvesting')
+      break
     case 'records.spraying':
+      d.setRecordsSubTab?.('tasks')
+      d.setTaskTabFilter?.('spraying')
       d.setRecordTabFilter('spraying')
       d.setShowPhiBanner(false)
       break
     case 'records.fertilizing':
+      d.setRecordsSubTab?.('tasks')
+      d.setTaskTabFilter?.('fertilizing')
       d.setRecordTabFilter('fertilizing')
       d.setShowPhiBanner(false)
       break
     case 'records.new':
-      d.setShowAddWebRecordModal(true)
+      d.setRecordsSubTab?.('tasks')
+      d.setShowAddWebTaskModal?.(true)
       break
     case 'records.phi':
+      d.setRecordsSubTab?.('records')
       d.setShowPhiBanner(true)
       break
     case 'weather.today':

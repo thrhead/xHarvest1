@@ -79,6 +79,8 @@ export interface Task {
   photoUris?: string[];
   postponedUntil?: Date;
   skippedAt?: Date;
+  isCustom?: boolean;
+  source?: 'crop_plan' | 'manual';
 }
 
 export interface DailyWeather {

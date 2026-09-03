@@ -3,22 +3,26 @@
 import React, { useState } from 'react'
 import { FieldPolygon } from '../types/field'
 
-interface MobileSimulatorProps {
+export interface MobileSimulatorProps {
   fields: FieldPolygon[]
   plantingRecords?: any[]
   webRecords?: any[]
+  tasks?: TaskItem[]
   onAddField: (field: Omit<FieldPolygon, 'id'>) => void
   onDeleteField: (id: string) => void
   onAddWebRecord?: (record: any) => void
+  onAddTask?: (task: any) => void
+  onUpdateTaskStatus?: (taskId: string, status: TaskItem['status']) => void
+  onDeleteTask?: (taskId: string) => void
 }
 
-interface TaskItem {
+export interface TaskItem {
   id: string
   fieldId: string
   fieldName: string
   cropName: string
   title: string
-  type: 'planting' | 'irrigation' | 'fertilizing' | 'spraying' | 'harvesting'
+  type: 'planting' | 'irrigation' | 'fertilizing' | 'spraying' | 'harvesting' | 'other'
   date: string
   status: 'pending' | 'completed' | 'delayed' | 'skipped'
   weatherReason?: string
@@ -27,6 +31,8 @@ interface TaskItem {
   targetPestOrPurpose?: string
   notes?: string
   photos?: string[]
+  isCustom?: boolean
+  source?: 'crop_plan' | 'manual'
 }
 
 function SimulatorMap({
@@ -131,9 +137,13 @@ export default function MobileSimulator({
   fields,
   plantingRecords = [],
   webRecords = [],
+  tasks: propTasks,
   onAddField,
   onDeleteField,
   onAddWebRecord,
+  onAddTask,
+  onUpdateTaskStatus,
+  onDeleteTask,
 }: MobileSimulatorProps) {
   const [activeTab, setActiveTab] = useState<'home' | 'tasks' | 'records' | 'map' | 'calendar' | 'weather'>('home')
   const [taskFilter, setTaskFilter] = useState<'all' | 'spraying' | 'fertilizing' | 'irrigation' | 'planting' | 'harvesting'>('all')
@@ -154,7 +164,62 @@ export default function MobileSimulator({
 
   const activeField = fields.find((f) => f.id === selectedWeatherFieldId) || fields[0]
 
-  const [tasks, setTasks] = useState<TaskItem[]>([])
+  const [tasks, setTasks] = useState<TaskItem[]>(propTasks || [])
+
+  const loadTasksFromApi = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/tasks')
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.success && Array.isArray(data.tasks)) {
+          const mapped: TaskItem[] = data.tasks.map((st: any) => ({
+            id: String(st.id),
+            fieldId: String(st.fieldId),
+            fieldName: st.fieldName || 'Tarla',
+            cropName: st.cropName || 'Ürün',
+            title: st.title,
+            type: st.type || 'other',
+            date: st.plannedDate,
+            status: st.status || 'pending',
+            weatherReason: st.weatherReason,
+            notes: st.notes,
+            photos: st.photoUris || [],
+            isCustom: Boolean(st.isCustom),
+            source: st.source || (st.isCustom ? 'manual' : 'crop_plan'),
+            productName: st.productName,
+            dosage: st.dosage,
+            targetPestOrPurpose: st.targetPestOrPurpose,
+          }))
+          setTasks(mapped)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('eh_tasks', JSON.stringify(mapped))
+          }
+        }
+      }
+    } catch {}
+  }, [])
+
+  React.useEffect(() => {
+    if (propTasks && propTasks.length > 0) {
+      setTasks(propTasks)
+      return
+    }
+    loadTasksFromApi()
+
+    const onSync = () => {
+      loadTasksFromApi()
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', onSync)
+      window.addEventListener('storage', onSync)
+      window.addEventListener('eh_tasks_sync', onSync)
+      return () => {
+        window.removeEventListener('focus', onSync)
+        window.removeEventListener('storage', onSync)
+        window.removeEventListener('eh_tasks_sync', onSync)
+      }
+    }
+  }, [propTasks, loadTasksFromApi])
 
   const [showAddFieldModal, setShowAddFieldModal] = useState(false)
   const [newFieldName, setNewFieldName] = useState('')
@@ -174,17 +239,30 @@ export default function MobileSimulator({
   )
 
   const toggleTaskStatus = (taskId: string) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId ? { ...t, status: t.status === 'completed' ? 'pending' : 'completed' } : t,
-      ),
-    )
+    const current = tasks.find((t) => t.id === taskId)
+    if (!current) return
+    const order: TaskItem['status'][] = ['pending', 'completed', 'delayed', 'skipped']
+    const currentIndex = order.indexOf(current.status)
+    const nextStatus = order[(currentIndex + 1) % order.length]
+
+    handleUpdateTaskStatus(taskId, nextStatus)
   }
 
   const handleUpdateTaskStatus = (taskId: string, newStatus: TaskItem['status']) => {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)))
     if (selectedTaskDetail?.id === taskId) {
       setSelectedTaskDetail((prev) => (prev ? { ...prev, status: newStatus } : null))
+    }
+    if (onUpdateTaskStatus) {
+      onUpdateTaskStatus(taskId, newStatus)
+    }
+    fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_status', id: taskId, status: newStatus }),
+    }).catch(() => {})
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('eh_tasks_sync'))
     }
   }
 
@@ -196,12 +274,34 @@ export default function MobileSimulator({
 
   const handleSaveTaskDetails = () => {
     if (!selectedTaskDetail) return
+    const updated = { ...selectedTaskDetail, notes: editingNotes, photos: editingPhotos }
     setTasks((prev) =>
-      prev.map((t) =>
-        t.id === selectedTaskDetail.id ? { ...t, notes: editingNotes, photos: editingPhotos } : t,
-      ),
+      prev.map((t) => (t.id === selectedTaskDetail.id ? updated : t)),
     )
     setSelectedTaskDetail(null)
+
+    fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task: {
+          id: updated.id,
+          fieldId: updated.fieldId,
+          fieldName: updated.fieldName,
+          title: updated.title,
+          type: updated.type,
+          plannedDate: updated.date,
+          status: updated.status,
+          notes: editingNotes,
+          photoUris: editingPhotos,
+          isCustom: updated.isCustom,
+          source: updated.source,
+        },
+      }),
+    }).catch(() => {})
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('eh_tasks_sync'))
+    }
   }
 
   const handleSimulateAddPhoto = () => {
@@ -238,12 +338,35 @@ export default function MobileSimulator({
     setShowAddFieldModal(false)
   }
 
+  const isCustomTask = (t: TaskItem) => {
+    if (t.source === 'crop_plan') return false
+    return Boolean(t.isCustom === true || t.source === 'manual')
+  }
+
+  const handleDeleteTask = (taskId: string) => {
+    const target = tasks.find((t) => t.id === taskId)
+    if (!target) return
+    setTasks((prev) => prev.filter((t) => t.id !== taskId))
+    if (selectedTaskDetail?.id === taskId) {
+      setSelectedTaskDetail(null)
+    }
+    if (onDeleteTask) {
+      onDeleteTask(taskId)
+    }
+    fetch(`/api/tasks?id=${encodeURIComponent(taskId)}`, {
+      method: 'DELETE',
+    }).catch(() => {})
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('eh_tasks_sync'))
+    }
+  }
+
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newTaskTitle.trim()) return
     const selectedField = fields.find((f) => f.id === newTaskFieldId) || fields[0]
     const taskTitle = newTaskTitle.trim()
-    const newTaskObj = {
+    const newTaskObj: TaskItem = {
       id: `t-${Date.now()}`,
       fieldId: selectedField?.id || 'f-custom',
       fieldName: selectedField?.name || 'Genel Tarla',
@@ -252,11 +375,39 @@ export default function MobileSimulator({
       type: newTaskType,
       date: newTaskDate || new Date().toISOString().slice(0, 10),
       status: 'pending' as const,
+      isCustom: true,
+      source: 'manual',
       productName: newTaskProduct.trim() || undefined,
       dosage: newTaskDosage.trim() || undefined,
       targetPestOrPurpose: newTaskTarget.trim() || undefined,
     }
     setTasks((prev) => [newTaskObj, ...prev])
+
+    if (onAddTask) {
+      onAddTask(newTaskObj)
+    }
+
+    fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task: {
+          id: newTaskObj.id,
+          fieldId: newTaskObj.fieldId,
+          fieldName: newTaskObj.fieldName,
+          cropName: newTaskObj.cropName,
+          title: newTaskObj.title,
+          type: newTaskObj.type,
+          plannedDate: newTaskObj.date,
+          status: newTaskObj.status,
+          isCustom: true,
+          source: 'manual',
+          productName: newTaskObj.productName,
+          dosage: newTaskObj.dosage,
+          targetPestOrPurpose: newTaskObj.targetPestOrPurpose,
+        },
+      }),
+    }).catch(() => {})
 
     if (onAddWebRecord && (newTaskType === 'spraying' || newTaskType === 'fertilizing')) {
       onAddWebRecord({
@@ -271,11 +422,12 @@ export default function MobileSimulator({
       })
     }
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('eh_tasks_sync'))
+    }
+
     setNewTaskTitle('')
     setShowAddTaskModal(false)
-    if (typeof window !== 'undefined') {
-      alert(`✅ Görev Başarıyla Oluşturuldu!\n"${taskTitle}" görevi planlandı ve Görevler listesine eklendi.`)
-    }
   }
 
   const pendingTasksCount = tasks.filter((t) => t.status !== 'completed').length
@@ -687,22 +839,56 @@ export default function MobileSimulator({
                                         )}
                                       </div>
 
-                                      {/* Quick Check Toggle */}
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          toggleTaskStatus(t.id)
-                                        }}
-                                        className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition ${
-                                          isDone
-                                            ? 'bg-emerald-600 text-white shadow-2xs'
-                                            : 'border-2 border-slate-300 text-transparent hover:border-emerald-500 bg-white'
-                                        }`}
-                                        title={isDone ? 'Tamamlandı (Geri al)' : 'Tamamla'}
-                                      >
-                                        ✓
-                                      </button>
+                                      {/* Quick Status Action & Conditional Delete */}
+                                      <div className="flex flex-col items-center gap-1.5 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            toggleTaskStatus(t.id)
+                                          }}
+                                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition ${
+                                            t.status === 'completed'
+                                              ? 'bg-emerald-600 text-white shadow-xs'
+                                              : t.status === 'delayed'
+                                              ? 'bg-amber-500 text-white shadow-xs text-[11px]'
+                                              : t.status === 'skipped'
+                                              ? 'bg-slate-500 text-white shadow-xs text-[11px]'
+                                              : 'border-2 border-slate-300 text-slate-300 hover:border-emerald-500 bg-white'
+                                          }`}
+                                          title={
+                                            t.status === 'completed'
+                                              ? '✓ Yapıldı (Geri al)'
+                                              : t.status === 'delayed'
+                                              ? '⏰ Ertelendi'
+                                              : t.status === 'skipped'
+                                              ? '⏭️ Atlandı'
+                                              : '○ Bekliyor (Tamamla)'
+                                          }
+                                        >
+                                          {t.status === 'completed'
+                                            ? '✓'
+                                            : t.status === 'delayed'
+                                            ? '⏰'
+                                            : t.status === 'skipped'
+                                            ? '⏭️'
+                                            : '○'}
+                                        </button>
+
+                                        {isCustomTask(t) && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteTask(t.id)
+                                            }}
+                                            className="text-slate-400 hover:text-rose-600 p-0.5 transition"
+                                            title="Görevi Sil"
+                                          >
+                                            <span className="text-[12px] opacity-60 hover:opacity-100">🗑️</span>
+                                          </button>
+                                        )}
+                                      </div>
                                     </div>
                                   )
                                 })}
@@ -1029,18 +1215,46 @@ export default function MobileSimulator({
                                         </div>
                                       </div>
 
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          toggleTaskStatus(t.id)
-                                        }}
-                                        className={`text-[9px] font-bold px-2 py-0.5 rounded-md shrink-0 transition ${
-                                          isDone ? 'bg-emerald-100 text-emerald-800' : 'bg-white border border-slate-200 hover:bg-emerald-50 text-slate-700'
-                                        }`}
-                                      >
-                                        {isDone ? '✓ Yapıldı' : 'İşaretle'}
-                                      </button>
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            toggleTaskStatus(t.id)
+                                          }}
+                                          className={`text-[9px] font-bold px-2 py-0.5 rounded-md shrink-0 transition flex items-center gap-1 ${
+                                            t.status === 'completed'
+                                              ? 'bg-emerald-100 text-emerald-800'
+                                              : t.status === 'delayed'
+                                              ? 'bg-amber-100 text-amber-800'
+                                              : t.status === 'skipped'
+                                              ? 'bg-slate-100 text-slate-700'
+                                              : 'bg-white border border-slate-200 hover:bg-emerald-50 text-slate-700'
+                                          }`}
+                                          title="Durumu değiştir (Tıkla)"
+                                        >
+                                          {t.status === 'completed'
+                                            ? '✓ Yapıldı'
+                                            : t.status === 'delayed'
+                                            ? '⏰ Ertelendi'
+                                            : t.status === 'skipped'
+                                            ? '⏭️ Atlandı'
+                                            : '○ Bekliyor'}
+                                        </button>
+                                        {isCustomTask(t) && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteTask(t.id)
+                                            }}
+                                            className="p-1 text-slate-400 hover:text-rose-600 transition"
+                                            title="Görevi Sil"
+                                          >
+                                            <span className="text-xs">🗑️</span>
+                                          </button>
+                                        )}
+                                      </div>
                                     </div>
                                   )
                                 })}
@@ -1148,7 +1362,22 @@ export default function MobileSimulator({
                     </div>
                     <textarea rows={3} value={editingNotes} onChange={(e) => setEditingNotes(e.target.value)} placeholder="Saha notu..." className="w-full p-2.5 border rounded-xl text-xs" />
                     <button type="button" onClick={handleSimulateAddPhoto} className="text-[11px] bg-purple-700 text-white px-2.5 py-1 rounded-lg font-bold">📷 Fotoğraf</button>
-                    <button type="button" onClick={handleSaveTaskDetails} className="w-full py-2.5 bg-emerald-600 text-white font-bold rounded-xl text-xs">Kaydet</button>
+                    <button type="button" onClick={handleSaveTaskDetails} className="w-full py-2.5 bg-emerald-600 text-white font-bold rounded-xl text-xs">Değişiklikleri Kaydet</button>
+
+                    {isCustomTask(selectedTaskDetail) ? (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTask(selectedTaskDetail.id)}
+                        className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs border border-rose-200 transition flex items-center justify-center gap-1.5"
+                      >
+                        <span>🗑️</span>
+                        <span>Bu Görevi Sil</span>
+                      </button>
+                    ) : (
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center text-[10px] text-slate-500 font-medium">
+                        🌱 Bu işlem ekim planının bir parçasıdır (silinemez; dilerseniz durumunu "Atlandı" yapabilirsiniz).
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
