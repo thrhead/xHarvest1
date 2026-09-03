@@ -1217,6 +1217,7 @@ export default function DashboardView() {
                 <CropCalendar
                   crops={crops}
                   records={plantingRecords}
+                  tasks={tasks}
                   focus={timelineFocus}
                   onAddRecord={() => {
                     setNewPlantCropId(crops[0] ? String(crops[0].id) : 'demo-domates')
@@ -1227,14 +1228,52 @@ export default function DashboardView() {
                   onDeleteRecord={(recordId) => {
                     setPlantingRecords((prev) => prev.filter((r) => r.id !== recordId))
                   }}
-                  onTaskToggle={(recordId, taskId, doneFlag) => {
+                  onTaskToggle={(recordId, taskId, nextStatus, taskTitle) => {
                     setPlantingRecords((prev) =>
                       prev.map((r) =>
                         r.id === recordId
-                          ? { ...r, taskProgress: { ...(r.taskProgress || {}), [taskId]: doneFlag } }
+                          ? { ...r, taskProgress: { ...(r.taskProgress || {}), [taskId]: nextStatus } }
                           : r,
                       ),
                     )
+
+                    const rec = plantingRecords.find((r) => r.id === recordId)
+                    if (taskTitle) {
+                      const norm = (taskTitle || '').toLocaleLowerCase('tr-TR').replace(/[\s\-_.,/]+/g, ' ').trim()
+                      const existing = tasks.find((t) => {
+                        if (rec && rec.fieldId && t.fieldId && t.fieldId !== rec.fieldId) return false
+                        const tNorm = (t.title || '').toLocaleLowerCase('tr-TR').replace(/[\s\-_.,/]+/g, ' ').trim()
+                        return tNorm === norm || tNorm.includes(norm) || norm.includes(tNorm)
+                      })
+
+                      const dbStatus = nextStatus === 'delayed' ? 'rescheduled' : nextStatus
+
+                      if (existing) {
+                        handleToggleTaskStatus(existing.id, dbStatus)
+                      } else if (rec) {
+                        const newTask = {
+                          id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                          userId: 'demo-user-id',
+                          fieldId: rec.fieldId,
+                          cropId: rec.id,
+                          type: 'other',
+                          title: taskTitle,
+                          description: '',
+                          plannedDate: rec.plantingDate,
+                          originalDate: rec.plantingDate,
+                          status: dbStatus,
+                          completedAt: nextStatus === 'completed' ? new Date().toISOString() : undefined,
+                          isCustom: false,
+                          source: 'crop_plan',
+                        }
+                        setTasks((prev) => [newTask as any, ...prev])
+                        fetch('/api/tasks', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ task: newTask }),
+                        }).catch(() => {})
+                      }
+                    }
                   }}
                 />
               </div>

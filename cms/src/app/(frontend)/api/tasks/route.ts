@@ -84,6 +84,29 @@ export async function POST(req: Request) {
   }
 }
 
+export async function PATCH(req: Request) {
+  try {
+    const body = await req.json()
+    if (body.id && body.status) {
+      await updateDbTaskStatus(body.id, body.status, body.completedAt)
+      return NextResponse.json(
+        { success: true, id: body.id, status: body.status },
+        { headers: corsHeaders }
+      )
+    }
+    return NextResponse.json(
+      { error: 'Missing id or status in request body' },
+      { status: 400, headers: corsHeaders }
+    )
+  } catch (err: any) {
+    console.error('[API /api/tasks] PATCH error:', err)
+    return NextResponse.json(
+      { error: err?.message || 'Failed to update task' },
+      { status: 500, headers: corsHeaders }
+    )
+  }
+}
+
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url)

@@ -50,13 +50,22 @@ export default function CropPlanScreen() {
   const crops = useAppStore((s) => s.crops);
   const fields = useAppStore((s) => s.fields);
   const tasks = useAppStore((s) => s.tasks);
-  const completeTask = useAppStore((s) => (s as any).completeTask);
+  const updateTask = useAppStore((s) => s.updateTask);
+  const createTask = useAppStore((s) => s.createTask);
   const deleteCrop = useAppStore((s) => s.deleteCrop);
 
   const [templates, setTemplates] = useState<CropTemplate[]>(LOCAL_CROP_TEMPLATES);
   const [loading, setLoading] = useState(true);
   const [openStage, setOpenStage] = useState<number | null>(0);
-  const [localDone, setLocalDone] = useState<Record<string, boolean>>({});
+  const [localStatus, setLocalStatus] = useState<Record<string, 'completed' | 'skipped' | 'delayed' | 'pending'>>({});
+  const [activeStatusModal, setActiveStatusModal] = useState<{
+    stageIdx: number;
+    taskIdx: number;
+    title: string;
+    stageName: string;
+    linkedTaskId?: string;
+    currentStatus: 'completed' | 'skipped' | 'delayed' | 'pending';
+  } | null>(null);
 
   const crop = (cropId ? crops.find((c) => c.id === cropId) : null) || crops[0];
   const field = fields.find((f) => f.id === crop?.fieldId);
@@ -100,24 +109,102 @@ export default function CropPlanScreen() {
     (s) => todayOffset >= s.dayOffset && todayOffset < s.dayOffset + s.durationDays
   );
 
-  const cropTasks = tasks.filter((t) => crop && t.cropId === crop.id);
+  const normalizeTitle = (s: string) => {
+    return (s || '')
+      .toLocaleLowerCase('tr-TR')
+      .replace(/[\s\-_.,/]+/g, ' ')
+      .trim();
+  };
 
-  const isDone = (stageIdx: number, taskIdx: number, titleTr: string) => {
+  const cropTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (!crop) return false;
+      if (t.cropId && t.cropId === crop.id) return true;
+      if (t.fieldId && crop.fieldId && t.fieldId === crop.fieldId) return true;
+      return false;
+    });
+  }, [tasks, crop]);
+
+  const getTaskStatusInfo = (stageIdx: number, taskIdx: number, titleTr: string) => {
     const key = `${stageIdx}-${taskIdx}`;
-    if (localDone[key]) return true;
-    const match = cropTasks.find(
-      (t) =>
-        t.title === titleTr &&
-        (t.status === 'completed' || t.status === 'skipped')
-    );
-    return !!match;
+    const norm = normalizeTitle(titleTr);
+
+    // 1. Authoritative check: match against synced tasks list first
+    const match = cropTasks.find((t) => {
+      const tNorm = normalizeTitle(t.title);
+      return tNorm === norm || tNorm.includes(norm) || norm.includes(tNorm);
+    });
+
+    if (match) {
+      if (match.status === 'completed') return { status: 'completed' as const, task: match };
+      if (match.status === 'skipped') return { status: 'skipped' as const, task: match };
+      if (match.status === 'delayed' || match.status === 'rescheduled') return { status: 'delayed' as const, task: match };
+      if (match.status === 'pending') return { status: 'pending' as const, task: match };
+    }
+
+    // 2. Local fallback if not found in tasks
+    if (localStatus[key]) {
+      return { status: localStatus[key] };
+    }
+
+    return { status: 'pending' as const };
+  };
+
+  const handleSetStatus = async (
+    stageIdx: number,
+    taskIdx: number,
+    titleTr: string,
+    newStatus: 'completed' | 'skipped' | 'delayed' | 'pending'
+  ) => {
+    const key = `${stageIdx}-${taskIdx}`;
+    setLocalStatus((p) => ({ ...p, [key]: newStatus }));
+    setActiveStatusModal(null);
+
+    const norm = normalizeTitle(titleTr);
+    const linked = cropTasks.find((t) => {
+      const tNorm = normalizeTitle(t.title);
+      return tNorm === norm || tNorm.includes(norm) || norm.includes(tNorm);
+    });
+
+    if (linked) {
+      const dbStatus = newStatus === 'delayed' ? 'rescheduled' : newStatus;
+      await updateTask(linked.id, {
+        status: dbStatus,
+        completedAt: newStatus === 'completed' ? new Date() : undefined,
+      });
+    } else if (crop) {
+      // If task didn't exist yet as a discrete record, create it with this status
+      const targetStage = stages[stageIdx];
+      const taskDef = targetStage?.tasks?.[taskIdx];
+      const planDay = addDays(plantDate, (targetStage?.dayOffset || 0));
+      await createTask({
+        userId: 'demo-user-id',
+        fieldId: crop.fieldId,
+        cropId: crop.id,
+        type: (taskDef?.type as any) || 'other',
+        title: titleTr,
+        description: taskDef?.description || '',
+        plannedDate: planDay,
+        originalDate: planDay,
+        status: newStatus === 'delayed' ? 'rescheduled' : newStatus,
+        completedAt: newStatus === 'completed' ? new Date() : undefined,
+        isCustom: false,
+        source: 'crop_plan',
+      });
+    }
   };
 
   const allKeys = stages.flatMap((s, si) =>
     (s.tasks || []).map((task, ti) => ({ si, ti, title: task.titleTr || task.title }))
   );
-  const doneCount = allKeys.filter((k) => isDone(k.si, k.ti, k.title)).length;
-  const progress = allKeys.length ? Math.round((doneCount / allKeys.length) * 100) : 0;
+  
+  const allStates = allKeys.map((k) => getTaskStatusInfo(k.si, k.ti, k.title));
+  const completedCount = allStates.filter((s) => s.status === 'completed').length;
+  const skippedCount = allStates.filter((s) => s.status === 'skipped').length;
+  const delayedCount = allStates.filter((s) => s.status === 'delayed').length;
+  const pendingCount = allStates.filter((s) => s.status === 'pending').length;
+  
+  const progress = allKeys.length ? Math.round((completedCount / allKeys.length) * 100) : 0;
 
   if (loading) {
     return (
@@ -166,9 +253,11 @@ export default function CropPlanScreen() {
         </Text>
 
         <View style={styles.progressHead}>
-          <Text style={styles.progressLabel}>Görev ilerlemesi</Text>
+          <Text style={styles.progressLabel}>Görev İlerlemesi</Text>
           <Text style={styles.progressLabel}>
-            {doneCount}/{allKeys.length} · %{progress}
+            {completedCount}/{allKeys.length} tamamlandı (%{progress})
+            {skippedCount > 0 && ` · ${skippedCount} atlandı`}
+            {delayedCount > 0 && ` · ${delayedCount} ertelendi`}
           </Text>
         </View>
         <View style={styles.progressTrack}>
@@ -178,7 +267,6 @@ export default function CropPlanScreen() {
         {/* Aşama şeridi */}
         <View style={styles.strip}>
           {stages.map((s, i) => {
-            const widthPct = Math.max(12, (s.durationDays / totalDays) * 100);
             return (
               <TouchableOpacity
                 key={i}
@@ -215,9 +303,12 @@ export default function CropPlanScreen() {
         const end = addDays(plantDate, stage.dayOffset + stage.durationDays);
         const isCurrent = si === currentStageIdx;
         const tasksInStage = stage.tasks || [];
-        const stageDone = tasksInStage.filter((t, ti) =>
-          isDone(si, ti, t.titleTr || t.title)
-        ).length;
+        const stageStates = tasksInStage.map((t, ti) =>
+          getTaskStatusInfo(si, ti, t.titleTr || t.title)
+        );
+        const stageDone = stageStates.filter((s) => s.status === 'completed').length;
+        const stageSkipped = stageStates.filter((s) => s.status === 'skipped').length;
+        const stageDelayed = stageStates.filter((s) => s.status === 'delayed').length;
         const isOpen = openStage === si;
 
         return (
@@ -254,9 +345,21 @@ export default function CropPlanScreen() {
                   {fmt(start)} – {fmt(end)} · {stage.durationDays} gün
                 </Text>
               </View>
-              <Text style={styles.stageCount}>
-                {stageDone}/{tasksInStage.length}
-              </Text>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={styles.stageCount}>
+                  {stageDone}/{tasksInStage.length} tamamlandı
+                </Text>
+                {stageSkipped > 0 && (
+                  <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '600' }}>
+                    ⏭️ {stageSkipped} atlandı
+                  </Text>
+                )}
+                {stageDelayed > 0 && (
+                  <Text style={{ fontSize: 10, color: '#d97706', fontWeight: '600' }}>
+                    ⏰ {stageDelayed} ertelendi
+                  </Text>
+                )}
+              </View>
             </TouchableOpacity>
 
             {isOpen && (
@@ -266,45 +369,112 @@ export default function CropPlanScreen() {
                 )}
                 {tasksInStage.map((task, ti) => {
                   const title = task.titleTr || task.title;
-                  const checked = isDone(si, ti, title);
+                  const state = getTaskStatusInfo(si, ti, title);
+                  const status = state.status;
                   const meta = TASK_LABEL[task.type] || TASK_LABEL.other;
-                  const linked = cropTasks.find((t) => t.title === title);
+                  const isCompleted = status === 'completed';
+                  const isSkipped = status === 'skipped';
+                  const isDelayed = status === 'delayed';
+
                   return (
                     <TouchableOpacity
                       key={ti}
-                      style={[styles.taskRow, checked && styles.taskRowDone]}
-                      onPress={async () => {
-                        const key = `${si}-${ti}`;
-                        if (linked && completeTask && linked.status === 'pending') {
-                          try {
-                            await completeTask(linked.id);
-                          } catch {
-                            setLocalDone((p) => ({ ...p, [key]: !p[key] }));
-                          }
-                        } else {
-                          setLocalDone((p) => ({ ...p, [key]: !checked }));
-                        }
+                      style={[
+                        styles.taskRow,
+                        isCompleted && styles.taskRowDone,
+                        isSkipped && styles.taskRowSkipped,
+                        isDelayed && styles.taskRowDelayed,
+                      ]}
+                      onPress={() => {
+                        setActiveStatusModal({
+                          stageIdx: si,
+                          taskIdx: ti,
+                          title,
+                          stageName: stage.nameTr,
+                          linkedTaskId: state.task?.id,
+                          currentStatus: status,
+                        });
                       }}
+                      activeOpacity={0.75}
                     >
-                      <View style={[styles.checkbox, checked && styles.checkboxOn]}>
-                        {checked && <Text style={styles.checkMark}>✓</Text>}
-                      </View>
+                      {/* Checkbox button */}
+                      <TouchableOpacity
+                        style={[
+                          styles.checkbox,
+                          isCompleted && styles.checkboxDone,
+                          isSkipped && styles.checkboxSkipped,
+                          isDelayed && styles.checkboxDelayed,
+                        ]}
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          // Quick cycle: pending -> completed -> skipped -> delayed -> pending
+                          const next =
+                            status === 'pending'
+                              ? 'completed'
+                              : status === 'completed'
+                              ? 'skipped'
+                              : status === 'skipped'
+                              ? 'delayed'
+                              : 'pending';
+                          handleSetStatus(si, ti, title, next);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.checkMark,
+                            isCompleted && styles.checkMarkDone,
+                            isSkipped && styles.checkMarkSkipped,
+                            isDelayed && styles.checkMarkDelayed,
+                          ]}
+                        >
+                          {isCompleted ? '✓' : isSkipped ? '⏭️' : isDelayed ? '⏰' : '○'}
+                        </Text>
+                      </TouchableOpacity>
+
                       <View style={{ flex: 1 }}>
                         <View style={styles.taskTitleRow}>
                           <Text
                             style={[
                               styles.taskTitle,
-                              checked && styles.taskTitleDone,
+                              isCompleted && styles.taskTitleDone,
+                              isSkipped && styles.taskTitleSkipped,
+                              isDelayed && styles.taskTitleDelayed,
                             ]}
                           >
                             {title}
                           </Text>
+                          
+                          {/* Type and Status Badges */}
                           <View style={[styles.badge, { backgroundColor: meta.color }]}>
                             <Text style={styles.badgeText}>{meta.label}</Text>
                           </View>
+
+                          {isCompleted && (
+                            <View style={[styles.badge, { backgroundColor: '#D1FAE5' }]}>
+                              <Text style={[styles.badgeText, { color: '#065F46' }]}>✓ Yapıldı</Text>
+                            </View>
+                          )}
+                          {isSkipped && (
+                            <View style={[styles.badge, { backgroundColor: '#E2E8F0' }]}>
+                              <Text style={[styles.badgeText, { color: '#475569' }]}>⏭️ Atlandı</Text>
+                            </View>
+                          )}
+                          {isDelayed && (
+                            <View style={[styles.badge, { backgroundColor: '#FEF3C7' }]}>
+                              <Text style={[styles.badgeText, { color: '#92400E' }]}>⏰ Ertelendi</Text>
+                            </View>
+                          )}
                         </View>
+                        
                         {!!task.description && (
-                          <Text style={styles.taskDesc}>{task.description}</Text>
+                          <Text style={[styles.taskDesc, isSkipped && { color: '#94a3b8' }]}>
+                            {task.description}
+                          </Text>
+                        )}
+                        {isDelayed && state.task?.weatherReason && (
+                          <Text style={{ fontSize: 11, color: '#d97706', marginTop: 3, fontWeight: '600' }}>
+                            ⚠️ {state.task.weatherReason}
+                          </Text>
                         )}
                       </View>
                     </TouchableOpacity>
@@ -315,6 +485,122 @@ export default function CropPlanScreen() {
           </View>
         );
       })}
+
+      {/* Status Selection Modal */}
+      {activeStatusModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalSub}>{activeStatusModal.stageName}</Text>
+                <Text style={styles.modalTitle}>{activeStatusModal.title}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setActiveStatusModal(null)}
+                style={styles.modalCloseBtn}
+              >
+                <Text style={{ fontSize: 16, color: '#64748b' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalPrompt}>Görev Durumunu Güncelleyin:</Text>
+
+            <View style={styles.statusOptions}>
+              <TouchableOpacity
+                style={[
+                  styles.statusOptionBtn,
+                  activeStatusModal.currentStatus === 'completed' && styles.statusOptionActiveCompleted,
+                ]}
+                onPress={() =>
+                  handleSetStatus(
+                    activeStatusModal.stageIdx,
+                    activeStatusModal.taskIdx,
+                    activeStatusModal.title,
+                    'completed'
+                  )
+                }
+              >
+                <View style={[styles.statusIconWrap, { backgroundColor: '#10B981' }]}>
+                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>✓</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.statusOptionTitle}>Yapıldı (Tamamlandı)</Text>
+                  <Text style={styles.statusOptionSub}>İşlem sahada başarıyla uygulandı</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.statusOptionBtn,
+                  activeStatusModal.currentStatus === 'skipped' && styles.statusOptionActiveSkipped,
+                ]}
+                onPress={() =>
+                  handleSetStatus(
+                    activeStatusModal.stageIdx,
+                    activeStatusModal.taskIdx,
+                    activeStatusModal.title,
+                    'skipped'
+                  )
+                }
+              >
+                <View style={[styles.statusIconWrap, { backgroundColor: '#64748B' }]}>
+                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>⏭️</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.statusOptionTitle}>Atlandı</Text>
+                  <Text style={styles.statusOptionSub}>Bu işlem bu sezonda uygulanmayacak</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.statusOptionBtn,
+                  activeStatusModal.currentStatus === 'delayed' && styles.statusOptionActiveDelayed,
+                ]}
+                onPress={() =>
+                  handleSetStatus(
+                    activeStatusModal.stageIdx,
+                    activeStatusModal.taskIdx,
+                    activeStatusModal.title,
+                    'delayed'
+                  )
+                }
+              >
+                <View style={[styles.statusIconWrap, { backgroundColor: '#F59E0B' }]}>
+                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>⏰</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.statusOptionTitle}>Ertelendi</Text>
+                  <Text style={styles.statusOptionSub}>Hava veya tarla koşulları sebebiyle ertelendi</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.statusOptionBtn,
+                  activeStatusModal.currentStatus === 'pending' && styles.statusOptionActivePending,
+                ]}
+                onPress={() =>
+                  handleSetStatus(
+                    activeStatusModal.stageIdx,
+                    activeStatusModal.taskIdx,
+                    activeStatusModal.title,
+                    'pending'
+                  )
+                }
+              >
+                <View style={[styles.statusIconWrap, { backgroundColor: '#CBD5E1' }]}>
+                  <Text style={{ color: '#475569', fontSize: 13, fontWeight: 'bold' }}>○</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.statusOptionTitle}>Bekliyor (Yapılacak)</Text>
+                  <Text style={styles.statusOptionSub}>Henüz uygulanmadı, zamanı bekleniyor</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
 
       <View style={styles.deleteSection}>
         <TouchableOpacity
@@ -480,29 +766,99 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: '#e2e8f0',
+    alignItems: 'flex-start',
   },
-  taskRowDone: { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0', opacity: 0.9 },
+  taskRowDone: { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' },
+  taskRowSkipped: { backgroundColor: '#F8FAFC', borderColor: '#CBD5E1', opacity: 0.85 },
+  taskRowDelayed: { backgroundColor: '#FFFBEB', borderColor: '#FCD34D' },
   checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 7,
     borderWidth: 2,
     borderColor: '#cbd5e1',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
+    marginTop: 1,
+    backgroundColor: '#ffffff',
   },
-  checkboxOn: { backgroundColor: '#10b981', borderColor: '#10b981' },
-  checkMark: { color: '#fff', fontWeight: '900', fontSize: 12 },
+  checkboxDone: { backgroundColor: '#10b981', borderColor: '#10b981' },
+  checkboxSkipped: { backgroundColor: '#64748b', borderColor: '#64748b' },
+  checkboxDelayed: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
+  checkMark: { color: '#cbd5e1', fontWeight: '900', fontSize: 11 },
+  checkMarkDone: { color: '#ffffff', fontSize: 13 },
+  checkMarkSkipped: { color: '#ffffff', fontSize: 11 },
+  checkMarkDelayed: { color: '#ffffff', fontSize: 11 },
   taskTitleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   taskTitle: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
-  taskTitleDone: { textDecorationLine: 'line-through', color: '#94a3b8' },
+  taskTitleDone: { textDecorationLine: 'line-through', color: '#065F46' },
+  taskTitleSkipped: { textDecorationLine: 'line-through', fontStyle: 'italic', color: '#64748b' },
+  taskTitleDelayed: { color: '#78350f', fontWeight: '700' },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
   badgeText: { fontSize: 10, fontWeight: '700', color: '#334155' },
   taskDesc: { fontSize: 12, color: '#64748b', marginTop: 4 },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    zIndex: 99,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 18,
+    width: '100%',
+    maxWidth: 420,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    paddingBottom: 12,
+  },
+  modalSub: { fontSize: 11, fontWeight: '700', color: '#10b981', textTransform: 'uppercase' },
+  modalTitle: { fontSize: 15, fontWeight: '800', color: '#0f172a', marginTop: 2 },
+  modalCloseBtn: { padding: 4 },
+  modalPrompt: { fontSize: 12, fontWeight: '600', color: '#64748b', marginTop: 12, marginBottom: 10 },
+  statusOptions: { gap: 8 },
+  statusOptionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+  },
+  statusOptionActiveCompleted: { borderColor: '#10b981', backgroundColor: '#ecfdf5' },
+  statusOptionActiveSkipped: { borderColor: '#64748b', backgroundColor: '#f1f5f9' },
+  statusOptionActiveDelayed: { borderColor: '#f59e0b', backgroundColor: '#fffbeb' },
+  statusOptionActivePending: { borderColor: '#94a3b8', backgroundColor: '#f8fafc' },
+  statusIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusOptionTitle: { fontSize: 13, fontWeight: '700', color: '#0f172a' },
+  statusOptionSub: { fontSize: 11, color: '#64748b', marginTop: 1 },
   footerNote: {
     margin: 16,
     fontSize: 12,

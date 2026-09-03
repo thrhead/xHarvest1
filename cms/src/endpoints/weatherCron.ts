@@ -1,4 +1,6 @@
 import type { PayloadRequest } from 'payload'
+import { getDbTasks, saveDbTask, type DbTask } from '@/lib/taskDb'
+import { getDbFields, type DbField } from '@/lib/fieldDb'
 
 interface ForecastDay {
   date: string
@@ -8,8 +10,7 @@ interface ForecastDay {
   temp_min: number
 }
 
-// In-memory execution log for cron runs (Sınırsız - Tüm geçmiş saklanır)
-const now = new Date()
+// In-memory execution log for cron runs (Tüm geçmiş gerçek çalıştırmalarla saklanır)
 export interface JobLogItem {
   id: string
   jobName: string
@@ -25,100 +26,7 @@ export interface JobLogItem {
   details?: string[]
 }
 
-const jobLogs: JobLogItem[] = [
-  {
-    id: 'job-init-1',
-    jobName: 'Zirai Hava & Otomatik Görev Erteleme Senkronizasyonu',
-    ranAt: new Date(now.getTime() - 1000 * 60 * 35).toISOString(),
-    triggeredBy: 'Zamanlanmış Otomatik Sistem (cron-job.org)',
-    source: 'cron-job.org',
-    scanned: 6,
-    moved: 2,
-    errors: [],
-    durationMs: 312,
-    statusCode: 200,
-    statusText: 'Başarılı (200 OK)',
-    details: [
-      'Güney Domates Tarlası: Mildiyö Koruyucu İlaçlama -> Yağış bekleniyor (6.5 mm) nedeniyle 2 gün ertelendi',
-      'Anadolu Tarlası: Üst Gübreleme (Üre %46) -> Aşırı rüzgar (22 km/s) nedeniyle 1 gün ertelendi',
-    ],
-  },
-  {
-    id: 'job-init-2',
-    jobName: 'Zirai Hava & Otomatik Görev Erteleme Senkronizasyonu',
-    ranAt: new Date(now.getTime() - 1000 * 60 * 60 * 12).toISOString(),
-    triggeredBy: 'Sistem Yöneticisi (Dashboard Manuel Tetikleme)',
-    source: 'dashboard',
-    scanned: 5,
-    moved: 1,
-    errors: [],
-    durationMs: 285,
-    statusCode: 200,
-    statusText: 'Başarılı (200 OK)',
-    details: [
-      'Konya Ovası Buğday Tarlası: Pas İlaçlaması -> Yağış (%80 olasılık) nedeniyle ertelendi',
-    ],
-  },
-  {
-    id: 'job-init-3',
-    jobName: 'Zirai Hava & Otomatik Görev Erteleme Senkronizasyonu',
-    ranAt: new Date(now.getTime() - 1000 * 60 * 60 * 24).toISOString(),
-    triggeredBy: 'Zamanlanmış Otomatik Sistem (cron-job.org)',
-    source: 'cron-job.org',
-    scanned: 5,
-    moved: 0,
-    errors: [],
-    durationMs: 240,
-    statusCode: 200,
-    statusText: 'Başarılı (200 OK)',
-    details: ['Tüm tarlalar incelendi, hava şartları planlanan görevlere uygun.'],
-  },
-  {
-    id: 'job-init-4',
-    jobName: 'Zirai Hava & Otomatik Görev Erteleme Senkronizasyonu',
-    ranAt: new Date(now.getTime() - 1000 * 60 * 60 * 36).toISOString(),
-    triggeredBy: 'Mobil Uygulama Senkronizasyonu',
-    source: 'mobile',
-    scanned: 4,
-    moved: 1,
-    errors: [],
-    durationMs: 295,
-    statusCode: 200,
-    statusText: 'Başarılı (200 OK)',
-    details: ['Çukurova Sera-1: Yaprak Gübresi -> Yüksek Sıcaklık (36°C) uyarısı kaydedildi'],
-  },
-  {
-    id: 'job-init-5',
-    jobName: 'Zirai Hava & Otomatik Görev Erteleme Senkronizasyonu',
-    ranAt: new Date(now.getTime() - 1000 * 60 * 60 * 48).toISOString(),
-    triggeredBy: 'Zamanlanmış Otomatik Sistem (cron-job.org)',
-    source: 'cron-job.org',
-    scanned: 4,
-    moved: 0,
-    errors: [],
-    durationMs: 210,
-    statusCode: 200,
-    statusText: 'Başarılı (200 OK)',
-    details: ['Saha kontrolü tamamlandı, erteleme gerekmedi.'],
-  },
-  {
-    id: 'job-init-6',
-    jobName: 'Zirai Hava & Otomatik Görev Erteleme Senkronizasyonu',
-    ranAt: new Date(now.getTime() - 1000 * 60 * 60 * 72).toISOString(),
-    triggeredBy: 'Sistem Yöneticisi (Dashboard Manuel Tetikleme)',
-    source: 'dashboard',
-    scanned: 4,
-    moved: 2,
-    errors: [],
-    durationMs: 340,
-    statusCode: 200,
-    statusText: 'Başarılı (200 OK)',
-    details: [
-      'Manisa Zeytinliği: Halkalı Leke İlaçlaması -> Şiddetli Rüzgar nedeniyle ertelendi',
-      'Ankara Çiftliği: Damla Sulama Gübresi -> Şiddetli Yağış uyarısı',
-    ],
-  },
-]
+const jobLogs: JobLogItem[] = []
 
 let lastRescheduledTasks: Array<{
   id: string
@@ -130,30 +38,7 @@ let lastRescheduledTasks: Array<{
   plannedDate: string
   weatherReason: string
   status: string
-}> = [
-  {
-    id: 't-cron-1',
-    fieldId: 'f-1',
-    fieldName: 'güney domates tarlası',
-    type: 'spraying',
-    title: 'Mildiyö Koruyucu İlaçlama',
-    originalDate: new Date(now.getTime() - 86400000).toISOString().split('T')[0],
-    plannedDate: new Date(now.getTime() + 86400000 * 2).toISOString().split('T')[0],
-    weatherReason: 'Yağış bekleniyor (6.5 mm) → 2 gün sonraya ertelendi',
-    status: 'rescheduled',
-  },
-  {
-    id: 't-cron-2',
-    fieldId: 'f-2',
-    fieldName: 'anadolu tarlası',
-    type: 'fertilizing',
-    title: 'Üst Gübreleme (Üre %46)',
-    originalDate: new Date(now.getTime() - 86400000 * 2).toISOString().split('T')[0],
-    plannedDate: new Date(now.getTime() + 86400000).toISOString().split('T')[0],
-    weatherReason: 'Aşırı rüzgar (22 km/s) → 1 gün sonraya ertelendi',
-    status: 'rescheduled',
-  },
-]
+}> = []
 
 function checkAuth(req: Request | PayloadRequest): boolean {
   const cronSecret = process.env.CRON_SECRET
@@ -297,35 +182,16 @@ export async function runWeatherAdjustCron(req: Request | PayloadRequest): Promi
   }
 
   try {
-    const fieldsList = [
-      { id: 'f-1', name: 'güney domates tarlası', coordinates: [[39.88, 32.8]] },
-      { id: 'f-2', name: 'anadolu tarlası', coordinates: [[39.925, 32.85]] },
-      { id: 'f-3', name: 'salatalık tarlası', coordinates: [[39.95, 32.78]] },
-    ]
+    const fieldsList = await getDbFields()
+    const activeTasks = await getDbTasks({ status: 'pending' })
+    const allPendingTasks = activeTasks.length > 0 ? activeTasks : await getDbTasks()
 
-    const sampleTasks = [
-      {
-        id: 't-cron-1',
-        fieldId: 'f-1',
-        type: 'spraying',
-        title: 'Mildiyö Koruyucu İlaçlama',
-        plannedDate: new Date().toISOString().split('T')[0],
-        status: 'pending',
-      },
-      {
-        id: 't-cron-2',
-        fieldId: 'f-2',
-        type: 'fertilizing',
-        title: 'Üst Gübreleme (Üre %46)',
-        plannedDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
-        status: 'pending',
-      },
-    ]
+    scannedCount = allPendingTasks.length
 
-    scannedCount = sampleTasks.length
+    for (const task of allPendingTasks) {
+      if (task.status !== 'pending' && task.status !== 'rescheduled') continue
 
-    for (const task of sampleTasks) {
-      const field = fieldsList.find((f) => f.id === task.fieldId) || fieldsList[0]
+      const field = fieldsList.find((f) => f.id === task.fieldId || String(f.dbId) === String(task.fieldId)) || fieldsList[0]
       const lat = field?.coordinates?.[0]?.[0] ?? 39.92
       const lng = field?.coordinates?.[0]?.[1] ?? 32.85
 
@@ -345,19 +211,21 @@ export async function runWeatherAdjustCron(req: Request | PayloadRequest): Promi
               const nextDay = forecast.find((f) => f.date === nextDate)
               if (nextDay && !isWeatherUnsuitable(nextDay, task.type, thresholds)) {
                 task.plannedDate = nextDate
-                ;(task as any).weatherReason = `${reason} → ${i} gün sonraya kaydırıldı.`
+                task.status = 'rescheduled'
+                task.weatherReason = `${reason} → ${i} gün sonraya kaydırıldı.`
                 shifted = true
                 movedCount++
+                await saveDbTask(task).catch(() => {})
                 break
               }
             }
             if (!shifted) {
-              ;(task as any).weatherReason = `${reason} (Önümüzdeki 7 gün boyunca uygun hava bulunamadı)`
+              task.weatherReason = `${reason} (Önümüzdeki 7 gün boyunca uygun hava bulunamadı)`
             }
           }
         }
       } catch (err: any) {
-        errors.push(`Tarla ${field.name || task.fieldId} hava durumu hatası: ${err.message}`)
+        errors.push(`Tarla ${field?.name || task.fieldId} hava durumu hatası: ${err.message}`)
       }
     }
 
@@ -374,18 +242,18 @@ export async function runWeatherAdjustCron(req: Request | PayloadRequest): Promi
     const durationMs = Date.now() - startTime
 
     // Update last rescheduled tasks list
-    const movedTasks = sampleTasks.filter((t: any) => t.weatherReason).map((t: any) => {
-      const field = fieldsList.find((f) => f.id === t.fieldId) || fieldsList[0]
+    const movedTasks = allPendingTasks.filter((t: any) => t.weatherReason).map((t: any) => {
+      const field = fieldsList.find((f) => f.id === t.fieldId || String(f.dbId) === String(t.fieldId))
       return {
         id: t.id,
         fieldId: t.fieldId,
-        fieldName: field.name,
+        fieldName: field?.name || 'Tarla',
         type: t.type,
         title: t.title,
-        originalDate: new Date().toISOString().split('T')[0],
+        originalDate: t.originalDate || new Date().toISOString().split('T')[0],
         plannedDate: t.plannedDate,
         weatherReason: t.weatherReason,
-        status: 'rescheduled',
+        status: t.status || 'rescheduled',
       }
     })
     if (movedTasks.length > 0) {

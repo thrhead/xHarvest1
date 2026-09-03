@@ -168,10 +168,36 @@ const initialDemo = {
   applicationLogs: [] as ApplicationLog[],
 };
 
-const STORAGE_KEY = 'eh_mobile_demo_state_v2';
+const STORAGE_KEY = 'eh_mobile_state_v4';
 const WEB_FIELDS_KEY = 'eh_web_fields';
 const WEB_PLANTINGS_KEY = 'eh_web_plantings';
 const WEB_RECORDS_KEY = 'eh_web_records';
+
+function isLegacyMockTask(t: any): boolean {
+  if (!t) return false;
+  const id = String(t.id || '');
+  const title = String(t.title || '').toLowerCase();
+  const fieldName = String(t.fieldName || '').toLowerCase();
+  const fieldId = String(t.fieldId || '');
+
+  return (
+    id === 't-hasat-domates-1' ||
+    id === 't-ilac-1' ||
+    id === 't-gubre-1' ||
+    id === 't-sulama-1' ||
+    id === 't-bakim-1' ||
+    id === 't-cron-1' ||
+    id === 't-cron-2' ||
+    title.includes('koltuk alma ve ipe alma') ||
+    title.includes('koltuk alma') ||
+    fieldName.includes('güney domates') ||
+    fieldName.includes('kuzey biber') ||
+    fieldName.includes('doğu mısır') ||
+    fieldName.includes('anadolu tarlası') ||
+    fieldName.includes('salatalık tarlası') ||
+    fieldId === 'genel-mevsimlik'
+  );
+}
 
 function parseStoredData(stored: string) {
   try {
@@ -189,12 +215,14 @@ function parseStoredData(stored: string) {
       }));
     }
     if (parsed.tasks) {
-      parsed.tasks = parsed.tasks.map((t: any) => ({
-        ...t,
-        plannedDate: new Date(t.plannedDate || Date.now()),
-        originalDate: new Date(t.originalDate || Date.now()),
-        completedAt: t.completedAt ? new Date(t.completedAt) : undefined,
-      }));
+      parsed.tasks = parsed.tasks
+        .filter((t: any) => !isLegacyMockTask(t))
+        .map((t: any) => ({
+          ...t,
+          plannedDate: new Date(t.plannedDate || Date.now()),
+          originalDate: new Date(t.originalDate || Date.now()),
+          completedAt: t.completedAt ? new Date(t.completedAt) : undefined,
+        }));
     }
     if (parsed.applicationLogs) {
       parsed.applicationLogs = parsed.applicationLogs.map((l: any) => ({
@@ -372,28 +400,32 @@ export async function syncTasksFromServer(): Promise<Task[]> {
     const url = resolveApiUrl('/api/tasks');
     const res = await safeFetchJson<{ success: boolean; tasks: any[] }>(url, { method: 'GET' }, 6000);
     if (res.ok && res.data?.success && Array.isArray(res.data.tasks)) {
-      const serverTasks: Task[] = res.data.tasks.map((st: any) => ({
-        id: String(st.id),
-        userId: st.userId || 'demo-user-id',
-        fieldId: String(st.fieldId),
-        cropId: st.cropId || '',
-        type: st.type,
-        title: st.title,
-        description: st.description,
-        plannedDate: new Date(st.plannedDate),
-        originalDate: new Date(st.originalDate || st.plannedDate),
-        status: st.status || 'pending',
-        weatherReason: st.weatherReason,
-        notes: st.notes,
-        photoUris: st.photoUris || [],
-        isCustom: Boolean(st.isCustom),
-        source: st.source || (st.isCustom ? 'manual' : 'crop_plan'),
-        completedAt: st.completedAt ? new Date(st.completedAt) : undefined,
-      }));
+      const serverTasks: Task[] = res.data.tasks
+        .filter((st: any) => !isLegacyMockTask(st))
+        .map((st: any) => ({
+          id: String(st.id),
+          userId: st.userId || 'demo-user-id',
+          fieldId: String(st.fieldId),
+          cropId: st.cropId || '',
+          type: st.type,
+          title: st.title,
+          description: st.description,
+          plannedDate: new Date(st.plannedDate),
+          originalDate: new Date(st.originalDate || st.plannedDate),
+          status: st.status || 'pending',
+          weatherReason: st.weatherReason,
+          notes: st.notes,
+          photoUris: st.photoUris || [],
+          isCustom: Boolean(st.isCustom),
+          source: st.source || (st.isCustom ? 'manual' : 'crop_plan'),
+          completedAt: st.completedAt ? new Date(st.completedAt) : undefined,
+        }));
 
-      // Combine server tasks with any unsaved local tasks
+      // Combine server tasks with any unsaved local tasks (excluding mock tasks)
       const serverIds = new Set(serverTasks.map((t) => t.id));
-      const localOnlyTasks = demo.tasks.filter((lt) => !serverIds.has(lt.id));
+      const localOnlyTasks = demo.tasks
+        .filter((lt) => !isLegacyMockTask(lt))
+        .filter((lt) => !serverIds.has(lt.id));
 
       if (localOnlyTasks.length > 0) {
         // Upload local-only tasks to server so other browsers get them

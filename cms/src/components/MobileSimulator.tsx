@@ -1275,7 +1275,7 @@ export default function MobileSimulator({
                     )}
                     {calendarView === 'plan' && planCrop && (
                       <div className="space-y-2">
-                        <button type="button" onClick={() => { setCalendarView('list'); setPlanCrop(null) }} className="text-[11px] font-bold text-emerald-700">← Ekim kayıtlarına dön</button>
+                        <button type="button" onClick={() => { setCalendarView('list'); setPlanCrop(null) }} className="text-[11px] font-bold text-emerald-700 hover:underline">← Ekim kayıtlarına dön</button>
                         <div className="bg-gradient-to-br from-emerald-700 to-teal-800 text-white rounded-2xl p-3 space-y-2">
                           <p className="text-[10px] uppercase text-emerald-100 font-semibold">Ekim → Hasat planı</p>
                           <h4 className="text-base font-black">{planCrop.name}</h4>
@@ -1286,12 +1286,118 @@ export default function MobileSimulator({
                             ))}
                           </div>
                         </div>
-                        {[{ n: 1, title: 'Fide / dikim', tasks: ['Fide dikimi', 'Can suyu'] }, { n: 2, title: 'Vejetatif', tasks: ['Azotlu gübre', 'Damla sulama'] }, { n: 3, title: 'Çiçeklenme', tasks: ['Mildiyö koruma', 'Potasyum'] }, { n: 4, title: 'Hasat', tasks: ['Düzenli sulama', 'Olgun meyve toplama'] }].map((st) => (
-                          <div key={st.n} className="bg-white border border-slate-200 rounded-xl p-2.5">
-                            <p className="text-xs font-bold">{st.n}. {st.title}</p>
-                            <ul className="mt-1 space-y-1">{st.tasks.map((task) => (<li key={task} className="text-[11px] text-slate-600 flex items-center gap-1.5"><span className="w-3.5 h-3.5 rounded border border-slate-300 inline-block" />{task}</li>))}</ul>
-                          </div>
-                        ))}
+
+                        {/* Plan Stages & Tasks linked to real tasks */}
+                        {(() => {
+                          const stages = [
+                            { n: 1, title: 'Fide / Dikim Aşaması', taskNames: ['Fide dikimi', 'İlk can suyu', 'Toprak hazırlığı'] },
+                            { n: 2, title: 'Vejetatif Gelişim', taskNames: ['Azotlu taban gübresi', 'Damla sulama', 'Boğaz doldurma ve çapa', 'Koltuk alma ve ipe alma'] },
+                            { n: 3, title: 'Çiçeklenme & Koruma', taskNames: ['Mildiyö koruyucu fungisit', 'Kalsiyum ve potasyum besleme', 'Mahsul ve gençleştirme budaması', 'Zararlı kontrolü'] },
+                            { n: 4, title: 'Meyve Tutumu & Hasat', taskNames: ['Düzenli damla sulama', 'Olgun meyve hasadı', 'Hasat sonrası bakım'] },
+                          ]
+
+                          return stages.map((st) => (
+                            <div key={st.n} className="bg-white border border-slate-200 rounded-xl p-2.5 space-y-1.5">
+                              <p className="text-xs font-bold text-slate-800">{st.n}. {st.title}</p>
+                              <div className="space-y-1">
+                                {st.taskNames.map((taskName) => {
+                                  // Find matching real task from tasks list
+                                  const matchedTask = tasks.find(
+                                    (t) =>
+                                      t.title.toLowerCase().includes(taskName.toLowerCase()) ||
+                                      taskName.toLowerCase().includes(t.title.toLowerCase())
+                                  )
+                                  const status = matchedTask?.status || 'pending'
+                                  const isDone = status === 'completed'
+                                  const isSkipped = status === 'skipped'
+                                  const isDelayed = status === 'delayed'
+
+                                  return (
+                                    <div
+                                      key={taskName}
+                                      onClick={() => {
+                                        if (matchedTask) {
+                                          openTaskDetail(matchedTask)
+                                        }
+                                      }}
+                                      className={`flex items-center justify-between p-1.5 rounded-lg border text-[11px] transition ${
+                                        matchedTask ? 'cursor-pointer hover:border-emerald-300' : ''
+                                      } ${
+                                        isDone
+                                          ? 'bg-emerald-50/70 border-emerald-200'
+                                          : isSkipped
+                                          ? 'bg-slate-100/80 border-slate-200 opacity-80'
+                                          : isDelayed
+                                          ? 'bg-amber-50/70 border-amber-200'
+                                          : 'bg-slate-50 border-slate-100'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            if (matchedTask) {
+                                              toggleTaskStatus(matchedTask.id)
+                                            }
+                                          }}
+                                          className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 transition ${
+                                            isDone
+                                              ? 'bg-emerald-600 text-white'
+                                              : isSkipped
+                                              ? 'bg-slate-500 text-white'
+                                              : isDelayed
+                                              ? 'bg-amber-500 text-white'
+                                              : 'border border-slate-300 bg-white hover:border-emerald-500 text-slate-300'
+                                          }`}
+                                          title="Durumu değiştir"
+                                        >
+                                          {isDone ? '✓' : isSkipped ? '⏭️' : isDelayed ? '⏰' : '○'}
+                                        </button>
+                                        <span
+                                          className={`truncate ${
+                                            isDone
+                                              ? 'line-through text-emerald-800'
+                                              : isSkipped
+                                              ? 'line-through italic text-slate-500'
+                                              : isDelayed
+                                              ? 'font-bold text-amber-900'
+                                              : 'text-slate-700'
+                                          }`}
+                                        >
+                                          {taskName}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        {isDone && (
+                                          <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                                            ✓ Yapıldı
+                                          </span>
+                                        )}
+                                        {isSkipped && (
+                                          <span className="text-[9px] font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">
+                                            ⏭️ Atlandı
+                                          </span>
+                                        )}
+                                        {isDelayed && (
+                                          <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                                            ⏰ Ertelendi
+                                          </span>
+                                        )}
+                                        {!isDone && !isSkipped && !isDelayed && (
+                                          <span className="text-[9px] text-slate-400 font-medium">
+                                            Bekliyor
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))
+                        })()}
                       </div>
                     )}
                   </div>

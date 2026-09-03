@@ -205,9 +205,17 @@ function mergeCrops(api: CalCrop[]): CalCrop[] {
   return DEMO_CROPS
 }
 
+function normalizeStr(str: string): string {
+  return (str || '')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/[\s\-_.,/]+/g, ' ')
+    .trim()
+}
+
 export default function CropCalendar({
   crops: apiCrops,
   records,
+  tasks: globalTasks = [],
   onAddRecord,
   onDeleteRecord,
   onSelectRecord,
@@ -216,10 +224,11 @@ export default function CropCalendar({
 }: {
   crops: CalCrop[]
   records?: PlantingRecord[]
+  tasks?: any[]
   onAddRecord?: () => void
   onDeleteRecord?: (recordId: string) => void
   onSelectRecord?: (record: PlantingRecord) => void
-  onTaskToggle?: (recordId: string, taskId: string, done: boolean) => void
+  onTaskToggle?: (recordId: string, taskId: string, nextStatus: 'pending' | 'completed' | 'skipped' | 'delayed', taskTitle?: string) => void
   focus?: 'stages' | 'tasks' | 'done' | 'pick' | 'duration' | null
 }) {
   const crops = useMemo(() => mergeCrops(apiCrops), [apiCrops])
@@ -227,7 +236,7 @@ export default function CropCalendar({
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null)
   const [cropId, setCropId] = useState(crops[0]?.id || '')
   const [plantDate, setPlantDate] = useState(() => new Date().toISOString().slice(0, 10))
-  const [done, setDone] = useState<Record<string, boolean>>({})
+  const [done, setDone] = useState<Record<string, string | boolean>>({})
   const [openStage, setOpenStage] = useState<number | null>(0)
 
   // Sidebar focus değişince liste/detay; görev işaretlenince records güncellenir ama seçim KALIR
@@ -252,8 +261,7 @@ export default function CropCalendar({
   let totalDays = 0
   let harvestDate: Date
   let plantDateStr = plantDate
-  let taskDone = done
-  let allTaskIds: string[] = []
+  let taskDone: Record<string, any> = done
 
   if (isRecordMode && selectedRecord) {
     crop = crops.find((c) => String(c.id) === String(selectedRecord.cropTemplateId)) || crops[0]
@@ -262,19 +270,56 @@ export default function CropCalendar({
     plantDateStr = selectedRecord.plantingDate
     harvestDate = addDays(plantDateStr, totalDays)
     taskDone = selectedRecord.taskProgress || {}
-    allTaskIds = stages.flatMap((s, si) =>
-      getTasksArray(s.tasks).map((_, ti) => `${selectedRecord.cropTemplateId}-${si}-${ti}`),
-    )
   } else {
     crop = crops.find((c) => String(c.id) === String(cropId)) || crops[0]
     stages = crop?.stages || []
     totalDays = crop?.defaultDurationDays || Math.max(...stages.map((s) => s.dayOffset + s.durationDays), 1)
     harvestDate = addDays(plantDate, totalDays)
-    allTaskIds = stages.flatMap((s, si) => getTasksArray(s.tasks).map((_, ti) => `${crop?.id}-${si}-${ti}`))
   }
 
-  const doneCount = allTaskIds.filter((id) => taskDone[id]).length
-  const progress = allTaskIds.length ? Math.round((doneCount / allTaskIds.length) * 100) : 0
+  // Resolve true status of any stage task
+  const getTaskStatus = (titleTr: string, taskId: string): 'completed' | 'skipped' | 'delayed' | 'pending' => {
+    const norm = normalizeStr(titleTr)
+    
+    // 1. Check matching task in globalTasks
+    const matchedTask = (globalTasks || []).find((t: any) => {
+      if (selectedRecord && t.fieldId && selectedRecord.fieldId && t.fieldId !== selectedRecord.fieldId) {
+        return false
+      }
+      const tNorm = normalizeStr(t.title)
+      return tNorm === norm || tNorm.includes(norm) || norm.includes(tNorm)
+    })
+
+    if (matchedTask) {
+      if (matchedTask.status === 'completed') return 'completed'
+      if (matchedTask.status === 'skipped') return 'skipped'
+      if (matchedTask.status === 'delayed' || matchedTask.status === 'rescheduled') return 'delayed'
+      if (matchedTask.status === 'pending') return 'pending'
+    }
+
+    // 2. Fallback to taskProgress
+    const val = taskDone[taskId]
+    if (val === true || val === 'completed') return 'completed'
+    if (val === 'skipped') return 'skipped'
+    if (val === 'delayed' || val === 'rescheduled') return 'delayed'
+    return 'pending'
+  }
+
+  // Collect all stage tasks with their statuses
+  const allTasksWithStatus = stages.flatMap((s, si) =>
+    getTasksArray(s.tasks).map((t, ti) => {
+      const id = isRecordMode && selectedRecord
+        ? `${selectedRecord.cropTemplateId}-${si}-${ti}`
+        : `${crop?.id}-${si}-${ti}`
+      const status = getTaskStatus(t.titleTr || t.title, id)
+      return { id, title: t.titleTr || t.title, status }
+    })
+  )
+
+  const completedCount = allTasksWithStatus.filter((t) => t.status === 'completed').length
+  const skippedCount = allTasksWithStatus.filter((t) => t.status === 'skipped').length
+  const delayedCount = allTasksWithStatus.filter((t) => t.status === 'delayed').length
+  const progress = allTasksWithStatus.length ? Math.round((completedCount / allTasksWithStatus.length) * 100) : 0
   const todayOffset = Math.max(
     0,
     Math.floor((Date.now() - new Date(plantDateStr + 'T12:00:00').getTime()) / 86400000),
@@ -515,15 +560,19 @@ export default function CropCalendar({
               const end = addDays(plantDateStr, stage.dayOffset + stage.durationDays)
               const isCurrent = si === currentStageIdx
               const tasks = getTasksArray(stage.tasks)
-              const stageTaskIds = tasks.map((_, ti) =>
-                isRecordMode && selectedRecord
+              const stageTaskObjs = tasks.map((t, ti) => {
+                const id = isRecordMode && selectedRecord
                   ? `${selectedRecord.cropTemplateId}-${si}-${ti}`
-                  : `${crop?.id}-${si}-${ti}`,
-              )
-              const stageDone = stageTaskIds.filter((id) => taskDone[id]).length
+                  : `${crop?.id}-${si}-${ti}`
+                const status = getTaskStatus(t.titleTr || t.title, id)
+                return { task: t, id, status }
+              })
+              const stageDone = stageTaskObjs.filter((item) => item.status === 'completed').length
+              const stageSkipped = stageTaskObjs.filter((item) => item.status === 'skipped').length
+              const stageDelayed = stageTaskObjs.filter((item) => item.status === 'delayed').length
               const isOpen = openStage === si || focus === 'stages'
 
-              if (showDoneOnly && !stageTaskIds.some((id) => taskDone[id])) return null
+              if (showDoneOnly && stageDone === 0) return null
 
               return (
                 <div
@@ -535,7 +584,7 @@ export default function CropCalendar({
                   <button
                     type="button"
                     onClick={() => setOpenStage(openStage === si ? null : si)}
-                    className="w-full flex items-center gap-3 p-4 text-left hover:bg-slate-50/80"
+                    className="w-full flex items-center gap-3 p-4 text-left hover:bg-slate-50/80 transition"
                   >
                     <div
                       className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-black shrink-0"
@@ -557,62 +606,117 @@ export default function CropCalendar({
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-xs font-semibold text-slate-600">
-                        {stageDone}/{tasks.length} görev
+                      <p className="text-xs font-semibold text-slate-700">
+                        {stageDone}/{tasks.length} tamamlandı
                       </p>
+                      <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                        {stageSkipped > 0 && (
+                          <span className="text-[10px] text-slate-500 font-semibold">
+                            ⏭️ {stageSkipped} atlandı
+                          </span>
+                        )}
+                        {stageDelayed > 0 && (
+                          <span className="text-[10px] text-amber-600 font-semibold">
+                            ⏰ {stageDelayed} ertelendi
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </button>
 
                   {isOpen && !showDoneOnly && (
                     <div className="border-t border-slate-100 px-4 pb-4 pt-2 space-y-2">
-                      {tasks.map((task, ti) => {
-                        const id =
-                          isRecordMode && selectedRecord
-                            ? `${selectedRecord.cropTemplateId}-${si}-${ti}`
-                            : `${crop?.id}-${si}-${ti}`
+                      {stageTaskObjs.map(({ task, id, status }, ti) => {
                         const meta = TASK_LABEL[task.type] || TASK_LABEL.other
-                        const checked = !!taskDone[id]
+                        const isCompleted = status === 'completed'
+                        const isSkipped = status === 'skipped'
+                        const isDelayed = status === 'delayed'
+
                         return (
-                          <label
+                          <div
                             key={ti}
-                            className={`flex gap-3 items-start p-3 rounded-xl border cursor-pointer transition ${
-                              checked
-                                ? 'bg-emerald-50 border-emerald-200 opacity-80'
-                                : 'bg-slate-50 border-slate-100'
+                            className={`flex gap-3 items-start p-3 rounded-xl border transition ${
+                              isCompleted
+                                ? 'bg-emerald-50/80 border-emerald-300'
+                                : isSkipped
+                                ? 'bg-slate-100/90 border-slate-300 opacity-90'
+                                : isDelayed
+                                ? 'bg-amber-50/80 border-amber-300'
+                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100/60'
                             }`}
                           >
-                            <input
-                              type="checkbox"
-                              className="mt-1"
-                              checked={checked}
-                              onChange={(e) => {
-                                e.stopPropagation()
-                                const next = !checked
+                            {/* Status cycle button: pending -> completed -> skipped -> delayed -> pending */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next: 'pending' | 'completed' | 'skipped' | 'delayed' =
+                                  status === 'pending'
+                                    ? 'completed'
+                                    : status === 'completed'
+                                    ? 'skipped'
+                                    : status === 'skipped'
+                                    ? 'delayed'
+                                    : 'pending'
+
                                 if (isRecordMode && selectedRecord) {
-                                  onTaskToggle?.(selectedRecord.id, id, next)
+                                  onTaskToggle?.(selectedRecord.id, id, next, task.titleTr || task.title)
                                 } else {
                                   setDone((p) => ({ ...p, [id]: next }))
                                 }
                               }}
-                            />
+                              className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 transition shadow-2xs ${
+                                isCompleted
+                                  ? 'bg-emerald-600 text-white'
+                                  : isSkipped
+                                  ? 'bg-slate-600 text-white'
+                                  : isDelayed
+                                  ? 'bg-amber-500 text-white'
+                                  : 'border-2 border-slate-300 bg-white hover:border-emerald-500 text-slate-400'
+                              }`}
+                              title="Durumu değiştir (Tıkla: Tamamlandı ➔ Atlandı ➔ Ertelendi ➔ Bekliyor)"
+                            >
+                              {isCompleted ? '✓' : isSkipped ? '⏭️' : isDelayed ? '⏰' : '○'}
+                            </button>
+
                             <div className="flex-1 min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span
                                   className={`text-sm font-semibold ${
-                                    checked ? 'line-through text-slate-500' : 'text-slate-900'
+                                    isCompleted
+                                      ? 'line-through text-emerald-900'
+                                      : isSkipped
+                                      ? 'line-through italic text-slate-500'
+                                      : isDelayed
+                                      ? 'text-amber-900 font-bold'
+                                      : 'text-slate-900'
                                   }`}
                                 >
-                                  {task.titleTr}
+                                  {task.titleTr || task.title}
                                 </span>
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${meta.color}`}>
                                   {meta.label}
                                 </span>
+                                {isCompleted && (
+                                  <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                                    ✓ Tamamlandı
+                                  </span>
+                                )}
+                                {isSkipped && (
+                                  <span className="text-[10px] font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
+                                    ⏭️ Atlandı
+                                  </span>
+                                )}
+                                {isDelayed && (
+                                  <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                                    ⏰ Ertelendi
+                                  </span>
+                                )}
                               </div>
                               {task.description && (
                                 <p className="text-xs text-slate-500 mt-0.5">{task.description}</p>
                               )}
                             </div>
-                          </label>
+                          </div>
                         )
                       })}
                     </div>
