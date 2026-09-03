@@ -44,25 +44,6 @@ const headerBase = {
 };
 
 export default function RootLayout() {
-  React.useEffect(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location) {
-      const cleanUrl = () => {
-        try {
-          const url = new URL(window.location.href);
-          if (url.searchParams.has('__EXPO_ROUTER_key')) {
-            url.searchParams.delete('__EXPO_ROUTER_key');
-            const cleanSearch = url.searchParams.toString();
-            const newUrl = url.pathname + (cleanSearch ? `?${cleanSearch}` : '') + url.hash;
-            window.history.replaceState(window.history.state, '', newUrl);
-          }
-        } catch {}
-      };
-
-      cleanUrl();
-      const timeoutId = setTimeout(cleanUrl, 300);
-      return () => clearTimeout(timeoutId);
-    }
-  }, []);
 
   return (
     <RootErrorBoundary>
