@@ -6,7 +6,19 @@
 - Weather-adaptive cron automation and field safety verifications.
 
 ## Recent Architectural & Feature Fixes
-1. **Web <-> Mobile Planting Records Synchronization**:
+1. **Mobile Tasks & Calendar UX Reorganization (De-cluttering & Agenda Architecture)**:
+   - **Eliminated Duplicate Views**: Previously, both the "Görevler" (Tasks) tab and the "Takvim" (Calendar) tab listed all tasks vertically in an identical, cluttered manner.
+   - **Restructured Mobile Calendar (`calendar.tsx` & `MobileSimulator.tsx`)**: Transformed the calendar into a focused, date-driven agricultural agenda featuring:
+     - Interactive 7-day timeline strip with day-level task counter badges.
+     - Time-scope filter buttons: `[Gün]` (Day), `[Bu Hafta]` (This Week), `[Bu Ay]` (This Month), and `[Tümü]` (All).
+     - Clean agenda cards displaying operation icon, time, parcel name, and quick completion toggles.
+     - Direct CTA link to the comprehensive task management view.
+   - **Restructured Mobile Tasks View (`tasks.tsx` & `MobileSimulator.tsx`)**: Introduced dynamic grouping with a 3-mode segmented switcher:
+     - `🗓️ Zamana Göre (Timeline)`: Groups tasks into Delay/Weather alerts, Today/Upcoming, Future plans, and Completed.
+     - `📍 Tarlaya Göre (By Field)`: Organizes tasks parcel by parcel so field visits can be handled sequentially.
+     - `🏷️ İşleme Göre (By Type)`: Categorizes tasks into Spraying, Fertilizing, Irrigation, Planting, and Harvesting.
+     - Compact card layout with high visual density, clear type badges, status pills, and one-tap completion circles.
+2. **Web <-> Mobile Planting Records Synchronization**:
    - Web `DashboardView.tsx` now writes planting additions directly to `localStorage['eh_web_plantings']` and broadcasts `eh_fields_sync` custom events with `{ source: 'web', plantings }`.
    - `MobileSimulator.tsx` accepts `plantingRecords` as props and renders them seamlessly inside the Mobile Calendar view ("Ekim -> Hasat Planı") alongside field-level crops.
    - Mobile service layer (`/mobile/src/services/firebase.ts`) synchronizes `eh_web_plantings` into `targetDemo.crops` upon start and focus events.

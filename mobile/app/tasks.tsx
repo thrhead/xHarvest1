@@ -128,6 +128,7 @@ export default function TasksScreen() {
   } = useAppStore();
 
   const [filter, setFilter] = useState<Filter>('open');
+  const [viewMode, setViewMode] = useState<'timeline' | 'by_field' | 'by_type'>('timeline');
   const [selectedFieldId, setSelectedFieldId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdjustingWeather, setIsAdjustingWeather] = useState(false);
@@ -204,8 +205,95 @@ export default function TasksScreen() {
     });
   }, [tasks, filter, selectedFieldId, searchQuery, fields]);
 
-  // Group filtered tasks by urgency / timing
+  // Group filtered tasks based on viewMode
   const groupedTasks = useMemo(() => {
+    const sections: { title: string; count: number; data: Task[]; badgeColor: string }[] = [];
+
+    // 1. BY FIELD MODE
+    if (viewMode === 'by_field') {
+      const fieldMap = new Map<string, Task[]>();
+      filteredTasks.forEach((t) => {
+        const key = t.fieldId || 'other';
+        const list = fieldMap.get(key) || [];
+        list.push(t);
+        fieldMap.set(key, list);
+      });
+
+      // Sort fields so those with tasks come first
+      fields.forEach((f) => {
+        const tasksInField = fieldMap.get(f.id);
+        if (tasksInField && tasksInField.length > 0) {
+          const areaStr = f.areaHectare ? ` · ${(f.areaHectare * 10).toFixed(0)} da` : '';
+          sections.push({
+            title: `📍 ${f.name} (${f.cropName || 'Genel'}${areaStr})`,
+            count: tasksInField.length,
+            data: tasksInField.sort((a, b) => new Date(a.plannedDate).getTime() - new Date(b.plannedDate).getTime()),
+            badgeColor: '#059669',
+          });
+          fieldMap.delete(f.id);
+        }
+      });
+
+      // Any remaining tasks without specific field
+      if (fieldMap.size > 0) {
+        fieldMap.forEach((tasksInField) => {
+          if (tasksInField.length > 0) {
+            sections.push({
+              title: '📍 Diğer / Genel Araziler',
+              count: tasksInField.length,
+              data: tasksInField,
+              badgeColor: '#64748b',
+            });
+          }
+        });
+      }
+
+      return sections;
+    }
+
+    // 2. BY TYPE MODE
+    if (viewMode === 'by_type') {
+      const typeMap = new Map<string, Task[]>();
+      filteredTasks.forEach((t) => {
+        const key = t.type || 'other';
+        const list = typeMap.get(key) || [];
+        list.push(t);
+        typeMap.set(key, list);
+      });
+
+      const order: { key: TaskType; title: string; color: string }[] = [
+        { key: 'spraying', title: '🛡️ İlaçlama Faaliyetleri', color: '#9333ea' },
+        { key: 'fertilizing', title: '🧪 Gübreleme Faaliyetleri', color: '#d97706' },
+        { key: 'irrigation', title: '💧 Sulama İşlemleri', color: '#0284c7' },
+        { key: 'planting', title: '🌱 Ekim & Dikim', color: '#059669' },
+        { key: 'harvesting', title: '🌾 Hasat Faaliyetleri', color: '#ca8a04' },
+        { key: 'pruning', title: '✂️ Budama & Bakım', color: '#475569' },
+        { key: 'other', title: '📋 Diğer Tarla İşlemleri', color: '#64748b' },
+      ];
+
+      order.forEach((o) => {
+        // also map synonyms like fertilization -> fertilizing, pest_control -> spraying
+        const directTasks = typeMap.get(o.key) || [];
+        const synonymTasks = 
+          o.key === 'fertilizing' ? typeMap.get('fertilization' as any) || [] :
+          o.key === 'spraying' ? typeMap.get('pest_control' as any) || [] :
+          o.key === 'harvesting' ? typeMap.get('harvest' as any) || [] : [];
+        const allTypeTasks = [...directTasks, ...synonymTasks];
+
+        if (allTypeTasks.length > 0) {
+          sections.push({
+            title: o.title,
+            count: allTypeTasks.length,
+            data: allTypeTasks.sort((a, b) => new Date(a.plannedDate).getTime() - new Date(b.plannedDate).getTime()),
+            badgeColor: o.color,
+          });
+        }
+      });
+
+      return sections;
+    }
+
+    // 3. TIMELINE MODE (Default)
     const todayStr = new Date().toISOString().slice(0, 10);
 
     const delayed: Task[] = [];
@@ -235,8 +323,6 @@ export default function TasksScreen() {
       }
     });
 
-    const sections: { title: string; count: number; data: Task[]; badgeColor: string }[] = [];
-
     if (delayed.length > 0) {
       sections.push({
         title: '⚠️ Geciken & Hava Ertelenenleri',
@@ -248,7 +334,7 @@ export default function TasksScreen() {
 
     if (upcoming.length > 0) {
       sections.push({
-        title: '🟢 Bugünün Görevleri',
+        title: '🟢 Bugün & Yakın Tarih',
         count: upcoming.length,
         data: upcoming,
         badgeColor: '#10b981',
@@ -257,7 +343,7 @@ export default function TasksScreen() {
 
     if (future.length > 0) {
       sections.push({
-        title: '🗓️ Yaklaşan Görevler',
+        title: '🗓️ İleri Tarihli Planlar',
         count: future.length,
         data: future,
         badgeColor: '#6366f1',
@@ -274,7 +360,7 @@ export default function TasksScreen() {
     }
 
     return sections;
-  }, [filteredTasks]);
+  }, [filteredTasks, viewMode, fields]);
 
   const formatDateTr = (d: any) => {
     if (!d) return '';
@@ -410,110 +496,98 @@ export default function TasksScreen() {
     const isCompleted = item.status === 'completed';
     const isRescheduled = item.status === 'rescheduled';
 
+    const dateStr =
+      typeof item.plannedDate === 'string'
+        ? (item.plannedDate as string).slice(0, 10)
+        : item.plannedDate
+        ? new Date(item.plannedDate).toISOString().slice(0, 10)
+        : '';
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const isToday = dateStr === todayStr;
+    const isPast = dateStr && dateStr < todayStr && !isCompleted;
+
     return (
       <TouchableOpacity
         key={item.id}
         style={[
-          styles.taskCard,
-          isCompleted && styles.taskCardCompleted,
-          { borderLeftColor: config.border, borderLeftWidth: 4 },
+          styles.compactTaskCard,
+          isCompleted && styles.compactTaskCardCompleted,
+          isRescheduled && styles.compactTaskCardRescheduled,
         ]}
-        activeOpacity={0.82}
+        activeOpacity={0.85}
         onPress={() => router.push(`/task-detail?id=${item.id}`)}
       >
-        <View style={styles.cardHeader}>
-          <View style={styles.fieldTag}>
-            <Text style={styles.fieldTagText}>
+        {/* Left Color Accent & Type Icon */}
+        <View style={[styles.compactTypeIcon, { backgroundColor: config.bg, borderColor: config.border }]}>
+          <Text style={{ fontSize: 17 }}>{config.icon}</Text>
+        </View>
+
+        {/* Center Content */}
+        <View style={styles.compactMiddle}>
+          {/* Meta Tags Row */}
+          <View style={styles.compactMetaRow}>
+            <Text
+              style={[
+                styles.compactDateBadge,
+                isToday && styles.compactDateBadgeToday,
+                isPast && styles.compactDateBadgePast,
+                isRescheduled && styles.compactDateBadgeRescheduled,
+              ]}
+            >
+              {isRescheduled
+                ? '🌦️ Ertelendi'
+                : isToday
+                ? '🟢 Bugün'
+                : isPast
+                ? `⚠️ ${formatDateTr(item.plannedDate)}`
+                : `🗓️ ${formatDateTr(item.plannedDate)}`}
+            </Text>
+
+            <Text style={styles.compactFieldBadge}>
               📍 {fieldInfo.name} · {fieldInfo.cropName}
             </Text>
           </View>
-          <View
-            style={[
-              styles.statusBadge,
-              isCompleted
-                ? styles.statusCompleted
-                : isRescheduled
-                ? styles.statusRescheduled
-                : styles.statusPending,
-            ]}
+
+          {/* Title */}
+          <Text
+            style={[styles.compactTitle, isCompleted && styles.compactTitleCompleted]}
+            numberOfLines={2}
           >
-            <Text
-              style={[
-                styles.statusBadgeText,
-                isCompleted
-                  ? styles.statusCompletedText
-                  : isRescheduled
-                  ? styles.statusRescheduledText
-                  : styles.statusPendingText,
-              ]}
-            >
-              {isCompleted
-                ? '✓ Tamamlandı'
-                : isRescheduled
-                ? '🌦️ Ertelendi'
-                : item.status === 'skipped'
-                ? '⏭️ Atlandı'
-                : '⏳ Bekliyor'}
+            {item.title}
+          </Text>
+
+          {/* Weather Alert if any */}
+          {item.weatherReason ? (
+            <Text style={styles.compactWeatherAlert} numberOfLines={1}>
+              ⚠️ {item.weatherReason}
             </Text>
-          </View>
+          ) : null}
         </View>
 
-        <View style={styles.cardBody}>
-          <View
-            style={[styles.typeIconBox, { backgroundColor: config.bg, borderColor: config.border }]}
-          >
-            <Text style={styles.typeIconText}>{config.icon}</Text>
-          </View>
-          <View style={styles.cardInfo}>
-            <Text
-              style={[styles.taskTitle, isCompleted && styles.taskTitleCompleted]}
-              numberOfLines={2}
-            >
-              {item.title}
-            </Text>
-            <View style={styles.metaRow}>
-              <Text style={styles.dateLabel}>🗓️ {formatDateTr(item.plannedDate)}</Text>
-              <Text style={styles.typeLabel}>· {config.label}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Weather Alert or Reschedule Banner */}
-        {item.weatherReason ? (
-          <View style={styles.weatherBanner}>
-            <Text style={styles.weatherBannerIcon}>🌤️</Text>
-            <Text style={styles.weatherBannerText}>{item.weatherReason}</Text>
-          </View>
-        ) : null}
-
-        {/* Action Controls */}
-        <View style={styles.cardFooter}>
+        {/* Right Actions: Complete circle & Delete */}
+        <View style={styles.compactRightActions}>
           <TouchableOpacity
-            style={styles.detailBtn}
-            onPress={() => router.push(`/task-detail?id=${item.id}`)}
+            style={[
+              styles.compactCheckCircle,
+              isCompleted ? styles.compactCheckCircleDone : styles.compactCheckCirclePending,
+            ]}
+            onPress={() => onComplete(item)}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={styles.detailBtnText}>Detay & Saha Notu →</Text>
+            <Text style={[styles.compactCheckIcon, isCompleted && styles.compactCheckIconDone]}>
+              {isCompleted ? '✓' : '○'}
+            </Text>
           </TouchableOpacity>
 
-          <View style={styles.actionBtnGroup}>
-            {!isCompleted && (
-              <TouchableOpacity
-                style={styles.quickCompleteBtn}
-                onPress={() => onComplete(item)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.quickCompleteText}>✓ Tamamla</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={styles.quickDeleteBtn}
-              onPress={() => onDelete(item)}
-              activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.quickDeleteText}>🗑️</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.compactDeleteBtn}
+            onPress={() => onDelete(item)}
+            activeOpacity={0.6}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={{ fontSize: 13, opacity: 0.4 }}>🗑️</Text>
+          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
@@ -567,6 +641,37 @@ export default function TasksScreen() {
             <Text style={styles.addBtnText}>+ Görev</Text>
           </TouchableOpacity>
         </View>
+      </View>
+
+      {/* View Mode Segment Switcher: Timeline | By Field | By Type */}
+      <View style={styles.viewModeContainer}>
+        <TouchableOpacity
+          style={[styles.viewModeBtn, viewMode === 'timeline' && styles.viewModeBtnActive]}
+          onPress={() => setViewMode('timeline')}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.viewModeBtnText, viewMode === 'timeline' && styles.viewModeBtnTextActive]}>
+            🗓️ Zamana Göre
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.viewModeBtn, viewMode === 'by_field' && styles.viewModeBtnActive]}
+          onPress={() => setViewMode('by_field')}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.viewModeBtnText, viewMode === 'by_field' && styles.viewModeBtnTextActive]}>
+            📍 Tarlaya Göre
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.viewModeBtn, viewMode === 'by_type' && styles.viewModeBtnActive]}
+          onPress={() => setViewMode('by_type')}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.viewModeBtnText, viewMode === 'by_type' && styles.viewModeBtnTextActive]}>
+            🏷️ İşleme Göre
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* KPI Stats Bar */}
@@ -904,6 +1009,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  viewModeContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f5f9',
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 4,
+    borderRadius: 10,
+    padding: 3,
+    gap: 4,
+  },
+  viewModeBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+  },
+  viewModeBtnActive: {
+    backgroundColor: '#064e3b',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  viewModeBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  viewModeBtnTextActive: {
+    color: '#ffffff',
+    fontWeight: '800',
+  },
   weatherSyncBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1125,6 +1264,121 @@ const styles = StyleSheet.create({
   },
   sectionCardsWrapper: {
     gap: 10,
+  },
+
+  // Compact Task Card Styles
+  compactTaskCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 10,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.03,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 3,
+  },
+  compactTaskCardCompleted: {
+    backgroundColor: '#f8fafc',
+    opacity: 0.65,
+    borderColor: '#e2e8f0',
+  },
+  compactTaskCardRescheduled: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fde68a',
+  },
+  compactTypeIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  compactMiddle: {
+    flex: 1,
+  },
+  compactMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 3,
+    flexWrap: 'wrap',
+  },
+  compactDateBadge: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  compactDateBadgeToday: {
+    color: '#059669',
+    fontWeight: '800',
+  },
+  compactDateBadgePast: {
+    color: '#dc2626',
+    fontWeight: '800',
+  },
+  compactDateBadgeRescheduled: {
+    color: '#b45309',
+    fontWeight: '800',
+  },
+  compactFieldBadge: {
+    fontSize: 10,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  compactTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0f172a',
+    lineHeight: 18,
+  },
+  compactTitleCompleted: {
+    textDecorationLine: 'line-through',
+    color: '#94a3b8',
+  },
+  compactWeatherAlert: {
+    fontSize: 10,
+    color: '#b45309',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  compactRightActions: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginLeft: 2,
+  },
+  compactCheckCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+  },
+  compactCheckCirclePending: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+  },
+  compactCheckCircleDone: {
+    borderColor: '#10b981',
+    backgroundColor: '#10b981',
+  },
+  compactCheckIcon: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#cbd5e1',
+  },
+  compactCheckIconDone: {
+    color: '#ffffff',
+  },
+  compactDeleteBtn: {
+    padding: 2,
   },
 
   // Task Card

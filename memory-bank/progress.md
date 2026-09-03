@@ -13,6 +13,7 @@
 - [x] Open-Meteo weather adjustment service logic & `/api/cron/weather-adjust` route for cron-job.org with `CRON_SECRET` validation.
 - [x] Cross-platform Field Synchronization: Web dashboard and mobile simulator share identical parcel polygon boundaries and area data.
 - [x] Bi-directional Planting Records Sync: Creating a planting record in the web dashboard instantly syncs to the mobile calendar and simulator via `eh_web_plantings` and `eh_fields_sync`.
+- [x] Mobile Tasks & Calendar UX Overhaul: Eliminated duplicate task lists between the Tasks and Calendar views; built an interactive 7-day timeline agenda in the Calendar view and a dynamic 3-mode segmented switcher (`Zamana Göre`, `Tarlaya Göre`, `İşleme Göre`) in the Tasks view with compact, high-density cards.
 - [x] Mobile Simulator Task-to-Web Log Dispatch: Tasks added in `MobileSimulator.tsx` (spraying/fertilizing) automatically create live records in the Web Portal's `webRecords`.
 - [x] Clean State Model: Removed synthetic hardcoded tasks and logs, allowing user-driven operations from a fresh starting point.
 - [x] Event-Driven Architecture: Eliminated 5-second interval polling in favor of native `focus`, `storage`, and `eh_fields_sync` event listeners.

@@ -138,6 +138,9 @@ export default function MobileSimulator({
   const [activeTab, setActiveTab] = useState<'home' | 'tasks' | 'records' | 'map' | 'calendar' | 'weather'>('home')
   const [taskFilter, setTaskFilter] = useState<'all' | 'spraying' | 'fertilizing' | 'irrigation' | 'planting' | 'harvesting'>('all')
   const [taskStatusFilter, setTaskStatusFilter] = useState<'open' | 'all' | 'pending' | 'delayed' | 'completed'>('open')
+  const [taskViewMode, setTaskViewMode] = useState<'timeline' | 'by_field' | 'by_type'>('timeline')
+  const [calendarTimeScope, setCalendarTimeScope] = useState<'day' | 'week' | 'month' | 'all'>('week')
+  const [calendarSelectedDate, setCalendarSelectedDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
   const [taskSearchQuery, setTaskSearchQuery] = useState('')
   const [taskSelectedField, setTaskSelectedField] = useState('all')
   const [recordFilter, setRecordFilter] = useState<'all' | 'spraying' | 'fertilizing'>('all')
@@ -421,18 +424,62 @@ export default function MobileSimulator({
 
                 {/* TASKS */}
                 {activeTab === 'tasks' && (
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="font-bold text-sm text-slate-900">Tarımsal Görevler</h4>
-                        <p className="text-[10px] text-slate-500">{tasks.filter((t) => t.status !== 'completed').length} bekleyen işlem</p>
+                        <h4 className="font-bold text-sm text-slate-900">Görev Yönetimi</h4>
+                        <p className="text-[10px] text-slate-500 font-medium">
+                          {tasks.filter((t) => t.status !== 'completed').length} açık işlem · {fields.length} tarla
+                        </p>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <button type="button" onClick={handleSimulateWeatherCheck} className="text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 px-2 py-1 rounded-lg font-bold flex items-center gap-1">
-                          <span>🌤️</span> Hava Kontrolü
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleSimulateWeatherCheck}
+                          className="flex items-center gap-1 text-[10px] bg-sky-50 text-sky-700 font-bold px-2 py-1 rounded-lg border border-sky-200 hover:bg-sky-100"
+                        >
+                          <span>🌤️</span>
+                          <span>Hava Kontrolü</span>
                         </button>
-                        <button type="button" onClick={() => setShowAddTaskModal(true)} className="text-xs bg-emerald-700 text-white px-2 py-1 rounded-lg font-semibold">+ Görev</button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddTaskModal(true)}
+                          className="text-xs bg-emerald-700 text-white px-2.5 py-1 rounded-lg font-bold hover:bg-emerald-800"
+                        >
+                          + Görev
+                        </button>
                       </div>
+                    </div>
+
+                    {/* View Mode Switcher: Zamana Göre | Tarlaya Göre | İşleme Göre */}
+                    <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setTaskViewMode('timeline')}
+                        className={`flex-1 py-1 text-center text-[10px] font-bold rounded-lg transition ${
+                          taskViewMode === 'timeline' ? 'bg-emerald-800 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        🗓️ Zamana Göre
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTaskViewMode('by_field')}
+                        className={`flex-1 py-1 text-center text-[10px] font-bold rounded-lg transition ${
+                          taskViewMode === 'by_field' ? 'bg-emerald-800 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        📍 Tarlaya Göre
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTaskViewMode('by_type')}
+                        className={`flex-1 py-1 text-center text-[10px] font-bold rounded-lg transition ${
+                          taskViewMode === 'by_type' ? 'bg-emerald-800 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        🏷️ İşleme Göre
+                      </button>
                     </div>
 
                     {/* KPI Quick Filter Bar */}
@@ -440,7 +487,7 @@ export default function MobileSimulator({
                       <button
                         type="button"
                         onClick={() => setTaskStatusFilter(taskStatusFilter === 'pending' ? 'open' : 'pending')}
-                        className={`p-2 rounded-xl border text-center transition ${taskStatusFilter === 'pending' ? 'bg-emerald-50 border-emerald-400' : 'bg-white border-slate-200'}`}
+                        className={`p-1.5 rounded-xl border text-center transition ${taskStatusFilter === 'pending' ? 'bg-emerald-50 border-emerald-400' : 'bg-white border-slate-200'}`}
                       >
                         <div className="text-xs font-black text-slate-900">{tasks.filter((t) => t.status === 'pending').length}</div>
                         <div className="text-[9px] font-bold text-slate-500">⏳ Bekleyen</div>
@@ -448,7 +495,7 @@ export default function MobileSimulator({
                       <button
                         type="button"
                         onClick={() => setTaskStatusFilter(taskStatusFilter === 'delayed' ? 'open' : 'delayed')}
-                        className={`p-2 rounded-xl border text-center transition ${taskStatusFilter === 'delayed' ? 'bg-amber-50 border-amber-400' : 'bg-white border-slate-200'}`}
+                        className={`p-1.5 rounded-xl border text-center transition ${taskStatusFilter === 'delayed' ? 'bg-amber-50 border-amber-400' : 'bg-white border-slate-200'}`}
                       >
                         <div className="text-xs font-black text-amber-600">{tasks.filter((t) => t.status === 'delayed').length}</div>
                         <div className="text-[9px] font-bold text-amber-700">🌦️ Ertelenen</div>
@@ -456,7 +503,7 @@ export default function MobileSimulator({
                       <button
                         type="button"
                         onClick={() => setTaskStatusFilter(taskStatusFilter === 'completed' ? 'open' : 'completed')}
-                        className={`p-2 rounded-xl border text-center transition ${taskStatusFilter === 'completed' ? 'bg-emerald-50 border-emerald-400' : 'bg-white border-slate-200'}`}
+                        className={`p-1.5 rounded-xl border text-center transition ${taskStatusFilter === 'completed' ? 'bg-emerald-50 border-emerald-400' : 'bg-white border-slate-200'}`}
                       >
                         <div className="text-xs font-black text-emerald-700">{tasks.filter((t) => t.status === 'completed').length}</div>
                         <div className="text-[9px] font-bold text-emerald-700">✅ Yapılan</div>
@@ -490,7 +537,7 @@ export default function MobileSimulator({
                           key={id}
                           type="button"
                           onClick={() => setTaskStatusFilter(id)}
-                          className={`px-2.5 py-1 rounded-full whitespace-nowrap font-bold text-[10px] transition ${
+                          className={`px-2.5 py-0.5 rounded-full whitespace-nowrap font-bold text-[10px] transition ${
                             taskStatusFilter === id ? 'bg-emerald-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                           }`}
                         >
@@ -499,125 +546,172 @@ export default function MobileSimulator({
                       ))}
                     </div>
 
-                    {/* Task List */}
-                    <div className="space-y-2">
-                      {tasks
-                        .filter((t) => {
-                          if (taskStatusFilter === 'open' && t.status === 'completed') return false
-                          if (taskStatusFilter !== 'open' && taskStatusFilter !== 'all' && t.status !== taskStatusFilter) return false
-                          if (taskFilter !== 'all' && t.type !== taskFilter) return false
-                          if (taskSearchQuery.trim()) {
-                            const q = taskSearchQuery.toLowerCase()
-                            return (
-                              t.title.toLowerCase().includes(q) ||
-                              t.fieldName.toLowerCase().includes(q) ||
-                              t.cropName.toLowerCase().includes(q) ||
-                              (t.productName && t.productName.toLowerCase().includes(q))
-                            )
-                          }
-                          return true
-                        })
-                        .map((t) => {
-                          const isDone = t.status === 'completed'
-                          const isDelayed = t.status === 'delayed'
-                          const typeBorder =
-                            t.type === 'fertilizing'
-                              ? '#f59e0b'
-                              : t.type === 'spraying'
-                              ? '#a855f7'
-                              : t.type === 'irrigation'
-                              ? '#0ea5e9'
-                              : t.type === 'planting'
-                              ? '#10b981'
-                              : '#eab308'
-
-                          return (
-                            <div
-                              key={t.id}
-                              onClick={() => openTaskDetail(t)}
-                              style={{ borderLeftColor: typeBorder, borderLeftWidth: '4px' }}
-                              className={`p-3 rounded-xl border cursor-pointer transition shadow-2xs ${
-                                isDone
-                                  ? 'bg-slate-50/80 border-slate-200 opacity-75'
-                                  : isDelayed
-                                  ? 'bg-amber-50/60 border-amber-200'
-                                  : 'bg-white border-slate-200 hover:border-emerald-300'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between gap-1">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="text-[9px] bg-slate-100 text-slate-700 font-bold px-1.5 py-0.5 rounded">
-                                    📍 {t.fieldName}
-                                  </span>
-                                  <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
-                                    🌱 {t.cropName}
-                                  </span>
-                                </div>
-                                <span
-                                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                                    isDone
-                                      ? 'bg-emerald-100 text-emerald-800'
-                                      : isDelayed
-                                      ? 'bg-amber-100 text-amber-800'
-                                      : 'bg-slate-100 text-slate-600'
-                                  }`}
-                                >
-                                  {isDone ? '✓ Yapıldı' : isDelayed ? '🌦️ Ertelendi' : '⏳ Bekliyor'}
-                                </span>
-                              </div>
-
-                              <h5 className={`text-xs font-bold mt-1.5 ${isDone ? 'line-through text-slate-400' : 'text-slate-900'}`}>
-                                {t.title}
-                              </h5>
-
-                              {t.productName && (
-                                <p className="text-[10px] text-emerald-800 mt-0.5 font-medium">
-                                  💊 {t.productName} {t.dosage && `(${t.dosage})`}
-                                </p>
-                              )}
-
-                              {t.weatherReason && (
-                                <div className="bg-amber-100/60 border border-amber-200 rounded-md p-1 mt-1 text-[10px] text-amber-900 font-semibold flex items-center gap-1">
-                                  <span>🌤️</span>
-                                  <span>{t.weatherReason}</span>
-                                </div>
-                              )}
-
-                              <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-100 text-[10px]">
-                                <span className="text-slate-500 font-medium">🗓️ {t.date}</span>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      toggleTaskStatus(t.id)
-                                    }}
-                                    className={`px-2 py-0.5 rounded-md font-bold text-[10px] transition ${
-                                      isDone
-                                        ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                                        : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
-                                    }`}
-                                  >
-                                    {isDone ? 'Geri Al' : '✓ Tamamla'}
-                                  </button>
-                                  <span className="text-emerald-700 font-bold hover:underline">Detay →</span>
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        })}
-
-                      {tasks.filter((t) => {
+                    {/* Tasks Grouped & Compact List */}
+                    {(() => {
+                      const filtered = tasks.filter((t) => {
                         if (taskStatusFilter === 'open' && t.status === 'completed') return false
                         if (taskStatusFilter !== 'open' && taskStatusFilter !== 'all' && t.status !== taskStatusFilter) return false
                         if (taskFilter !== 'all' && t.type !== taskFilter) return false
+                        if (taskSearchQuery.trim()) {
+                          const q = taskSearchQuery.toLowerCase()
+                          return (
+                            t.title.toLowerCase().includes(q) ||
+                            t.fieldName.toLowerCase().includes(q) ||
+                            t.cropName.toLowerCase().includes(q) ||
+                            (t.productName && t.productName.toLowerCase().includes(q))
+                          )
+                        }
                         return true
-                      }).length === 0 && (
-                        <div className="p-6 text-center text-slate-400 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                          Seçili filtreye uygun görev bulunamadı.
+                      })
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="p-6 text-center text-slate-400 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                            Seçili filtreye uygun görev bulunamadı.
+                          </div>
+                        )
+                      }
+
+                      type TaskSection = { title: string; count: number; items: TaskItem[]; color: string }
+                      let sections: TaskSection[] = []
+
+                      if (taskViewMode === 'by_field') {
+                        const fieldMap: Record<string, TaskItem[]> = {}
+                        filtered.forEach((t) => {
+                          const key = t.fieldName || 'Genel Arazi'
+                          if (!fieldMap[key]) fieldMap[key] = []
+                          fieldMap[key].push(t)
+                        })
+                        sections = Object.keys(fieldMap).map((fieldName) => ({
+                          title: `📍 ${fieldName}`,
+                          count: fieldMap[fieldName].length,
+                          items: fieldMap[fieldName].sort((a, b) => a.date.localeCompare(b.date)),
+                          color: '#059669',
+                        }))
+                      } else if (taskViewMode === 'by_type') {
+                        const typeMap: Record<string, TaskItem[]> = {}
+                        filtered.forEach((t) => {
+                          const key = t.type || 'other'
+                          if (!typeMap[key]) typeMap[key] = []
+                          typeMap[key].push(t)
+                        })
+                        const typeLabels: Record<string, { label: string; color: string }> = {
+                          spraying: { label: '🛡️ İlaçlama Faaliyetleri', color: '#9333ea' },
+                          fertilizing: { label: '🧪 Gübreleme Faaliyetleri', color: '#d97706' },
+                          irrigation: { label: '💧 Sulama İşlemleri', color: '#0284c7' },
+                          planting: { label: '🌱 Ekim & Dikim', color: '#059669' },
+                          harvesting: { label: '🌾 Hasat Faaliyetleri', color: '#ca8a04' },
+                        }
+                        sections = Object.keys(typeMap).map((k) => ({
+                          title: typeLabels[k]?.label || '📋 Diğer Tarla İşlemleri',
+                          count: typeMap[k].length,
+                          items: typeMap[k].sort((a, b) => a.date.localeCompare(b.date)),
+                          color: typeLabels[k]?.color || '#475569',
+                        }))
+                      } else {
+                        // Timeline Mode
+                        const todayStr = new Date().toISOString().slice(0, 10)
+                        const delayedList = filtered.filter((t) => t.status === 'delayed' || (t.date < todayStr && t.status !== 'completed'))
+                        const todayList = filtered.filter((t) => t.date === todayStr && t.status !== 'completed' && t.status !== 'delayed')
+                        const futureList = filtered.filter((t) => t.date > todayStr && t.status !== 'completed' && t.status !== 'delayed')
+                        const completedList = filtered.filter((t) => t.status === 'completed')
+
+                        if (delayedList.length > 0) sections.push({ title: '⚠️ Geciken & Hava Ertelenenleri', count: delayedList.length, items: delayedList, color: '#f59e0b' })
+                        if (todayList.length > 0) sections.push({ title: '🟢 Bugün & Yakın Tarih', count: todayList.length, items: todayList, color: '#10b981' })
+                        if (futureList.length > 0) sections.push({ title: '🗓️ İleri Tarihli Planlar', count: futureList.length, items: futureList, color: '#6366f1' })
+                        if (completedList.length > 0) sections.push({ title: '✅ Tamamlanan / Arşiv', count: completedList.length, items: completedList, color: '#059669' })
+                      }
+
+                      return (
+                        <div className="space-y-3">
+                          {sections.map((sec) => (
+                            <div key={sec.title} className="space-y-1.5">
+                              <div className="flex items-center justify-between px-1">
+                                <span className="text-[11px] font-extrabold text-slate-800">{sec.title}</span>
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full" style={{ backgroundColor: `${sec.color}20`, color: sec.color }}>
+                                  {sec.count} işlem
+                                </span>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                {sec.items.map((t) => {
+                                  const isDone = t.status === 'completed'
+                                  const isDelayed = t.status === 'delayed'
+                                  const typeIcon = t.type === 'fertilizing' ? '🧪' : t.type === 'spraying' ? '🛡️' : t.type === 'irrigation' ? '💧' : t.type === 'planting' ? '🌱' : '🌾'
+                                  const typeColor = t.type === 'fertilizing' ? '#d97706' : t.type === 'spraying' ? '#9333ea' : t.type === 'irrigation' ? '#0284c7' : '#059669'
+
+                                  return (
+                                    <div
+                                      key={t.id}
+                                      onClick={() => openTaskDetail(t)}
+                                      className={`p-2.5 rounded-xl border cursor-pointer transition flex items-center gap-2.5 ${
+                                        isDone
+                                          ? 'bg-slate-50/70 border-slate-200 opacity-70'
+                                          : isDelayed
+                                          ? 'bg-amber-50/70 border-amber-200'
+                                          : 'bg-white border-slate-200 hover:border-emerald-300 shadow-2xs'
+                                      }`}
+                                    >
+                                      {/* Type Icon Badge */}
+                                      <div
+                                        className="w-8 h-8 rounded-lg flex items-center justify-center text-sm shrink-0 border"
+                                        style={{ backgroundColor: `${typeColor}15`, borderColor: `${typeColor}40` }}
+                                      >
+                                        {typeIcon}
+                                      </div>
+
+                                      {/* Main Task Info */}
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="text-[9px] text-slate-500 font-semibold">
+                                            🗓️ {t.date}
+                                          </span>
+                                          <span className="text-[9px] bg-slate-100 text-slate-700 font-bold px-1.5 py-0.2 rounded">
+                                            📍 {t.fieldName} · {t.cropName}
+                                          </span>
+                                          {isDelayed && (
+                                            <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1 rounded">
+                                              🌦️ Ertelendi
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <h5 className={`text-xs font-bold leading-tight mt-0.5 truncate ${isDone ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                                          {t.title}
+                                        </h5>
+
+                                        {t.weatherReason && (
+                                          <div className="text-[9px] text-amber-800 font-semibold truncate mt-0.5">
+                                            ⚠️ {t.weatherReason}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Quick Check Toggle */}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          toggleTaskStatus(t.id)
+                                        }}
+                                        className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition ${
+                                          isDone
+                                            ? 'bg-emerald-600 text-white shadow-2xs'
+                                            : 'border-2 border-slate-300 text-transparent hover:border-emerald-500 bg-white'
+                                        }`}
+                                        title={isDone ? 'Tamamlandı (Geri al)' : 'Tamamla'}
+                                      >
+                                        ✓
+                                      </button>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      )}
-                    </div>
+                      )
+                    })()}
                   </div>
                 )}
 
@@ -819,23 +913,149 @@ export default function MobileSimulator({
                             Henüz ekim kaydı yok.
                           </div>
                         )}
-                        <div className="bg-white p-3 rounded-2xl border border-slate-200 space-y-2">
-                          <div className="flex justify-between pb-1 border-b border-slate-100">
-                            <span className="text-xs font-bold text-slate-800">Görev listesi</span>
-                            <span className="text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full">{tasks.length} faaliyet</span>
-                          </div>
-                          {tasks.slice().sort((a, b) => a.date.localeCompare(b.date)).map((t) => (
-                            <div key={t.id} className="flex justify-between gap-2 p-2 bg-slate-50 rounded-xl">
-                              <div>
-                                <p className="text-[10px] text-slate-500">🗓️ {t.date} · <b>{t.cropName}</b></p>
-                                <p className={`text-xs font-bold ${t.status === 'completed' ? 'line-through text-slate-400' : 'text-slate-900'}`}>{t.title}</p>
-                                <p className="text-[10px] text-slate-500">📍 {t.fieldName}</p>
-                              </div>
-                              <button type="button" onClick={() => toggleTaskStatus(t.id)} className={`text-[10px] font-bold px-2 py-1 rounded-md shrink-0 ${t.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-white border border-slate-200'}`}>
-                                {t.status === 'completed' ? '✓ Yapıldı' : 'İşaretle'}
-                              </button>
+                        {/* Tarih Odaklı Ajanda & Çizelge */}
+                        <div className="bg-white p-3 rounded-2xl border border-slate-200 space-y-2.5">
+                          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                            <div>
+                              <span className="text-xs font-bold text-slate-800">📅 Takvim Ajandası</span>
+                              <p className="text-[9px] text-slate-500">Gün ve haftalık faaliyet çizelgesi</p>
                             </div>
-                          ))}
+                            {/* Scope Buttons */}
+                            <div className="flex bg-slate-100 p-0.5 rounded-lg gap-0.5">
+                              {(['day', 'week', 'month', 'all'] as const).map((sc) => (
+                                <button
+                                  key={sc}
+                                  type="button"
+                                  onClick={() => setCalendarTimeScope(sc)}
+                                  className={`px-1.5 py-0.5 text-[9px] font-bold rounded-md transition ${
+                                    calendarTimeScope === sc ? 'bg-emerald-700 text-white' : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  {sc === 'day' ? 'Gün' : sc === 'week' ? 'Hafta' : sc === 'month' ? 'Ay' : 'Tümü'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 7-Day Timeline Strip */}
+                          <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar">
+                            {Array.from({ length: 7 }).map((_, i) => {
+                              const d = new Date()
+                              d.setDate(d.getDate() + i)
+                              const dStr = d.toISOString().slice(0, 10)
+                              const isSelected = calendarSelectedDate === dStr
+                              const dayName = d.toLocaleDateString('tr-TR', { weekday: 'short' })
+                              const dayNum = d.getDate()
+                              const dayTaskCount = tasks.filter((t) => t.date === dStr).length
+
+                              return (
+                                <button
+                                  key={dStr}
+                                  type="button"
+                                  onClick={() => {
+                                    setCalendarSelectedDate(dStr)
+                                    setCalendarTimeScope('day')
+                                  }}
+                                  className={`flex-1 min-w-[36px] py-1.5 px-1 rounded-xl flex flex-col items-center justify-center transition border ${
+                                    isSelected
+                                      ? 'bg-emerald-800 text-white border-emerald-800 shadow-2xs'
+                                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  <span className="text-[8px] uppercase font-bold opacity-80">{dayName}</span>
+                                  <span className="text-xs font-black my-0.5">{dayNum}</span>
+                                  {dayTaskCount > 0 ? (
+                                    <span
+                                      className={`text-[8px] font-extrabold px-1 rounded-full ${
+                                        isSelected ? 'bg-white text-emerald-900' : 'bg-emerald-100 text-emerald-800'
+                                      }`}
+                                    >
+                                      {dayTaskCount}
+                                    </span>
+                                  ) : (
+                                    <span className="w-1 h-1 rounded-full bg-slate-300 my-0.5" />
+                                  )}
+                                </button>
+                              )
+                            })}
+                          </div>
+
+                          {/* Scoped Agenda Task List */}
+                          {(() => {
+                            const today = new Date().toISOString().slice(0, 10)
+                            const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
+                            const nextMonth = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
+
+                            const scopedTasks = tasks
+                              .filter((t) => {
+                                if (calendarTimeScope === 'day') return t.date === calendarSelectedDate
+                                if (calendarTimeScope === 'week') return t.date >= today && t.date <= nextWeek
+                                if (calendarTimeScope === 'month') return t.date >= today && t.date <= nextMonth
+                                return true
+                              })
+                              .sort((a, b) => a.date.localeCompare(b.date))
+
+                            if (scopedTasks.length === 0) {
+                              return (
+                                <div className="p-4 text-center text-slate-400 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                  🌿 Seçili tarihte planlı tarımsal işlem bulunmuyor.
+                                </div>
+                              )
+                            }
+
+                            return (
+                              <div className="space-y-1.5">
+                                {scopedTasks.map((t) => {
+                                  const isDone = t.status === 'completed'
+                                  const typeIcon = t.type === 'fertilizing' ? '🧪' : t.type === 'spraying' ? '🛡️' : t.type === 'irrigation' ? '💧' : t.type === 'planting' ? '🌱' : '🌾'
+
+                                  return (
+                                    <div
+                                      key={t.id}
+                                      onClick={() => openTaskDetail(t)}
+                                      className={`flex items-center justify-between gap-2 p-2 rounded-xl border transition cursor-pointer ${
+                                        isDone ? 'bg-slate-50/70 border-slate-200 opacity-70' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <span className="text-sm shrink-0">{typeIcon}</span>
+                                        <div className="min-w-0">
+                                          <p className={`text-xs font-bold truncate ${isDone ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                                            {t.title}
+                                          </p>
+                                          <p className="text-[9px] text-slate-500 font-medium truncate">
+                                            🗓️ {t.date} · 📍 {t.fieldName}
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          toggleTaskStatus(t.id)
+                                        }}
+                                        className={`text-[9px] font-bold px-2 py-0.5 rounded-md shrink-0 transition ${
+                                          isDone ? 'bg-emerald-100 text-emerald-800' : 'bg-white border border-slate-200 hover:bg-emerald-50 text-slate-700'
+                                        }`}
+                                      >
+                                        {isDone ? '✓ Yapıldı' : 'İşaretle'}
+                                      </button>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )
+                          })()}
+
+                          {/* Jump to Full Tasks Button */}
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('tasks')}
+                            className="w-full text-center py-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition border border-emerald-200"
+                          >
+                            📋 Tüm Görevleri Gruplu Yönetimine Git →
+                          </button>
                         </div>
                       </>
                     )}
