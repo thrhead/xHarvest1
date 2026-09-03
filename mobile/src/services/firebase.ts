@@ -91,9 +91,21 @@ export function resolveApiUrl(path: string): string {
   return `${base}${cleanPath}`;
 }
 
-async function safeFetchJson<T = any>(url: string, init?: RequestInit): Promise<{ ok: boolean; status: number; data?: T; error?: string }> {
+async function safeFetchJson<T = any>(
+  url: string,
+  init?: RequestInit,
+  timeoutMs: number = 10000
+): Promise<{ ok: boolean; status: number; data?: T; error?: string }> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    const res = await fetch(url, init);
+    const res = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
     const contentType = res.headers.get('content-type') || '';
     if (!res.ok) {
       return { ok: false, status: res.status, error: `HTTP ${res.status}: ${res.statusText}` };
@@ -114,6 +126,10 @@ async function safeFetchJson<T = any>(url: string, init?: RequestInit): Promise<
       return { ok: false, status: res.status, error: 'Geçersiz JSON formatı' };
     }
   } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err?.name === 'AbortError') {
+      return { ok: false, status: 408, error: 'Sunucu yanıt vermedi (Zaman aşımı)' };
+    }
     return { ok: false, status: 0, error: err?.message || 'Ağ bağlantı hatası' };
   }
 }
@@ -482,31 +498,33 @@ export async function createField(
 
   let savedId = id;
   if (typeof fetch !== 'undefined') {
-    try {
-      const res = await safeFetchJson<{ success: boolean; field?: { id: string | number } }>(
-        resolveApiUrl('/api/fields'),
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            field: {
-              id: newField.id,
-              name: newField.name,
-              cropName: cropName,
-              type: newField.type,
-              areaDecares: Math.round((newField.areaHectare || 1) * 10),
-              coordinates: coords,
-              createdAt: newField.createdAt?.toISOString ? newField.createdAt.toISOString() : new Date().toISOString(),
-            },
-          }),
-        }
-      );
-      if (res.ok && res.data?.field?.id) {
-        savedId = String(res.data.field.id);
-        newField.id = savedId;
-      }
-    } catch (e) {
-      console.warn('[Mobile CreateField] Server POST error:', e);
+    const res = await safeFetchJson<{ success: boolean; field?: { id: string | number }; error?: string }>(
+      resolveApiUrl('/api/fields'),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          field: {
+            id: newField.id,
+            name: newField.name,
+            cropName: cropName,
+            type: newField.type,
+            areaDecares: Math.round((newField.areaHectare || 1) * 10),
+            coordinates: coords,
+            createdAt: newField.createdAt?.toISOString ? newField.createdAt.toISOString() : new Date().toISOString(),
+          },
+        }),
+      },
+      10000
+    );
+
+    if (!res.ok) {
+      throw new Error(res.error || 'Sunucuya bağlanılamadı');
+    }
+
+    if (res.data?.field?.id) {
+      savedId = String(res.data.field.id);
+      newField.id = savedId;
     }
   }
 
@@ -567,17 +585,21 @@ export async function updateField(
 }
 
 export async function deleteField(fieldId: string): Promise<void> {
+  if (typeof fetch !== 'undefined') {
+    const res = await safeFetchJson(
+      resolveApiUrl(`/api/fields?id=${encodeURIComponent(fieldId)}`),
+      { method: 'DELETE' },
+      10000
+    );
+    if (!res.ok) {
+      throw new Error(res.error || 'Tarla silinemedi: Sunucu hatası');
+    }
+  }
+
   demo.fields = demo.fields.filter((f) => f.id !== fieldId);
   demo.crops = demo.crops.filter((c) => c.fieldId !== fieldId);
   persistDemo();
   syncDemoFieldsToWeb();
-  if (typeof fetch !== 'undefined') {
-    try {
-      await safeFetchJson(resolveApiUrl(`/api/fields?id=${encodeURIComponent(fieldId)}`), { method: 'DELETE' });
-    } catch (e) {
-      console.warn('[Mobile DeleteField] Server DELETE error:', e);
-    }
-  }
 }
 
 // ── CROPS ──

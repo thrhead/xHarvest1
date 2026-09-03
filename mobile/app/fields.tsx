@@ -16,8 +16,13 @@ export default function FieldsScreen() {
 
   const handleDelete = (id: string, name: string) => {
     const doDelete = async () => {
-      await deleteField(id);
-      await refreshFields();
+      try {
+        await deleteField(id);
+        await refreshFields();
+      } catch (e: any) {
+        const msg = e?.message || 'Tarla silinirken bir hata oluştu.';
+        if (Platform.OS === 'web') alert(`Hata: ${msg}`); else Alert.alert('Silme Başarısız', msg);
+      }
     };
 
     if (Platform.OS === 'web') {
