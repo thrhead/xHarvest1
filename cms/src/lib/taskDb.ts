@@ -1,6 +1,7 @@
 import { createClient, type Client } from '@libsql/client'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { ensureFieldsTable } from './fieldDb'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -154,6 +155,7 @@ function mapRowToTask(row: any): DbTask {
 
 export async function getDbTasks(opts?: { fieldId?: string; status?: string }): Promise<DbTask[]> {
   await ensureTasksTable()
+  await ensureFieldsTable().catch(() => {})
 
   let sql = `
     SELECT tasks.* FROM tasks
@@ -297,9 +299,35 @@ export async function deleteDbTask(id: string): Promise<boolean> {
 export async function deleteDbTasksByFieldId(fieldId: string): Promise<boolean> {
   await ensureTasksTable()
   await executeSql({
-    sql: `DELETE FROM tasks WHERE field_id = ?`,
-    args: [fieldId],
+    sql: `DELETE FROM tasks WHERE field_id = ? OR field_id = ('f-' || ?)`,
+    args: [fieldId, fieldId],
   })
+  return true
+}
+
+export async function purgeOrphanDbTasks(): Promise<number> {
+  await ensureTasksTable()
+  await ensureFieldsTable().catch(() => {})
+  try {
+    const res = await executeSql(`
+      DELETE FROM tasks
+      WHERE NOT EXISTS (
+        SELECT 1 FROM fields
+        WHERE fields.custom_id = tasks.field_id
+           OR CAST(fields.id AS TEXT) = tasks.field_id
+           OR ('f-' || fields.id) = tasks.field_id
+      )
+    `)
+    return Number(res.rowsAffected || 0)
+  } catch (e) {
+    console.warn('[taskDb] purgeOrphanDbTasks error:', e)
+    return 0
+  }
+}
+
+export async function deleteAllDbTasks(): Promise<boolean> {
+  await ensureTasksTable()
+  await executeSql(`DELETE FROM tasks`)
   return true
 }
 

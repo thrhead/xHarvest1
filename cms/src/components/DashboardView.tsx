@@ -287,8 +287,8 @@ export default function DashboardView() {
       newTask = {
         id: `task-${Date.now()}`,
         fieldId: selectedField?.id || 'f-1',
-        fieldName: selectedField?.name || 'Tarla',
-        cropName: selectedField?.cropName || selectedField?.cropType || 'Genel',
+        fieldName: selectedField?.name || 'Ana Parsel',
+        cropName: selectedField?.cropName || selectedField?.cropType || 'Genel Ürün',
         title: newWebTaskTitle.trim(),
         type: newWebTaskType,
         date: newWebTaskDate || new Date().toISOString().slice(0, 10),
@@ -298,11 +298,12 @@ export default function DashboardView() {
         source: 'manual',
       }
     } else if (taskOrEvent && typeof taskOrEvent === 'object') {
+      const selectedField = fields.find((f) => f.id === taskOrEvent.fieldId) || fields[0]
       newTask = {
         id: taskOrEvent.id || `task-${Date.now()}`,
-        fieldId: taskOrEvent.fieldId || 'f-1',
-        fieldName: taskOrEvent.fieldName || 'Tarla',
-        cropName: taskOrEvent.cropName || 'Genel',
+        fieldId: taskOrEvent.fieldId || selectedField?.id || 'f-1',
+        fieldName: taskOrEvent.fieldName || selectedField?.name || 'Ana Parsel',
+        cropName: taskOrEvent.cropName || selectedField?.cropName || 'Genel Ürün',
         title: taskOrEvent.title || 'Yeni Görev',
         type: taskOrEvent.type || 'other',
         date: taskOrEvent.date || taskOrEvent.plannedDate || new Date().toISOString().slice(0, 10),
