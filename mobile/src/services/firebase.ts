@@ -337,10 +337,6 @@ function loadInitialSync(): typeof initialDemo {
   const defaultDemo = JSON.parse(JSON.stringify(initialDemo));
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      // Remove stale legacy keys that might hold old mock data
-      window.localStorage.removeItem('eh_mobile_demo_state');
-      window.localStorage.removeItem('eh_mobile_demo_state_v1');
-
       const s = window.localStorage.getItem(STORAGE_KEY);
       if (s) {
         const p = parseStoredData(s);
@@ -409,18 +405,7 @@ export async function syncTasksFromServer(): Promise<Task[]> {
           completedAt: st.completedAt ? new Date(st.completedAt) : undefined,
         }));
 
-      // Combine server tasks with any unsaved local tasks
-      const serverIds = new Set(serverTasks.map((t) => t.id));
-      const localOnlyTasks = demo.tasks
-        .filter((lt) => isValidTask(lt))
-        .filter((lt) => !serverIds.has(lt.id));
-
-      if (localOnlyTasks.length > 0) {
-        // Upload local-only tasks to server so other browsers get them
-        saveTasksBatchToServer(localOnlyTasks).catch(() => {});
-        serverTasks.push(...localOnlyTasks);
-      }
-
+      // Server tasks are authoritative; do not re-upload unsaved local tasks that might be mock/orphan
       demo.tasks = serverTasks;
       persistDemo();
       return serverTasks;
