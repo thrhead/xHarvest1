@@ -216,15 +216,6 @@ function parseStoredData(stored: string) {
     return null;
   }
 }
-        createdAt: new Date(l.createdAt || Date.now()),
-        harvestSafeDate: l.harvestSafeDate ? new Date(l.harvestSafeDate) : undefined,
-      }));
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-}
 
 function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
   if (typeof window === 'undefined' || !window.localStorage) return;
