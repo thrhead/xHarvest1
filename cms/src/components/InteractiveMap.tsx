@@ -69,6 +69,7 @@ export default function InteractiveMap({
   const [hoverPoint, setHoverPoint] = useState<[number, number] | null>(null)
   const [fieldName, setFieldName] = useState('')
   const [drawingCrop, setDrawingCrop] = useState<string>('')
+  const [drawingType, setDrawingType] = useState<'field' | 'greenhouse'>('field')
   const [cropFilter, setCropFilter] = useState<string>('all')
   const [mapLoaded, setMapLoaded] = useState(false)
   const [showQuickModal, setShowQuickModal] = useState(false)
@@ -387,6 +388,7 @@ export default function InteractiveMap({
     onAddField({
       name: fieldName.trim() || `Tarla #${fields.length + 1}`,
       cropName: assignedCrop,
+      type: drawingType,
       areaDecares: area,
       coordinates: currentPoints,
       color,
@@ -394,6 +396,7 @@ export default function InteractiveMap({
 
     setFieldName('')
     setCurrentPoints([])
+    setDrawingType('field')
     setHoverPoint(null)
     setIsDrawing(false)
   }
@@ -540,19 +543,32 @@ export default function InteractiveMap({
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Ekilmiş / Aktif Ürün</label>
-                <select
-                  value={drawingCrop}
-                  onChange={(e) => setDrawingCrop(e.target.value)}
-                  className="w-full text-xs font-semibold px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                >
-                  {availableCrops.map((c) => (
-                    <option key={c} value={c}>
-                      🌱 {c}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Tarla Tipi</label>
+                  <select
+                    value={drawingType}
+                    onChange={(e) => setDrawingType(e.target.value as 'field' | 'greenhouse')}
+                    className="w-full text-xs font-semibold px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  >
+                    <option value="field">🌾 Açık Tarla</option>
+                    <option value="greenhouse">🎪 Sera</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Ekilmiş / Aktif Ürün</label>
+                  <select
+                    value={drawingCrop}
+                    onChange={(e) => setDrawingCrop(e.target.value)}
+                    className="w-full text-xs font-semibold px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  >
+                    {availableCrops.map((c) => (
+                      <option key={c} value={c}>
+                        🌱 {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="bg-white p-3 rounded-lg border border-emerald-200 flex items-center justify-between shadow-2xs">

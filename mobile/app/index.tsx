@@ -273,13 +273,12 @@ export default function HomeScreen() {
               ]}
             >
               <View style={styles.taskCardLeft}>
-                <View style={styles.taskBadgeRow}>
-                  <View style={styles.cropBadge}>
-                    <Text style={styles.cropBadgeText}>{t.cropName || 'Genel'}</Text>
-                  </View>
-                  <Text style={styles.taskFieldName}>{fieldName(t.fieldId)}</Text>
-                </View>
                 <Text style={styles.taskTitle}>{t.title}</Text>
+                <Text style={styles.taskDate}>
+                  📍 {fieldName(t.fieldId)} - {typeof t.plannedDate === 'string'
+                    ? String(t.plannedDate).slice(0, 10)
+                    : (t.plannedDate as any)?.toISOString?.()?.slice(0, 10) || ''} - {t.cropName || 'Genel'}
+                </Text>
                 {t.productName ? (
                   <Text style={styles.taskProduct}>
                     💊 {t.productName} {t.dosage ? `(${t.dosage})` : ''}
@@ -288,11 +287,6 @@ export default function HomeScreen() {
                 {t.weatherReason ? (
                   <Text style={styles.taskWeatherAlert}>⚠️ {t.weatherReason}</Text>
                 ) : null}
-                <Text style={styles.taskDate}>
-                  🗓️ {typeof t.plannedDate === 'string'
-                    ? String(t.plannedDate).slice(0, 10)
-                    : (t.plannedDate as any)?.toISOString?.()?.slice(0, 10) || ''}
-                </Text>
               </View>
               <TouchableOpacity
                 style={[

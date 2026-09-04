@@ -268,7 +268,6 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
         });
       }
     }
-
     // Sync Web Planting Records (eh_web_plantings) into Mobile Crops
     const webPlantingStr = window.localStorage.getItem(WEB_PLANTINGS_KEY);
     if (webPlantingStr) {
@@ -290,6 +289,45 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
         });
       }
     }
+  } catch {}
+}
+
+function syncMobileCropsToWebPlantings() {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const existingWebStr = window.localStorage.getItem(WEB_PLANTINGS_KEY);
+    let webPlantings: any[] = [];
+    if (existingWebStr) {
+      try {
+        const parsed = JSON.parse(existingWebStr);
+        if (Array.isArray(parsed)) webPlantings = parsed;
+      } catch {}
+    }
+
+    demo.crops.forEach((c) => {
+      const field = demo.fields.find((f) => f.id === c.fieldId);
+      const existingIdx = webPlantings.findIndex((wp) => wp.id === c.id || (wp.fieldId === c.fieldId && wp.cropNameTr === c.cropName));
+      const pRecord = {
+        id: c.id,
+        fieldId: c.fieldId,
+        fieldName: field?.name || 'Tarla',
+        cropTemplateId: c.cropTemplateId || 'demo-domates',
+        cropNameTr: c.cropName || 'Ürün',
+        plantingDate: c.plantingDate instanceof Date ? c.plantingDate.toISOString().slice(0, 10) : String(c.plantingDate).slice(0, 10),
+        status: c.status === 'completed' ? 'hasat_edildi' : 'active',
+        areaDa: field ? Math.round((field.areaHectare || 1) * 10) : 10,
+        taskProgress: {},
+      };
+
+      if (existingIdx >= 0) {
+        webPlantings[existingIdx] = { ...webPlantings[existingIdx], ...pRecord };
+      } else {
+        webPlantings.unshift(pRecord);
+      }
+    });
+
+    window.localStorage.setItem(WEB_PLANTINGS_KEY, JSON.stringify(webPlantings));
+    window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'mobile', plantings: webPlantings } }));
   } catch {}
 }
 
@@ -485,6 +523,7 @@ function persistDemo() {
     try {
       window.localStorage.setItem(STORAGE_KEY, json);
       syncDemoFieldsToWeb();
+      syncMobileCropsToWebPlantings();
     } catch {}
   }
   AsyncStorage.setItem(STORAGE_KEY, json).catch(() => {});

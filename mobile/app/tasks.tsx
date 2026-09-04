@@ -128,7 +128,7 @@ export default function TasksScreen() {
   } = useAppStore();
 
   const [filter, setFilter] = useState<Filter>('open');
-  const [viewMode, setViewMode] = useState<'timeline' | 'by_field' | 'by_type'>('timeline');
+  const [viewMode, setViewMode] = useState<'timeline' | 'by_field' | 'by_type' | 'by_crop'>('timeline');
   const [selectedFieldId, setSelectedFieldId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdjustingWeather, setIsAdjustingWeather] = useState(false);
@@ -257,6 +257,29 @@ export default function TasksScreen() {
           }
         });
       }
+
+      return sections;
+    }
+
+    // BY CROP MODE
+    if (viewMode === 'by_crop') {
+      const cropMap = new Map<string, Task[]>();
+      filteredTasks.forEach((t) => {
+        const fieldInfo = getFieldInfo(t.fieldId);
+        const cropName = t.cropName || fieldInfo.cropName || 'Genel';
+        const list = cropMap.get(cropName) || [];
+        list.push(t);
+        cropMap.set(cropName, list);
+      });
+
+      cropMap.forEach((tasksInCrop, cropName) => {
+        sections.push({
+          title: `🌱 Ürün: ${cropName}`,
+          count: tasksInCrop.length,
+          data: tasksInCrop.sort((a, b) => new Date(a.plannedDate).getTime() - new Date(b.plannedDate).getTime()),
+          badgeColor: '#059669',
+        });
+      });
 
       return sections;
     }
@@ -554,36 +577,17 @@ export default function TasksScreen() {
 
         {/* Center Content */}
         <View style={styles.compactMiddle}>
-          {/* Meta Tags Row */}
-          <View style={styles.compactMetaRow}>
-            <Text
-              style={[
-                styles.compactDateBadge,
-                isToday && styles.compactDateBadgeToday,
-                isPast && styles.compactDateBadgePast,
-                isRescheduled && styles.compactDateBadgeRescheduled,
-              ]}
-            >
-              {isRescheduled
-                ? '🌦️ Ertelendi'
-                : isToday
-                ? '🟢 Bugün'
-                : isPast
-                ? `⚠️ ${formatDateTr(item.plannedDate)}`
-                : `🗓️ ${formatDateTr(item.plannedDate)}`}
-            </Text>
-
-            <Text style={styles.compactFieldBadge}>
-              📍 {fieldInfo.name} · {fieldInfo.cropName}
-            </Text>
-          </View>
-
           {/* Title */}
           <Text
             style={[styles.compactTitle, isCompleted && styles.compactTitleCompleted]}
             numberOfLines={2}
           >
             {item.title}
+          </Text>
+
+          {/* Subtitle */}
+          <Text style={styles.compactFieldBadge}>
+            📍 {fieldInfo.name} - {dateStr} - {item.cropName || fieldInfo.cropName || 'Genel'}
           </Text>
 
           {/* Weather Alert if any */}
@@ -718,6 +722,15 @@ export default function TasksScreen() {
         >
           <Text style={[styles.viewModeBtnText, viewMode === 'by_type' && styles.viewModeBtnTextActive]}>
             🏷️ İşleme Göre
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.viewModeBtn, viewMode === 'by_crop' && styles.viewModeBtnActive]}
+          onPress={() => setViewMode('by_crop')}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.viewModeBtnText, viewMode === 'by_crop' && styles.viewModeBtnTextActive]}>
+            🌱 Ürüne Göre
           </Text>
         </TouchableOpacity>
       </View>

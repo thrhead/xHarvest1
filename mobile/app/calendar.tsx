@@ -383,7 +383,7 @@ export default function CalendarScreen() {
                       {t.title}
                     </Text>
                     <Text style={styles.taskFieldLine}>
-                      📍 {fieldName(t.fieldId)} · <Text style={{ color: '#047857' }}>{t.cropName || 'Genel'}</Text>
+                      📍 {fieldName(t.fieldId)} - {dateStr || ''} - {t.cropName || 'Genel'}
                     </Text>
                     {t.weatherReason ? (
                       <Text style={styles.weatherAlertSmall}>⚠️ {t.weatherReason}</Text>
