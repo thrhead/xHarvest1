@@ -44,7 +44,16 @@ export default function CalendarScreen() {
     return new Date().toISOString().slice(0, 10);
   });
 
+  const toggleTaskStore = useAppStore((s) => s.toggleTask);
   const fieldName = (id: string) => fields.find((f) => f.id === id)?.name ?? 'Tarla';
+  const getCropNameForTask = (t: any) => {
+    if (t.cropName && t.cropName !== 'Genel' && t.cropName !== 'Ürün') return t.cropName;
+    const f = fields.find((field) => field.id === t.fieldId);
+    if (f?.cropName) return f.cropName;
+    const c = crops.find((crop) => crop.fieldId === t.fieldId);
+    if (c?.cropName) return c.cropName;
+    return 'Genel';
+  };
 
   const openPlan = (cropId?: string) => {
     if (cropId) {
@@ -142,8 +151,7 @@ export default function CalendarScreen() {
   }, [tasks, timeScope, selectedDateStr]);
 
   const toggleTask = async (t: Task) => {
-    const nextStatus = t.status === 'completed' ? 'pending' : 'completed';
-    await updateTask(t.id, { status: nextStatus });
+    await toggleTaskStore(t.id);
   };
 
   return (
@@ -383,7 +391,7 @@ export default function CalendarScreen() {
                       {t.title}
                     </Text>
                     <Text style={styles.taskFieldLine}>
-                      📍 {fieldName(t.fieldId)} - {dateStr || ''} - {t.cropName || 'Genel'}
+                      📍 {fieldName(t.fieldId)} - {dateStr || ''} - {getCropNameForTask(t)}
                     </Text>
                     {t.weatherReason ? (
                       <Text style={styles.weatherAlertSmall}>⚠️ {t.weatherReason}</Text>

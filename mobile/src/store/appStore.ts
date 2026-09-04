@@ -40,6 +40,7 @@ interface AppState {
   deleteCrop: (cropId: string) => Promise<void>;
   createTask: (data: Omit<Task, 'id'>) => Promise<string>;
   completeTask: (taskId: string) => Promise<void>;
+  toggleTask: (taskId: string) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
   updateTask: (taskId: string, data: Partial<Task>) => Promise<void>;
   skipTask: (taskId: string) => Promise<void>;
@@ -87,6 +88,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (typeof window !== 'undefined') {
         const handleSync = () => {
           get().refreshFields();
+          get().refreshCrops();
+          get().refreshTasks();
         };
         window.addEventListener('eh_fields_sync', handleSync);
         window.addEventListener('storage', handleSync);
@@ -171,8 +174,26 @@ export const useAppStore = create<AppState>((set, get) => ({
     return id;
   },
   completeTask: async (taskId) => {
-    await fb.completeTask(taskId);
-    await get().refreshTasks();
+    await get().toggleTask(taskId);
+  },
+  toggleTask: async (taskId) => {
+    const current = get().tasks.find((t) => t.id === taskId);
+    if (!current) return;
+    const nextStatus = current.status === 'completed' ? 'pending' : 'completed';
+    const completedAt = nextStatus === 'completed' ? new Date() : undefined;
+
+    // Optimistic UI update for immediate response
+    set((state) => ({
+      tasks: state.tasks.map((t) =>
+        t.id === taskId ? { ...t, status: nextStatus, completedAt } : t
+      ),
+    }));
+
+    try {
+      await fb.updateTask(taskId, { status: nextStatus, completedAt });
+    } catch (e) {
+      console.warn('Failed to update task status:', e);
+    }
   },
   deleteTask: async (taskId) => {
     await fb.deleteTask(taskId);

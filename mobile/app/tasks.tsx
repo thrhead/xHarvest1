@@ -119,6 +119,7 @@ export default function TasksScreen() {
     crops,
     createTask,
     completeTask,
+    toggleTask,
     deleteTask,
     updateTask,
     refreshTasks,
@@ -162,6 +163,15 @@ export default function TasksScreen() {
       cropName: f.cropName || (f.type === 'greenhouse' ? 'Sera Ürünü' : 'Açık Tarla'),
       area: f.areaHectare ? `${(f.areaHectare * 10).toFixed(0)} da` : '',
     };
+  };
+
+  const getCropNameForTask = (t: Task) => {
+    if (t.cropName && t.cropName !== 'Genel' && t.cropName !== 'Ürün') return t.cropName;
+    const f = fields.find((field) => field.id === t.fieldId);
+    if (f?.cropName) return f.cropName;
+    const c = crops.find((crop) => crop.fieldId === t.fieldId);
+    if (c?.cropName) return c.cropName;
+    return 'Genel';
   };
 
   const activeTasks = useMemo(() => {
@@ -410,36 +420,7 @@ export default function TasksScreen() {
   };
 
   const onComplete = (item: Task) => {
-    Alert.alert('Görevi Tamamla', `"${item.title}" işlemini tamamlandı olarak işaretlensin mi?`, [
-      { text: 'Vazgeç', style: 'cancel' },
-      {
-        text: '✓ Evet, Tamamla',
-        onPress: async () => {
-          await completeTask(item.id);
-          if (
-            item.type === 'fertilizing' ||
-            item.type === 'fertilization' ||
-            item.type === 'spraying' ||
-            item.type === 'pest_control'
-          ) {
-            Alert.alert(
-              'Uygulama Defteri Kaydı',
-              'Bu işlem için İlaçlama/Gübreleme Defterine detaylı kayıt eklemek ister misiniz?',
-              [
-                { text: 'Şimdi Değil' },
-                {
-                  text: 'Deftere Ekle',
-                  onPress: () =>
-                    router.push(
-                      `/add-log?fieldId=${item.fieldId}&taskId=${item.id}&taskType=${item.type}`
-                    ),
-                },
-              ]
-            );
-          }
-        },
-      },
-    ]);
+    toggleTask(item.id);
   };
 
   const handleWeatherSync = async () => {
@@ -587,7 +568,7 @@ export default function TasksScreen() {
 
           {/* Subtitle */}
           <Text style={styles.compactFieldBadge}>
-            📍 {fieldInfo.name} - {dateStr} - {item.cropName || fieldInfo.cropName || 'Genel'}
+            📍 {fieldInfo.name} - {dateStr} - {getCropNameForTask(item)}
           </Text>
 
           {/* Weather Alert if any */}

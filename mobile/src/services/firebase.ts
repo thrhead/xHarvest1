@@ -273,8 +273,24 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
     if (webPlantingStr) {
       const webPlantings = JSON.parse(webPlantingStr);
       if (Array.isArray(webPlantings)) {
+        const webIds = new Set(webPlantings.map((wp: any) => wp.id));
+        const webFieldCropKeys = new Set(
+          webPlantings.map((wp: any) => `${wp.fieldId}_${wp.cropNameTr}`)
+        );
+
+        // Remove crops deleted on Web
+        targetDemo.crops = targetDemo.crops.filter((c) => {
+          if (c.id.startsWith('pr_') || c.id.startsWith('c_')) {
+            return webIds.has(c.id) || webFieldCropKeys.has(`${c.fieldId}_${c.cropName}`);
+          }
+          return true;
+        });
+
+        // Add new crops created on Web
         webPlantings.forEach((wp: any) => {
-          const existing = targetDemo.crops.find((c) => c.id === wp.id || (c.fieldId === wp.fieldId && c.cropName === wp.cropNameTr));
+          const existing = targetDemo.crops.find(
+            (c) => c.id === wp.id || (c.fieldId === wp.fieldId && c.cropName === wp.cropNameTr)
+          );
           if (!existing) {
             targetDemo.crops.push({
               id: wp.id || `pr_${Date.now()}`,
@@ -303,6 +319,17 @@ function syncMobileCropsToWebPlantings() {
         if (Array.isArray(parsed)) webPlantings = parsed;
       } catch {}
     }
+
+    const activeCropIds = new Set(demo.crops.map((c) => c.id));
+    const activeCropFieldKeys = new Set(demo.crops.map((c) => `${c.fieldId}_${c.cropName}`));
+
+    // Purge records that no longer exist in Mobile crops
+    webPlantings = webPlantings.filter((wp: any) => {
+      if (wp.id && (wp.id.startsWith('pr_') || wp.id.startsWith('c_'))) {
+        return activeCropIds.has(wp.id) || activeCropFieldKeys.has(`${wp.fieldId}_${wp.cropNameTr}`);
+      }
+      return true;
+    });
 
     demo.crops.forEach((c) => {
       const field = demo.fields.find((f) => f.id === c.fieldId);
@@ -776,8 +803,30 @@ export async function createCrop(data: Omit<Crop, 'id'>): Promise<string> {
 }
 
 export async function deleteCrop(cropId: string): Promise<void> {
+  const cropToDelete = demo.crops.find((c) => c.id === cropId);
   demo.crops = demo.crops.filter((c) => c.id !== cropId);
   demo.tasks = demo.tasks.filter((t) => t.cropId !== cropId);
+
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const existingWebStr = window.localStorage.getItem(WEB_PLANTINGS_KEY);
+      if (existingWebStr) {
+        let webPlantings = JSON.parse(existingWebStr);
+        if (Array.isArray(webPlantings)) {
+          webPlantings = webPlantings.filter(
+            (wp: any) =>
+              wp.id !== cropId &&
+              !(cropToDelete && wp.fieldId === cropToDelete.fieldId && wp.cropNameTr === cropToDelete.cropName)
+          );
+          window.localStorage.setItem(WEB_PLANTINGS_KEY, JSON.stringify(webPlantings));
+          window.dispatchEvent(
+            new CustomEvent('eh_fields_sync', { detail: { source: 'mobile', plantings: webPlantings } })
+          );
+        }
+      }
+    } catch {}
+  }
+
   persistDemo();
 }
 

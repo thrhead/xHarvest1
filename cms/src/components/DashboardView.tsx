@@ -3336,6 +3336,28 @@ export default function DashboardView() {
                 }
                 return next
               })
+
+              // Post planting task to server API so it appears in tasks across Web & Mobile
+              const plantingTask = {
+                id: `task-planting-${Date.now()}`,
+                fieldId: field?.id || 'f-1',
+                fieldName: field?.name || 'Tarla',
+                cropName: cropNameTr,
+                title: `🌱 ${cropNameTr} Ekim & Dikim Faaliyeti`,
+                type: 'planting',
+                plannedDate: newPlantDate,
+                date: newPlantDate,
+                status: 'pending',
+                notes: `${field?.name || 'Tarla'} için ${cropNameTr} ekimi planlandı.`,
+                isCustom: true,
+                source: 'crop_plan',
+              }
+              fetch('/api/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ task: plantingTask }),
+              }).then(() => fetchTasksFromApi()).catch(() => {})
+
               setShowAddPlantingModal(false)
               if (typeof window !== 'undefined') {
                 alert(`✅ Yeni Ekim Kaydı Başarıyla Eklendi!\nTarla: ${field?.name || 'Tarla'}\nÜrün: ${cropNameTr}\nEkim Tarihi: ${newPlantDate}`)
