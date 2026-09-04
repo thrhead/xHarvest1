@@ -249,23 +249,6 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
 
         const validFieldIds = new Set(convertedFields.map((f) => f.id));
         targetDemo.crops = targetDemo.crops.filter((c) => validFieldIds.has(c.fieldId));
-
-        // Ensure matching crop entry
-        webFields.forEach((wf: any) => {
-          const cropName = wf.cropName || 'Domates';
-          const existingCrop = targetDemo.crops.find((c) => c.fieldId === wf.id);
-          if (!existingCrop) {
-            targetDemo.crops.push({
-              id: `c_${wf.id}`,
-              userId: 'demo-user-id',
-              fieldId: wf.id,
-              cropTemplateId: cropName.toLowerCase(),
-              cropName: cropName,
-              plantingDate: new Date(wf.createdAt || Date.now()),
-              status: 'active',
-            });
-          }
-        });
       }
     }
     // Sync Web Planting Records (eh_web_plantings) into Mobile Crops
@@ -640,22 +623,6 @@ export async function getFields(_userId?: string): Promise<Field[]> {
         const validFieldIds = new Set(convertedFields.map((f) => f.id));
         demo.crops = demo.crops.filter((c) => validFieldIds.has(c.fieldId));
 
-        convertedFields.forEach((f) => {
-          const cropName = f.cropName || 'Domates';
-          const existingCrop = demo.crops.find((c) => c.fieldId === f.id);
-          if (!existingCrop) {
-            demo.crops.push({
-              id: `c_${f.id}`,
-              userId: demo.uid || 'demo-user-id',
-              fieldId: f.id,
-              cropTemplateId: cropName.toLowerCase(),
-              cropName: cropName,
-              plantingDate: f.createdAt || new Date(),
-              status: 'active',
-            });
-          }
-        });
-
         persistDemo();
         return demo.fields;
       }
@@ -713,15 +680,6 @@ export async function createField(
   }
 
   demo.fields.push(newField);
-  demo.crops.push({
-    id: `c_${newField.id}`,
-    userId: newField.userId || demo.uid || 'demo-user-id',
-    fieldId: newField.id,
-    cropTemplateId: cropName.toLowerCase(),
-    cropName: cropName,
-    plantingDate: newField.createdAt || new Date(),
-    status: 'active',
-  });
 
   persistDemo();
   syncDemoFieldsToWeb();

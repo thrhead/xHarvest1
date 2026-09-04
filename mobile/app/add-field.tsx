@@ -334,7 +334,7 @@ export default function AddFieldScreen() {
         {saving ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.saveText}>Tarla & Ekim Kaydını Kaydet</Text>
+          <Text style={styles.saveText}>Tarlayı Kaydet</Text>
         )}
       </TouchableOpacity>
 
@@ -347,7 +347,7 @@ export default function AddFieldScreen() {
             </View>
             <Text style={styles.modalTitle}>Tarla Eklendi</Text>
             <Text style={styles.modalMessage}>
-              Tarla ve ekim kaydı başarıyla eklendi.
+              Tarla başarıyla eklendi.
             </Text>
             <TouchableOpacity
               style={styles.modalButton}
