@@ -263,7 +263,7 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
 
         // Remove crops deleted on Web
         targetDemo.crops = targetDemo.crops.filter((c) => {
-          if (c.id.startsWith('pr_') || c.id.startsWith('c_')) {
+          if (c.id.startsWith('pr_')) {
             return webIds.has(c.id) || webFieldCropKeys.has(`${c.fieldId}_${c.cropName}`);
           }
           return true;
@@ -308,7 +308,7 @@ function syncMobileCropsToWebPlantings() {
 
     // Purge records that no longer exist in Mobile crops
     webPlantings = webPlantings.filter((wp: any) => {
-      if (wp.id && (wp.id.startsWith('pr_') || wp.id.startsWith('c_'))) {
+      if (wp.id && wp.id.startsWith('pr_')) {
         return activeCropIds.has(wp.id) || activeCropFieldKeys.has(`${wp.fieldId}_${wp.cropNameTr}`);
       }
       return true;
