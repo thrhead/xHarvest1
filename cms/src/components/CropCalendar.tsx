@@ -513,7 +513,7 @@ export default function CropCalendar({
               <div className="flex justify-between text-xs mb-1">
                 <span>Görev ilerlemesi</span>
                 <span>
-                  {doneCount}/{allTaskIds.length} · %{progress}
+                  {completedCount}/{allTasksWithStatus.length} · %{progress}
                 </span>
               </div>
               <div className="h-2 rounded-full bg-black/20 overflow-hidden">

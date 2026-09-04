@@ -3512,22 +3512,6 @@ export default function DashboardView() {
 
               handleCreateField(newField)
 
-              // Otomatik Ekim Kaydı ekle
-              setPlantingRecords((p) => [
-                {
-                  id: `pr-${Date.now()}`,
-                  fieldId: newField.id,
-                  fieldName: newField.name,
-                  cropTemplateId: newFieldCrop.toLowerCase().includes('buğday') ? 'demo-bugday' : 'demo-domates',
-                  cropNameTr: newFieldCrop,
-                  plantingDate: newFieldPlantDate,
-                  status: 'planlandi',
-                  areaDa: newField.areaDecares,
-                  taskProgress: {},
-                },
-                ...p,
-              ])
-
               setNewFieldName('')
               setShowAddWebFieldModal(false)
             }}
