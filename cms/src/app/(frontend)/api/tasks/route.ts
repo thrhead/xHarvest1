@@ -4,6 +4,8 @@ import {
   saveDbTask,
   saveDbTasks,
   deleteDbTask,
+  deleteDbTasksByFieldId,
+  deleteAllDbTasks,
   updateDbTaskStatus,
   type DbTask,
 } from '@/lib/taskDb'
@@ -110,10 +112,29 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
+    const clearAll = searchParams.get('clearAll') === 'true'
+    const fieldId = searchParams.get('fieldId')
     const id = searchParams.get('id')
+
+    if (clearAll) {
+      const success = await deleteAllDbTasks()
+      return NextResponse.json(
+        { success, clearedAll: true },
+        { headers: corsHeaders }
+      )
+    }
+
+    if (fieldId) {
+      const success = await deleteDbTasksByFieldId(fieldId)
+      return NextResponse.json(
+        { success, fieldId },
+        { headers: corsHeaders }
+      )
+    }
+
     if (!id) {
       return NextResponse.json(
-        { error: 'Missing id query parameter' },
+        { error: 'Missing id, fieldId or clearAll query parameter' },
         { status: 400, headers: corsHeaders }
       )
     }

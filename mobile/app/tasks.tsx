@@ -164,17 +164,27 @@ export default function TasksScreen() {
     };
   };
 
+  const activeTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (!t || !t.id || !t.title) return false;
+      if (fields && fields.length > 0) {
+        return fields.some((f) => f.id === t.fieldId);
+      }
+      return true;
+    });
+  }, [tasks, fields]);
+
   const counts = useMemo(() => {
-    const open = tasks.filter((t) => t.status === 'pending' || t.status === 'rescheduled').length;
-    const pending = tasks.filter((t) => t.status === 'pending').length;
-    const rescheduled = tasks.filter((t) => t.status === 'rescheduled').length;
-    const completed = tasks.filter((t) => t.status === 'completed').length;
-    const skipped = tasks.filter((t) => t.status === 'skipped').length;
-    return { open, pending, rescheduled, completed, skipped, all: tasks.length };
-  }, [tasks]);
+    const open = activeTasks.filter((t) => t.status === 'pending' || t.status === 'rescheduled').length;
+    const pending = activeTasks.filter((t) => t.status === 'pending').length;
+    const rescheduled = activeTasks.filter((t) => t.status === 'rescheduled').length;
+    const completed = activeTasks.filter((t) => t.status === 'completed').length;
+    const skipped = activeTasks.filter((t) => t.status === 'skipped').length;
+    return { open, pending, rescheduled, completed, skipped, all: activeTasks.length };
+  }, [activeTasks]);
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter((t) => {
+    return activeTasks.filter((t) => {
       // Status filter
       if (filter === 'open' && t.status !== 'pending' && t.status !== 'rescheduled') return false;
       if (filter !== 'open' && filter !== 'all' && t.status !== filter) return false;
@@ -203,7 +213,7 @@ export default function TasksScreen() {
 
       return true;
     });
-  }, [tasks, filter, selectedFieldId, searchQuery, fields]);
+  }, [activeTasks, filter, selectedFieldId, searchQuery, fields]);
 
   // Group filtered tasks based on viewMode
   const groupedTasks = useMemo(() => {

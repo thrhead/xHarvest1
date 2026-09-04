@@ -213,6 +213,20 @@ export default function DashboardView() {
     }
   }
 
+  const handleClearAllTasks = async () => {
+    if (typeof window !== 'undefined' && !window.confirm('Tüm saha görevlerini ve önbelleği sıfırlamak istediğinize emin misiniz?')) return
+    setTasks([])
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('eh_mobile_tasks')
+      window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { source: 'web', cleared: true } }))
+    }
+    try {
+      await fetch('/api/tasks?clearAll=true', { method: 'DELETE' })
+    } catch (e) {
+      console.warn('Clear tasks error:', e)
+    }
+  }
+
   const handleToggleTaskStatus = async (taskId: string, targetStatus?: string) => {
     const currentTask = tasks.find((t) => t.id === taskId)
     if (!currentTask) return
@@ -554,7 +568,7 @@ export default function DashboardView() {
   }
 
   const handleDeleteField = async (id: string, name?: string) => {
-    if (name && typeof window !== 'undefined' && !window.confirm(`"${name}" tarlasını ve tarlaya bağlı tüm ekim kayıtlarını ve görevleri silmek istediğinize emin misiniz?`)) return
+    if (name && typeof window !== 'undefined' && !window.confirm(`"${name}" tarlasını silmek istediğinize emin misiniz?`)) return
     setFields((prev) => {
       const remaining = prev.filter((f) => f.id !== id)
       if (typeof window !== 'undefined') {
@@ -563,35 +577,6 @@ export default function DashboardView() {
       }
       return remaining
     })
-
-    // Cascade delete tasks of this field
-    setTasks((prev) => {
-      const remaining = prev.filter((t) => t.fieldId !== id)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('eh_mobile_tasks', JSON.stringify(remaining))
-        window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { source: 'web', fieldId: id, deleted: true } }))
-      }
-      return remaining
-    })
-
-    // Cascade delete plantings of this field
-    setPlantingRecords((prev) => {
-      const remaining = prev.filter((r) => r.fieldId !== id)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('eh_web_plantings', JSON.stringify(remaining))
-      }
-      return remaining
-    })
-
-    // Cascade delete records of this field
-    setWebRecords((prev) => {
-      const remaining = prev.filter((rec) => rec.fieldId !== id)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('eh_web_records', JSON.stringify(remaining))
-      }
-      return remaining
-    })
-
     try {
       await fetch(`/api/fields?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
     } catch (e) {
@@ -695,7 +680,10 @@ export default function DashboardView() {
         const savedTasks = localStorage.getItem('eh_mobile_tasks')
         if (savedTasks) {
           const parsed = JSON.parse(savedTasks)
-          if (Array.isArray(parsed) && parsed.length > 0) setTasks(parsed)
+          if (Array.isArray(parsed)) {
+            const clean = parsed.filter((t: any) => t && t.id && t.title && !String(t.id).startsWith('t-'))
+            setTasks(clean)
+          }
         }
       } catch (e) {
         console.error('Storage parse error:', e)
@@ -803,12 +791,21 @@ export default function DashboardView() {
 
   const isValidTask = (t: any): boolean => {
     if (!t || !t.id || !t.title) return false
+    if (fields && fields.length > 0) {
+      const fieldExists = fields.some(
+        (f) =>
+          f.id === t.fieldId ||
+          f.customId === t.fieldId ||
+          (t.fieldName && f.name && f.name.toLowerCase().trim() === t.fieldName.toLowerCase().trim())
+      )
+      if (!fieldExists) return false
+    }
     return true
   }
 
   const activeTasksList = useMemo(() => {
     return tasks.filter((t) => isValidTask(t))
-  }, [tasks])
+  }, [tasks, fields])
 
   const filteredTasks = useMemo(() => {
     return activeTasksList.filter((t) => {
@@ -1375,17 +1372,30 @@ export default function DashboardView() {
                       Mobil & Web Canlı Senkronize
                     </span>
                     {recordsSubTab === 'tasks' || recordsSubTab === 'agenda' ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (fields.length > 0) setNewWebTaskFieldId(fields[0].id)
-                          setShowAddWebTaskModal(true)
-                        }}
-                        className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-2xs"
-                      >
-                        <Plus size={14} className="stroke-[3]" />
-                        <span>+ Yeni Saha Görevi</span>
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {activeTasksList.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleClearAllTasks}
+                            className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1 shadow-2xs"
+                            title="Tüm saha görevlerini temizle"
+                          >
+                            <Trash2 size={13} />
+                            <span>Temizle</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (fields.length > 0) setNewWebTaskFieldId(fields[0].id)
+                            setShowAddWebTaskModal(true)
+                          }}
+                          className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-2xs"
+                        >
+                          <Plus size={14} className="stroke-[3]" />
+                          <span>+ Yeni Saha Görevi</span>
+                        </button>
+                      </div>
                     ) : (
                       <button
                         type="button"

@@ -155,27 +155,30 @@ function mapRowToTask(row: any): DbTask {
 export async function getDbTasks(opts?: { fieldId?: string; status?: string }): Promise<DbTask[]> {
   await ensureTasksTable()
 
-  let sql = `SELECT * FROM tasks`
+  let sql = `
+    SELECT tasks.* FROM tasks
+    WHERE EXISTS (
+      SELECT 1 FROM fields
+      WHERE fields.custom_id = tasks.field_id
+         OR CAST(fields.id AS TEXT) = tasks.field_id
+         OR ('f-' || fields.id) = tasks.field_id
+    )
+  `
   const args: any[] = []
-  const conditions: string[] = []
 
   if (opts?.fieldId) {
-    conditions.push(`field_id = ?`)
+    sql += ` AND tasks.field_id = ?`
     args.push(opts.fieldId)
   }
   if (opts?.status) {
-    conditions.push(`status = ?`)
+    sql += ` AND tasks.status = ?`
     args.push(opts.status)
   }
 
-  if (conditions.length > 0) {
-    sql += ` WHERE ` + conditions.join(' AND ')
-  }
-  sql += ` ORDER BY planned_date ASC, created_at DESC`
+  sql += ` ORDER BY tasks.planned_date ASC, tasks.created_at DESC`
 
   const res = await executeSql({ sql, args })
   const rows = res.rows || []
-
 
   return rows.map(mapRowToTask)
 }
@@ -184,6 +187,14 @@ export async function saveDbTask(task: DbTask): Promise<DbTask> {
   await ensureTasksTable()
 
   const id = task.id || `t_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+
+  // Reject legacy mock format or tasks without title/field
+  if (String(id).startsWith('t-') || !task.title || !task.fieldId) {
+    return {
+      ...task,
+      id,
+    }
+  }
   const nowIso = new Date().toISOString()
   const photosJson = JSON.stringify(task.photoUris || [])
   const isCustomInt = task.isCustom ? 1 : 0
@@ -267,6 +278,7 @@ export async function saveDbTasks(taskList: DbTask[]): Promise<DbTask[]> {
   await ensureTasksTable()
   const savedList: DbTask[] = []
   for (const t of taskList) {
+    if (String(t.id).startsWith('t-') || !t.title || !t.fieldId) continue
     const s = await saveDbTask(t)
     savedList.push(s)
   }
