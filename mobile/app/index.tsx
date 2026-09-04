@@ -84,7 +84,17 @@ export default function HomeScreen() {
     }
   };
 
+  const crops = useAppStore((s) => s.crops);
+  const toggleTask = useAppStore((s) => s.toggleTask);
   const fieldName = (id: string) => fields.find((f) => f.id === id)?.name ?? 'Tarla';
+  const getCropNameForTask = (t: any) => {
+    if (t.cropName && t.cropName !== 'Genel' && t.cropName !== 'Ürün') return t.cropName;
+    const f = fields.find((field) => field.id === t.fieldId);
+    if (f?.cropName) return f.cropName;
+    const c = crops.find((crop) => crop.fieldId === t.fieldId);
+    if (c?.cropName) return c.cropName;
+    return 'Genel';
+  };
   const pendingCount = tasks.filter((t) => t.status !== 'completed').length;
   const upcoming = tasks.slice(0, 4);
 
@@ -277,7 +287,7 @@ export default function HomeScreen() {
                 <Text style={styles.taskDate}>
                   📍 {fieldName(t.fieldId)} - {typeof t.plannedDate === 'string'
                     ? String(t.plannedDate).slice(0, 10)
-                    : (t.plannedDate as any)?.toISOString?.()?.slice(0, 10) || ''} - {t.cropName || 'Genel'}
+                    : (t.plannedDate as any)?.toISOString?.()?.slice(0, 10) || ''} - {getCropNameForTask(t)}
                 </Text>
                 {t.productName ? (
                   <Text style={styles.taskProduct}>
@@ -293,9 +303,8 @@ export default function HomeScreen() {
                   styles.taskStatusBtn,
                   t.status === 'completed' ? styles.taskStatusBtnDone : styles.taskStatusBtnPending,
                 ]}
-                onPress={async () => {
-                  await completeTask(t.id);
-                }}
+                onPress={() => toggleTask(t.id)}
+                activeOpacity={0.7}
               >
                 <Text
                   style={[
