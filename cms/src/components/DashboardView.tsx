@@ -1164,14 +1164,18 @@ export default function DashboardView() {
                         new Set([
                           ...crops.map((c) => c.nameTr).filter((n) => n && n !== '5' && isNaN(Number(n))),
                           'Domates',
-                          'Buğday',
                           'Biber',
-                          'Salatalık (Hıyar)',
-                          'Mısır',
-                          'Zeytin',
-                          'Pamuk',
-                          'Elma',
                           'Patlıcan',
+                          'Salatalık',
+                          'Mısır',
+                          'Buğday',
+                          'Pamuk',
+                          'Zeytin',
+                          'Elma',
+                          'Üzüm',
+                          'Çilek',
+                          'Ayçiçeği',
+                          'Diğer',
                         ]),
                       )}
                     />
@@ -1209,7 +1213,7 @@ export default function DashboardView() {
                               )}
                             </h4>
                             <p className="text-[11px] text-slate-500 font-medium">
-                              {f.cropName || 'Boş'} · <strong>{f.areaDecares} dekar</strong>
+                              <span className="font-semibold text-slate-700">{f.type === 'greenhouse' ? '🏡 Sera' : '🌾 Açık Tarla'}</span> · {f.cropName || 'Boş'} · <strong>{f.areaDecares} dekar</strong>
                             </p>
                           </div>
                         </div>
@@ -3523,12 +3527,18 @@ export default function DashboardView() {
                     {crops.length === 0 && (
                       <>
                         <option value="Domates">Domates</option>
-                        <option value="Buğday">Buğday</option>
                         <option value="Biber">Biber</option>
-                        <option value="Salatalık (Hıyar)">Salatalık (Hıyar)</option>
+                        <option value="Patlıcan">Patlıcan</option>
+                        <option value="Salatalık">Salatalık</option>
                         <option value="Mısır">Mısır</option>
+                        <option value="Buğday">Buğday</option>
+                        <option value="Pamuk">Pamuk</option>
                         <option value="Zeytin">Zeytin</option>
                         <option value="Elma">Elma</option>
+                        <option value="Üzüm">Üzüm</option>
+                        <option value="Çilek">Çilek</option>
+                        <option value="Ayçiçeği">Ayçiçeği</option>
+                        <option value="Diğer">Diğer</option>
                       </>
                     )}
                   </select>

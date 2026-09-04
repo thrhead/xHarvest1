@@ -343,7 +343,7 @@ export default function HomeScreen() {
                   <View>
                     <Text style={styles.fieldTitle}>{f.name}</Text>
                     <Text style={styles.fieldSubtitle}>
-                      🌱 {(f as any).cropName || (f as any).crop || 'Ürün'} •{' '}
+                      {f.type === 'greenhouse' ? '🏡 Sera' : '🌾 Açık Tarla'} • 🌱 {(f as any).cropName || (f as any).crop || 'Ürün'} •{' '}
                       <Text style={{ fontWeight: '700' }}>
                         {(f as any).areaDecares || (f as any).areaHectare ? ((f as any).areaHectare ? ((f as any).areaHectare * 10).toFixed(0) : (f as any).areaDecares) : '10'} Dönüm
                       </Text>

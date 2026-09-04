@@ -21,12 +21,18 @@ const FIELD_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#0
 const CROP_COLOR_MAP: { [key: string]: string } = {
   Domates: '#ef4444',
   Biber: '#10b981',
+  Patlıcan: '#8b5cf6',
   'Salatalık (Hıyar)': '#06b6d4',
   Salatalık: '#06b6d4',
-  Buğday: '#f59e0b',
   Mısır: '#eab308',
+  Buğday: '#f59e0b',
+  Pamuk: '#64748b',
   Zeytin: '#65a30d',
   Elma: '#ec4899',
+  Üzüm: '#a855f7',
+  Çilek: '#f43f5e',
+  Ayçiçeği: '#eab308',
+  Diğer: '#0284c7',
 }
 
 function getCropColor(cropName: string, fallbackIdx: number): string {
@@ -47,7 +53,7 @@ export default function InteractiveMap({
   onSelectField,
   selectedFieldId,
   selectedCrop,
-  availableCrops = ['Domates', 'Buğday', 'Biber', 'Salatalık (Hıyar)', 'Mısır', 'Zeytin', 'Elma'],
+  availableCrops = ['Domates', 'Biber', 'Patlıcan', 'Salatalık', 'Mısır', 'Buğday', 'Pamuk', 'Zeytin', 'Elma', 'Üzüm', 'Çilek', 'Ayçiçeği', 'Diğer'],
 }: InteractiveMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
@@ -68,6 +74,7 @@ export default function InteractiveMap({
   const [showQuickModal, setShowQuickModal] = useState(false)
   const [quickName, setQuickName] = useState('')
   const [quickCrop, setQuickCrop] = useState('Domates')
+  const [quickType, setQuickType] = useState<'field' | 'greenhouse'>('field')
   const [quickPlantDate, setQuickPlantDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [quickArea, setQuickArea] = useState('20')
   const [quickRegion, setQuickRegion] = useState('ankara')
@@ -417,9 +424,10 @@ export default function InteractiveMap({
     onAddField({
       name: quickName.trim(),
       cropName: quickCrop,
+      type: quickType,
       areaDecares: area,
       coordinates: coords,
-      color,
+      color: quickType === 'greenhouse' ? '#059669' : color,
     })
 
     setQuickName('')
@@ -655,7 +663,7 @@ export default function InteractiveMap({
                               {f.name}
                             </h4>
                             <p className="text-[11px] text-slate-500 mt-0.5">
-                              <span className="font-semibold text-slate-700">{f.areaDecares} Dönüm</span>
+                              <span className="font-bold text-slate-700">{f.type === 'greenhouse' ? '🏡 Sera' : '🌾 Açık Tarla'}</span> · <span className="font-semibold text-slate-700">{f.areaDecares} Dönüm</span>
                             </p>
                           </div>
                         </div>
@@ -792,6 +800,18 @@ export default function InteractiveMap({
                   onChange={(e) => setQuickName(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Tarla Tipi</label>
+                <select
+                  value={quickType}
+                  onChange={(e) => setQuickType(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                >
+                  <option value="field">🌾 Açık Tarla</option>
+                  <option value="greenhouse">🏡 Sera</option>
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
