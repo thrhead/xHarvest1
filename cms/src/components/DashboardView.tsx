@@ -178,7 +178,7 @@ export default function DashboardView() {
   // Global Tasks (Web & Mobile Synchronized State)
   const [tasks, setTasks] = useState<any[]>([])
   const [recordsSubTab, setRecordsSubTab] = useState<'tasks' | 'agenda' | 'records'>('tasks')
-  const [taskViewMode, setTaskViewMode] = useState<'timeline' | 'by_field' | 'by_type'>('timeline')
+  const [taskViewMode, setTaskViewMode] = useState<'timeline' | 'by_field' | 'by_type' | 'by_crop'>('timeline')
   const [selectedAgendaDate, setSelectedAgendaDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [agendaTimeScope, setAgendaTimeScope] = useState<'day' | 'week' | 'month' | 'all'>('week')
   const [taskTabFilter, setTaskTabFilter] = useState<'all' | 'spraying' | 'fertilizing' | 'irrigation' | 'planting' | 'harvesting' | 'other'>('all')
@@ -823,15 +823,40 @@ export default function DashboardView() {
     })
   }, [activeTasksList, taskTabFilter, taskStatusFilter, taskSearch])
 
+  const getTaskFieldName = (t: any): string => {
+    if (t.fieldName && t.fieldName !== 'Genel Parsel' && t.fieldName !== 'Ana Parsel') {
+      return t.fieldName
+    }
+    const matchingField = fields.find(
+      (f) =>
+        f.id === t.fieldId ||
+        f.customId === t.fieldId ||
+        (t.fieldId && String(f.id).endsWith(String(t.fieldId))) ||
+        (t.fieldId && String(t.fieldId).endsWith(String(f.id)))
+    )
+    if (matchingField?.name) return matchingField.name
+    return fields[0]?.name ? fields[0].name : 'Genel Parsel'
+  }
+
   const groupedTasks = useMemo(() => {
     if (taskViewMode === 'by_field') {
       const map: Record<string, any[]> = {}
       filteredTasks.forEach((t) => {
-        const key = t.fieldName || 'Genel Parsel'
+        const key = getTaskFieldName(t)
         if (!map[key]) map[key] = []
         map[key].push(t)
       })
       return Object.entries(map).map(([title, items]) => ({ title: `📍 Parsel: ${title}`, items }))
+    }
+
+    if (taskViewMode === 'by_crop') {
+      const map: Record<string, any[]> = {}
+      filteredTasks.forEach((t) => {
+        const key = t.cropName || 'Genel'
+        if (!map[key]) map[key] = []
+        map[key].push(t)
+      })
+      return Object.entries(map).map(([cropName, items]) => ({ title: `🌱 Ürün: ${cropName}`, items }))
     }
 
     if (taskViewMode === 'by_type') {
@@ -1462,6 +1487,18 @@ export default function DashboardView() {
                           >
                             <span>🏷️ İşlem Türü Bazlı</span>
                           </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setTaskViewMode('by_crop')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                              taskViewMode === 'by_crop'
+                                ? 'bg-white text-emerald-800 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <span>🌱 Ürüne Göre</span>
+                          </button>
                         </div>
                       </div>
 
@@ -1630,7 +1667,7 @@ export default function DashboardView() {
                                         </div>
 
                                         <p className="text-[11px] text-slate-500 font-medium mt-1">
-                                          📍 <strong>{t.fieldName}</strong> · {t.cropName || 'Genel'} · 📅 {t.plannedDate || t.date}
+                                          📍 <strong>{getTaskFieldName(t)}</strong> - {t.plannedDate || t.date} - {t.cropName || 'Genel'}
                                         </p>
 
                                         {t.weatherReason && (
@@ -1832,7 +1869,7 @@ export default function DashboardView() {
                               <div className="min-w-0">
                                 <h4 className="text-xs font-bold text-slate-900 truncate">{t.title}</h4>
                                 <p className="text-[11px] text-slate-500 font-medium">
-                                  📍 <strong>{t.fieldName}</strong> · 📅 {t.plannedDate || t.date}
+                                  📍 <strong>{getTaskFieldName(t)}</strong> - {t.plannedDate || t.date} - {t.cropName || 'Genel'}
                                 </p>
                               </div>
                             </div>
