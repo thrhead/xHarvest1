@@ -9,7 +9,7 @@ This application bridges verified crop knowledge (templates from Payload CMS) wi
 - **Wasted Agrochemicals & Cost**: Prevents spraying pesticides right before heavy rain, saving chemicals, labor costs, and reducing environmental runoff.
 - **Forgotten Agricultural Operations**: Provides clear timeline stages for critical fertilization, irrigation, and harvesting windows.
 - **Double Entry & Out-of-Sync Records**: Any planting or field created in the web portal or mobile simulator is instantly reflected in both interfaces via unified event-driven synchronization (`eh_fields_sync` & localStorage persistence).
-- **Field Confusion**: Visualizes parcel coordinates and polygons on map views with click-to-focus navigation directly from task and field lists.
+- **Field Confusion & Regional Ambiguity**: Visualizes parcel coordinates and polygons on map views with click-to-focus navigation. Automatically identifies and suggests TÜİK Administrative Province and Agricultural Basin upon drawing polygons or clicking GPS coordinates, saving time and ensuring accurate regional analytics.
 
 ## User Experience Goals
 - **Field-Friendly UI**: High-contrast, clean layout readable under direct sunlight with prominent status pills and touch-friendly controls.

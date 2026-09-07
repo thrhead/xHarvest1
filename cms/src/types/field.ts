@@ -8,5 +8,7 @@ export interface FieldPolygon {
   areaDecares: number // dönüm
   coordinates: [number, number][]
   color: string
+  regionId?: string | number
+  regionName?: string
   createdAt?: string
 }

@@ -20,12 +20,14 @@ import {
   Sprout,
   X,
   ClipboardList,
+  MapPin,
 } from 'lucide-react'
 
 export type PortalTab =
   | 'map'
   | 'timeline'
   | 'records'
+  | 'regionStats'
   | 'weather'
   | 'season'
   | 'stock'
@@ -83,6 +85,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'map', label: 'Tarla Haritası', icon: Map },
   { id: 'timeline', label: 'Ekim-Hasat Takvimi', icon: Calendar },
   { id: 'records', label: 'Saha Görevleri & Defter', icon: ClipboardList },
+  { id: 'regionStats', label: 'Bölge İstatistikleri', icon: MapPin, badge: 'TÜİK' },
   { id: 'weather', label: 'Zirai Hava', icon: CloudSun, badge: '14G' },
   { id: 'season', label: 'Sezon & Rapor', icon: BarChart3 },
   { id: 'stock', label: 'Depo & Stok', icon: Package },
@@ -156,6 +159,19 @@ const DETAIL: Record<
           { label: '📖 İlaç & Gübre Kayıtları', action: 'records.all' },
           { label: '+ Yeni Görev / Kayıt Ekle', action: 'records.new' },
           { label: '🛡️ PHI Bekleme Uyarısı', action: 'records.phi' },
+        ],
+      },
+    ],
+  },
+  regionStats: {
+    title: 'Bölge İstatistikleri',
+    subtitle: 'TÜİK İl & Havza Analizi',
+    sections: [
+      {
+        title: 'Analiz Görünümleri',
+        items: [
+          { label: '📍 TÜİK İl Dağılımı', action: 'records.tasks' },
+          { label: '🌱 Ürün Dağılımı', action: 'records.all' },
         ],
       },
     ],

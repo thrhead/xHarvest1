@@ -80,6 +80,65 @@ export default function InteractiveMap({
   const [quickArea, setQuickArea] = useState('20')
   const [quickRegion, setQuickRegion] = useState('ankara')
 
+  // Dynamic regions loaded from /api/regions
+  const [dbRegions, setDbRegions] = useState<Array<{ id: number; name: string; slug: string; centerLat: number; centerLng: number; source: string; tuikCode?: string }>>([])
+  const [resolvedRegionInfo, setResolvedRegionInfo] = useState<{
+    id?: number
+    name: string
+    formattedLabel: string
+    isAutoDetected: boolean
+  } | null>(null)
+  const [isResolvingRegion, setIsResolvingRegion] = useState(false)
+
+  // Fetch active regions from API
+  useEffect(() => {
+    async function loadRegions() {
+      try {
+        const res = await fetch('/api/regions')
+        const data = await res.json()
+        if (data.success && Array.isArray(data.regions)) {
+          setDbRegions(data.regions)
+          if (data.regions.length > 0) {
+            setQuickRegion(data.regions[0].slug)
+          }
+        }
+      } catch (err) {
+        console.warn('[InteractiveMap] Failed to load /api/regions:', err)
+      }
+    }
+    loadRegions()
+  }, [])
+
+  // Auto-resolve region when 3+ points are drawn or sample polygon is added
+  useEffect(() => {
+    if (currentPoints.length >= 3) {
+      const centerLat = currentPoints.reduce((sum, p) => sum + p[0], 0) / currentPoints.length
+      const centerLng = currentPoints.reduce((sum, p) => sum + p[1], 0) / currentPoints.length
+
+      setIsResolvingRegion(true)
+      fetch('/api/regions/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: centerLat, lng: centerLng }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success && data.data?.primaryRegion) {
+            setResolvedRegionInfo({
+              id: data.data.primaryRegion.id,
+              name: data.data.primaryRegion.name,
+              formattedLabel: data.data.formattedLabel || data.data.primaryRegion.name,
+              isAutoDetected: true,
+            })
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsResolvingRegion(false))
+    } else {
+      setResolvedRegionInfo(null)
+    }
+  }, [currentPoints.length])
+
   // Sync crop filter with incoming selectedCrop prop
   useEffect(() => {
     if (selectedCrop && selectedCrop !== 'all' && selectedCrop !== '5' && isNaN(Number(selectedCrop))) {
@@ -392,12 +451,15 @@ export default function InteractiveMap({
       areaDecares: area,
       coordinates: currentPoints,
       color,
+      regionId: resolvedRegionInfo?.id,
+      regionName: resolvedRegionInfo?.formattedLabel || resolvedRegionInfo?.name,
     })
 
     setFieldName('')
     setCurrentPoints([])
     setDrawingType('field')
     setHoverPoint(null)
+    setResolvedRegionInfo(null)
     setIsDrawing(false)
   }
 
@@ -405,13 +467,20 @@ export default function InteractiveMap({
     e.preventDefault()
     if (!quickName.trim()) return
 
-    let centerLat = 39.92
-    let centerLng = 32.85
-    if (quickRegion === 'cukurova') { centerLat = 36.99; centerLng = 35.32 }
-    else if (quickRegion === 'konya') { centerLat = 37.87; centerLng = 32.48 }
-    else if (quickRegion === 'izmir') { centerLat = 38.42; centerLng = 27.14 }
-    else if (quickRegion === 'antalya') { centerLat = 36.88; centerLng = 30.70 }
-    else if (quickRegion === 'bursa') { centerLat = 40.18; centerLng = 29.06 }
+    const selectedDbReg = dbRegions.find((r) => r.slug === quickRegion)
+    let centerLat = selectedDbReg ? selectedDbReg.centerLat : 39.92
+    let centerLng = selectedDbReg ? selectedDbReg.centerLng : 32.85
+    let regId: number | undefined = selectedDbReg ? selectedDbReg.id : undefined
+    let regName: string | undefined = selectedDbReg ? selectedDbReg.name : undefined
+
+    if (!selectedDbReg) {
+      if (quickRegion === 'cukurova') { centerLat = 36.99; centerLng = 35.32; regName = 'Adana' }
+      else if (quickRegion === 'konya') { centerLat = 37.87; centerLng = 32.48; regName = 'Konya' }
+      else if (quickRegion === 'izmir') { centerLat = 38.42; centerLng = 27.14; regName = 'İzmir' }
+      else if (quickRegion === 'antalya') { centerLat = 36.88; centerLng = 30.70; regName = 'Antalya' }
+      else if (quickRegion === 'bursa') { centerLat = 40.18; centerLng = 29.06; regName = 'Bursa' }
+      else { regName = 'Ankara' }
+    }
 
     const offset = 0.005
     const coords: [number, number][] = [
@@ -431,6 +500,8 @@ export default function InteractiveMap({
       areaDecares: area,
       coordinates: coords,
       color: quickType === 'greenhouse' ? '#059669' : color,
+      regionId: regId,
+      regionName: regName,
     })
 
     setQuickName('')
@@ -571,9 +642,25 @@ export default function InteractiveMap({
                 </div>
               </div>
 
-              <div className="bg-white p-3 rounded-lg border border-emerald-200 flex items-center justify-between shadow-2xs">
-                <span className="text-xs font-medium text-slate-600">Hesaplanan Alan:</span>
-                <span className="text-sm font-bold text-emerald-700">{currentArea} Dönüm</span>
+              <div className="bg-white p-3 rounded-lg border border-emerald-200 space-y-2 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-slate-600">Hesaplanan Alan:</span>
+                  <span className="text-sm font-bold text-emerald-700">{currentArea} Dönüm</span>
+                </div>
+                {currentPoints.length >= 3 && (
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span className="text-slate-500 font-medium">Otomatik Bölge:</span>
+                    {isResolvingRegion ? (
+                      <span className="text-slate-400 font-medium animate-pulse">Tespit ediliyor...</span>
+                    ) : resolvedRegionInfo ? (
+                      <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
+                        📍 {resolvedRegionInfo.formattedLabel}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">Belirlenemedi</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {currentPoints.length > 0 && (
@@ -678,8 +765,13 @@ export default function InteractiveMap({
                             <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1">
                               {f.name}
                             </h4>
-                            <p className="text-[11px] text-slate-500 mt-0.5">
+                            <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
                               <span className="font-bold text-slate-700">{f.type === 'greenhouse' ? '🏡 Sera' : '🌾 Açık Tarla'}</span> · <span className="font-semibold text-slate-700">{f.areaDecares} Dönüm</span>
+                              {f.regionName && (
+                                <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold px-1.5 py-0.2 rounded">
+                                  📍 {f.regionName}
+                                </span>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -880,12 +972,22 @@ export default function InteractiveMap({
                     onChange={(e) => setQuickRegion(e.target.value as any)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600"
                   >
-                    <option value="ankara">📍 Ankara (İç Anadolu)</option>
-                    <option value="cukurova">📍 Adana / Çukurova</option>
-                    <option value="konya">📍 Konya Ovası</option>
-                    <option value="izmir">📍 İzmir / Ege</option>
-                    <option value="antalya">📍 Antalya (Sera)</option>
-                    <option value="bursa">📍 Bursa / Marmara</option>
+                    {dbRegions.length > 0 ? (
+                      dbRegions.map((r) => (
+                        <option key={r.slug} value={r.slug}>
+                          📍 {r.name} {r.source === 'tuik_il' ? '(TÜİK)' : '(Havza)'}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="ankara">📍 Ankara (İç Anadolu)</option>
+                        <option value="cukurova">📍 Adana / Çukurova</option>
+                        <option value="konya">📍 Konya Ovası</option>
+                        <option value="izmir">📍 İzmir / Ege</option>
+                        <option value="antalya">📍 Antalya (Sera)</option>
+                        <option value="bursa">📍 Bursa / Marmara</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>

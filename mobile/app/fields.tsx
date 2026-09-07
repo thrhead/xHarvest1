@@ -58,15 +58,25 @@ export default function FieldsScreen() {
         {...listProps}
         renderItem={({ item }) => (
           <View style={styles.card}>
-            <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.meta}>
-              {(item as any).type === 'greenhouse' ? 'Sera' : 'Tarla'} ·{' '}
-              {(item as any).areaHectare ?? (item as any).areaDecares ?? '?'}{' '}
-              {(item as any).areaHectare != null ? 'ha' : 'da'}
-            </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.name}>{item.name}</Text>
+                <Text style={styles.meta}>
+                  {(item as any).type === 'greenhouse' ? '🏡 Sera' : '🌾 Açık Tarla'} ·{' '}
+                  {(item as any).areaHectare != null
+                    ? `${((item as any).areaHectare * 10).toFixed(0)} da (${(item as any).areaHectare} ha)`
+                    : `${(item as any).areaDecares || '?'} da`}
+                </Text>
+              </View>
+              {item.regionName ? (
+                <View style={styles.regionBadge}>
+                  <Text style={styles.regionBadgeText}>📍 {item.regionName}</Text>
+                </View>
+              ) : null}
+            </View>
             {(item as any).location ? (
               <Text style={styles.coords}>
-                {(item as any).location.lat?.toFixed?.(4)}, {(item as any).location.lng?.toFixed?.(4)}
+                📍 {(item as any).location.lat?.toFixed?.(4)}°N, {(item as any).location.lng?.toFixed?.(4)}°E
               </Text>
             ) : null}
             <View style={styles.cardActions}>
@@ -129,6 +139,19 @@ const styles = StyleSheet.create({
   },
   name: { fontSize: 15, fontWeight: '800', color: '#0f172a' },
   meta: { fontSize: 12, color: '#64748b', marginTop: 4, fontWeight: '500' },
+  regionBadge: {
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  regionBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#047857',
+  },
   coords: { fontSize: 11, color: '#94a3b8', marginTop: 4 },
   empty: { textAlign: 'center', color: '#94a3b8', marginTop: 40, fontSize: 13 },
   addBtn: {

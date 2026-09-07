@@ -64,6 +64,8 @@ export interface DbField {
   areaHectare: number
   coordinates: [number, number][]
   color: string
+  regionId?: string | number
+  regionName?: string
   createdAt?: string
   updatedAt?: string
 }
@@ -152,6 +154,12 @@ export async function ensureFieldsTable(): Promise<void> {
     if (!existingColumns.has('area_decares')) {
       await executeSql(`ALTER TABLE fields ADD COLUMN area_decares NUMERIC DEFAULT 10`).catch(() => {})
     }
+    if (!existingColumns.has('region_id')) {
+      await executeSql(`ALTER TABLE fields ADD COLUMN region_id INTEGER`).catch(() => {})
+    }
+    if (!existingColumns.has('region_name')) {
+      await executeSql(`ALTER TABLE fields ADD COLUMN region_name TEXT`).catch(() => {})
+    }
 
     await executeSql(
       `UPDATE fields SET crop_name = 'Domates' WHERE crop_name = '5' OR crop_name IS NULL OR crop_name = ''`
@@ -188,8 +196,41 @@ function rowToField(row: any): DbField {
     areaHectare: decares / 10,
     coordinates: parseCoordinates(row.coordinates),
     color: row.color || (row.type === 'greenhouse' ? '#059669' : '#10b981'),
+    regionId: row.region_id != null ? row.region_id : undefined,
+    regionName: row.region_name || undefined,
     createdAt: row.created_at || new Date().toISOString(),
     updatedAt: row.updated_at || new Date().toISOString(),
+  }
+}
+
+// Automatically resolve and backfill region for fields missing region info
+async function backfillMissingRegions(fields: DbField[]): Promise<DbField[]> {
+  try {
+    const { resolveRegionByCoords } = await import('./regionDb')
+    const updatedFields: DbField[] = []
+
+    for (const f of fields) {
+      if ((!f.regionName || !f.regionId) && f.coordinates && f.coordinates.length > 0) {
+        const centerLat = f.coordinates.reduce((sum, c) => sum + c[0], 0) / f.coordinates.length
+        const centerLng = f.coordinates.reduce((sum, c) => sum + c[1], 0) / f.coordinates.length
+
+        const resolved = await resolveRegionByCoords(centerLat, centerLng)
+        f.regionId = resolved.primaryRegion.id
+        f.regionName = resolved.formattedLabel
+
+        // Persist backfill
+        if (f.dbId) {
+          await executeSql({
+            sql: `UPDATE fields SET region_id = ?, region_name = ? WHERE id = ?`,
+            args: [resolved.primaryRegion.id, resolved.formattedLabel, f.dbId],
+          }).catch(() => {})
+        }
+      }
+      updatedFields.push(f)
+    }
+    return updatedFields
+  } catch {
+    return fields
   }
 }
 
@@ -198,7 +239,8 @@ export async function getDbFields(): Promise<DbField[]> {
   try {
     const res = await executeSql(`SELECT * FROM fields ORDER BY id ASC`)
     if (res.rows) {
-      return res.rows.map(rowToField)
+      const rawFields = res.rows.map(rowToField)
+      return await backfillMissingRegions(rawFields)
     }
     return []
   } catch (err) {
@@ -212,6 +254,8 @@ export async function getDbFields(): Promise<DbField[]> {
       areaHectare: sf.areaDecares / 10,
       coordinates: sf.coordinates as [number, number][],
       color: sf.color,
+      regionId: sf.regionId || 6,
+      regionName: sf.regionName || 'Ankara',
       createdAt: new Date().toISOString(),
     }))
   }
@@ -230,6 +274,21 @@ export async function saveDbField(field: any): Promise<DbField> {
   const coords = Array.isArray(field.coordinates) ? field.coordinates : []
   const coordsJson = JSON.stringify(coords)
   const color = field.color || (type === 'greenhouse' ? '#059669' : '#10b981')
+  let regionId = field.regionId != null ? Number(field.regionId) : null
+  let regionName = field.regionName ? String(field.regionName).trim() : null
+
+  // Auto-resolve region if coordinates exist but region is missing
+  if ((!regionName || !regionId) && coords.length > 0) {
+    try {
+      const { resolveRegionByCoords } = await import('./regionDb')
+      const centerLat = coords.reduce((sum: number, c: [number, number]) => sum + c[0], 0) / coords.length
+      const centerLng = coords.reduce((sum: number, c: [number, number]) => sum + c[1], 0) / coords.length
+      const resolved = await resolveRegionByCoords(centerLat, centerLng)
+      regionId = resolved.primaryRegion.id
+      regionName = resolved.formattedLabel
+    } catch {}
+  }
+
   const now = new Date().toISOString()
 
   try {
@@ -242,8 +301,8 @@ export async function saveDbField(field: any): Promise<DbField> {
     if (existing.rows && existing.rows.length > 0) {
       const dbId = Number(existing.rows[0].id)
       await executeSql({
-        sql: `UPDATE fields SET name = ?, crop_name = ?, type = ?, area_decares = ?, coordinates = ?, color = ?, updated_at = ? WHERE id = ?`,
-        args: [name, cropName, type, areaDec, coordsJson, color, now, dbId],
+        sql: `UPDATE fields SET name = ?, crop_name = ?, type = ?, area_decares = ?, coordinates = ?, color = ?, region_id = ?, region_name = ?, updated_at = ? WHERE id = ?`,
+        args: [name, cropName, type, areaDec, coordsJson, color, regionId, regionName, now, dbId],
       })
 
       const updated = await executeSql({
@@ -254,8 +313,8 @@ export async function saveDbField(field: any): Promise<DbField> {
     }
 
     const insertRes = await executeSql({
-      sql: `INSERT INTO fields (name, crop_name, type, area_decares, coordinates, color, custom_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [name, cropName, type, areaDec, coordsJson, color, customId, now, now],
+      sql: `INSERT INTO fields (name, crop_name, type, area_decares, coordinates, color, region_id, region_name, custom_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [name, cropName, type, areaDec, coordsJson, color, regionId, regionName, customId, now, now],
     })
 
     const newId = insertRes.lastInsertRowid ? Number(insertRes.lastInsertRowid) : undefined
@@ -269,6 +328,8 @@ export async function saveDbField(field: any): Promise<DbField> {
       areaHectare: areaDec / 10,
       coordinates: coords,
       color,
+      regionId: regionId || undefined,
+      regionName: regionName || undefined,
       createdAt: now,
       updatedAt: now,
     }
@@ -283,6 +344,8 @@ export async function saveDbField(field: any): Promise<DbField> {
       areaHectare: areaDec / 10,
       coordinates: coords,
       color,
+      regionId: regionId || undefined,
+      regionName: regionName || undefined,
       createdAt: now,
     }
   }

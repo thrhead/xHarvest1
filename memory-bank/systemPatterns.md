@@ -40,7 +40,12 @@
 2. **Prop Delegation Pattern for Simulator**:
    - `MobileSimulator` receives parent states (`fields`, `plantingRecords`, `webRecords`) and emits callback events (`onAddField`, `onDeleteField`, `onAddWebRecord`).
    - Tasks generated inside the simulator automatically persist to `webRecords` if they relate to spraying or fertilizing.
-3. **Weather Adjustment Rule Engine (`/api/cron/weather-adjust`)**:
+3. **Hierarchical Region Resolution Engine (`/api/regions/resolve` & `regionDb.ts`)**:
+   - Two-tier matching logic: Evaluates Bounding Box + Ray-Casting Point-in-Polygon against official TÜİK boundaries.
+   - Primary Label: **TÜİK İl** (Administrative / Official).
+   - Secondary Label: **Tarımsal Havza** (Agronomic Context).
+   - Fallback: Sub-millisecond Haversine Centroid Proximity match if point lies slightly outside bounding polygons.
+4. **Weather Adjustment Rule Engine (`/api/cron/weather-adjust`)**:
    - Triggered periodically via cron-job.org with `CRON_SECRET` authorization.
    - Compares planned task dates against 14-day Open-Meteo daily forecasts (rain mm, max wind km/h, min/max temp).
    - Automatically reschedules tasks exceeding safety thresholds up to 7 days into the future.

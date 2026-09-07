@@ -9,6 +9,10 @@
   - Client Web Sync: Browser `localStorage` (`eh_web_fields`, `eh_web_plantings`, `eh_web_records`, `eh_web_stocks`) combined with DOM `CustomEvent` bus (`eh_fields_sync`).
 - **Mobile Framework**: Expo / React Native 0.76 with TypeScript, React Navigation, Vector Icons, and Haptics.
 - **Mapping & Geospatial**: Leaflet & OpenStreetMap (via dynamic client import in web dashboard and simulator).
+- **Geospatial & Spatial Indexing**:
+  - Point-in-Polygon (Ray-Casting Algorithm) & Haversine formula implemented in pure TypeScript (`regionDb.ts`).
+  - Pre-indexed Bounding Boxes (`minLat, maxLat, minLng, maxLng`) for 81 Turkish provinces and agricultural basins.
+  - Endpoints: `GET /api/regions`, `POST /api/regions/resolve`, `GET /api/stats/by-region`.
 - **Weather Services**: Open-Meteo REST API (`api.open-meteo.com/v1/forecast`) for 14-day forecasts.
 - **Styling**: Tailwind CSS v4, Lucide React Icons, Radix UI primitives.
 

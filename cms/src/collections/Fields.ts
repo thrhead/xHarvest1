@@ -56,6 +56,17 @@ export const Fields: CollectionConfig = {
       label: 'Harita Rengi',
     },
     {
+      name: 'region',
+      type: 'relationship',
+      relationTo: 'regions',
+      label: 'Bağlı Bölge / İl',
+    },
+    {
+      name: 'regionName',
+      type: 'text',
+      label: 'Bölge Adı (Önbellek / Hızlı Okuma)',
+    },
+    {
       name: 'customId',
       type: 'text',
       label: 'Özel İstemci ID',

@@ -13,7 +13,7 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Location from 'expo-location';
 import { useAppStore } from '../src/store/appStore';
-import { getCurrentUid } from '../src/services/firebase';
+import { getCurrentUid, resolveRegionFromCoordinates, type MobileRegionResolution } from '../src/services/firebase';
 import { consumePickedLocation } from '../src/utils/pickedLocation';
 import { consumeDrawnPolygon } from '../src/utils/drawnPolygon';
 import { GeoPoint } from '../src/types';
@@ -57,10 +57,30 @@ export default function AddFieldScreen() {
   const [lat, setLat] = useState('39.92');
   const [lng, setLng] = useState('32.85');
   const [selectedRegion, setSelectedRegion] = useState('ankara');
+  const [resolvedRegion, setResolvedRegion] = useState<MobileRegionResolution | null>(null);
+  const [isResolvingRegion, setIsResolvingRegion] = useState(false);
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
   const [polygon, setPolygon] = useState<GeoPoint[] | undefined>(undefined);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  // Auto-resolve region when coordinates change
+  const triggerAutoResolve = async (latitude: number, longitude: number) => {
+    setIsResolvingRegion(true);
+    try {
+      const res = await resolveRegionFromCoordinates(latitude, longitude);
+      if (res) {
+        setResolvedRegion(res);
+        if (res.primaryRegion) {
+          setSelectedRegion(res.primaryRegion.slug);
+        }
+      }
+    } catch (e) {
+      console.warn('Auto resolve error:', e);
+    } finally {
+      setIsResolvingRegion(false);
+    }
+  };
 
   // Haritadan dönünce seçilen konumu al
   useFocusEffect(
@@ -70,6 +90,7 @@ export default function AddFieldScreen() {
         if (picked) {
           setLat(picked.lat.toFixed(5));
           setLng(picked.lng.toFixed(5));
+          triggerAutoResolve(picked.lat, picked.lng);
         }
         const drawn = await consumeDrawnPolygon();
         if (drawn) {
@@ -80,6 +101,7 @@ export default function AddFieldScreen() {
             // Convert Hectare to Decares (Dönüm)
             setArea((drawn.areaHa * 10).toFixed(1));
           }
+          triggerAutoResolve(drawn.centroid.lat, drawn.centroid.lng);
         }
       })();
     }, [])
@@ -89,6 +111,7 @@ export default function AddFieldScreen() {
     setSelectedRegion(preset.id);
     setLat(preset.lat.toFixed(5));
     setLng(preset.lng.toFixed(5));
+    triggerAutoResolve(preset.lat, preset.lng);
   };
 
   const useMyLocation = async () => {
@@ -105,6 +128,7 @@ export default function AddFieldScreen() {
       });
       setLat(pos.coords.latitude.toFixed(5));
       setLng(pos.coords.longitude.toFixed(5));
+      triggerAutoResolve(pos.coords.latitude, pos.coords.longitude);
     } catch (e: any) {
       const msg = e?.message || 'Konum alınamadı';
       if (Platform.OS === 'web') alert(msg); else Alert.alert('Konum alınamadı', msg);
@@ -145,6 +169,8 @@ export default function AddFieldScreen() {
         },
         polygon: polygon && polygon.length >= 3 ? polygon : undefined,
         areaHectare: decares / 10,
+        regionId: resolvedRegion?.primaryRegion?.slug || selectedRegion,
+        regionName: resolvedRegion?.formattedLabel || undefined,
         createdAt: new Date(plantDate || Date.now()),
       });
 
@@ -258,6 +284,25 @@ export default function AddFieldScreen() {
 
       {/* Bölge & Konum Seçimi */}
       <Text style={styles.label}>Bölge & Konum</Text>
+      
+      {/* Auto-resolved TÜİK badge indicator */}
+      {(resolvedRegion || isResolvingRegion) && (
+        <View style={styles.autoRegionBadge}>
+          <Text style={styles.autoRegionIcon}>📍</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.autoRegionTitle}>Otomatik Tespit Edilen Bölge</Text>
+            <Text style={styles.autoRegionName}>
+              {isResolvingRegion ? 'Bölge koordinatları taranıyor...' : resolvedRegion?.formattedLabel}
+            </Text>
+          </View>
+          {resolvedRegion?.primaryRegion?.tuikCode && (
+            <View style={styles.tuikTag}>
+              <Text style={styles.tuikTagText}>TÜİK {resolvedRegion.primaryRegion.tuikCode}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.regionScroll}>
         {REGION_PRESETS.map((preset) => {
           const isSelected = selectedRegion === preset.id;
@@ -409,6 +454,31 @@ const styles = StyleSheet.create({
   cropIcon: { fontSize: 14 },
   cropText: { fontSize: 13, fontWeight: '600', color: '#334155' },
   cropTextActive: { color: '#FFFFFF' },
+
+  autoRegionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+    gap: 8,
+  },
+  autoRegionIcon: { fontSize: 18 },
+  autoRegionTitle: { fontSize: 10, fontWeight: '700', color: '#166534', textTransform: 'uppercase' },
+  autoRegionName: { fontSize: 13, fontWeight: '800', color: '#14532D', marginTop: 1 },
+  tuikTag: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  tuikTagText: { fontSize: 10, fontWeight: '800', color: '#15803D' },
 
   regionScroll: { marginBottom: 12 },
   regionChip: {

@@ -652,6 +652,8 @@ export async function getFields(_userId?: string): Promise<Field[]> {
             polygon: poly,
             areaHectare: (wf.areaDecares || (wf.areaHectare ? wf.areaHectare * 10 : 10)) / 10,
             soilType: 'killi-tınlı',
+            regionId: wf.regionId || wf.region_id,
+            regionName: wf.regionName || wf.region_name,
             createdAt: new Date(wf.createdAt || Date.now()),
           };
         });
@@ -696,6 +698,8 @@ export async function createField(
             type: newField.type,
             areaDecares: Math.round((newField.areaHectare || 1) * 10),
             coordinates: coords,
+            regionId: newField.regionId,
+            regionName: newField.regionName,
             createdAt: newField.createdAt?.toISOString ? newField.createdAt.toISOString() : new Date().toISOString(),
           },
         }),
@@ -1136,3 +1140,46 @@ export async function getDiseaseDetections(
   const uid = userId || demo.uid || 'demo-user-id';
   return demoDetections.filter((d) => !d.userId || d.userId === uid || d.userId === 'demo-user-id');
 }
+
+// ── REGIONS (TÜİK & HAVZA) ──
+
+export interface MobileRegionResolution {
+  primaryRegion?: {
+    id: number;
+    name: string;
+    slug: string;
+    source: string;
+    tuikCode?: string | null;
+  };
+  agriculturalBasin?: {
+    id: number;
+    name: string;
+    slug: string;
+  };
+  formattedLabel: string;
+}
+
+export async function resolveRegionFromCoordinates(
+  lat: number,
+  lng: number
+): Promise<MobileRegionResolution | null> {
+  try {
+    const url = resolveApiUrl('/api/regions/resolve');
+    const res = await safeFetchJson<{ success: boolean; resolution: MobileRegionResolution }>(
+      url,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat, lng }),
+      },
+      4000
+    );
+    if (res.ok && res.data?.success && res.data.resolution) {
+      return res.data.resolution;
+    }
+  } catch (err) {
+    console.warn('[firebase.ts] resolveRegionFromCoordinates error:', err);
+  }
+  return null;
+}
+

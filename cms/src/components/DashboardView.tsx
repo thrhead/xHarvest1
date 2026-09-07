@@ -52,6 +52,7 @@ import MobileSimulator from './MobileSimulator'
 import { AppSidebar, type PortalTab, type SidebarAction } from './ui/sidebar-component'
 import { runSidebarAction } from './sidebarActionHandler'
 import CropCalendar, { type PlantingRecord } from './CropCalendar'
+import RegionStatsTab from './RegionStatsTab'
 
 const InteractiveMap = dynamic(() => import('./InteractiveMap'), {
   ssr: false,
@@ -2431,6 +2432,9 @@ export default function DashboardView() {
                 )}
               </div>
             )}
+
+            {/* BÖLGE İSTATİSTİKLERİ (REGION STATS - TÜİK & HAVZA) */}
+            {activeTab === 'regionStats' && <RegionStatsTab />}
 
             {/* 4. ZİRAİ HAVA DURUMU (WEATHER) */}
             {activeTab === 'weather' && (

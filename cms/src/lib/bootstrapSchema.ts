@@ -66,7 +66,25 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
       area_decares NUMERIC DEFAULT 10,
       coordinates TEXT,
       color TEXT,
+      region_id INTEGER,
+      region_name TEXT,
       custom_id TEXT,
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS regions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      source TEXT NOT NULL DEFAULT 'tuik_il',
+      tuik_code TEXT,
+      center_lat REAL NOT NULL,
+      center_lng REAL NOT NULL,
+      default_zoom INTEGER NOT NULL DEFAULT 9,
+      boundary_json TEXT,
+      parent_id INTEGER,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
       updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )`,
@@ -221,9 +239,12 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
     `ALTER TABLE fields ADD COLUMN coordinates TEXT`,
     `ALTER TABLE fields ADD COLUMN crop_name TEXT`,
     `ALTER TABLE fields ADD COLUMN area_decares NUMERIC DEFAULT 10`,
+    `ALTER TABLE fields ADD COLUMN region_id INTEGER`,
+    `ALTER TABLE fields ADD COLUMN region_name TEXT`,
     `ALTER TABLE fields ADD COLUMN custom_id TEXT`,
     `ALTER TABLE crops_stages ADD COLUMN tasks TEXT`,
     `ALTER TABLE payload_locked_documents_rels ADD COLUMN fields_id INTEGER`,
+    `ALTER TABLE payload_locked_documents_rels ADD COLUMN regions_id INTEGER`,
   ]
 
   for (const alt of safeAlters) {
@@ -232,6 +253,14 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
     } catch {
       // Column already exists
     }
+  }
+
+  // Ensure 81 Provinces and Basins are seeded
+  try {
+    const { ensureRegionsTableAndSeed } = await import('./regionDb')
+    await ensureRegionsTableAndSeed()
+  } catch (err) {
+    console.warn('[bootstrapSchema] ensureRegionsTableAndSeed notice:', err)
   }
 
   return {

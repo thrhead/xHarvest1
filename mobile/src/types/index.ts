@@ -45,6 +45,8 @@ export interface Field {
   polygon?: GeoPoint[];
   areaHectare: number;
   soilType?: string;
+  regionId?: string;
+  regionName?: string;
   createdAt: Date;
 }
 
