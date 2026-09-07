@@ -409,7 +409,7 @@ export default function CropCalendar({
                             title="Ekim kaydını sil"
                             onClick={(e) => {
                               e.stopPropagation()
-                              if (confirm(`"${rec.fieldName} - ${rec.cropNameTr}" ekim kaydını silmek istediğinizden emin misiniz?`)) {
+                              if (confirm(`"${rec.fieldName} - ${rec.cropNameTr}" ekim kaydını ve bu plana bağlı tüm fenolojik saha görevlerini silmek istediğinizden emin misiniz?`)) {
                                 onDeleteRecord(rec.id)
                               }
                             }}
@@ -485,7 +485,7 @@ export default function CropCalendar({
                     <button
                       type="button"
                       onClick={() => {
-                        if (confirm(`"${selectedRecord.fieldName} - ${selectedRecord.cropNameTr}" ekim kaydını silmek istediğinizden emin misiniz?`)) {
+                        if (confirm(`"${selectedRecord.fieldName} - ${selectedRecord.cropNameTr}" ekim kaydını ve bu plana bağlı tüm fenolojik saha görevlerini silmek istediğinizden emin misiniz?`)) {
                           onDeleteRecord(selectedRecord.id)
                           setSelectedRecordId(null)
                         }

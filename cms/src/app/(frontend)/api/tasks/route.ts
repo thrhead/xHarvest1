@@ -4,6 +4,8 @@ import {
   saveDbTask,
   saveDbTasks,
   deleteDbTask,
+  deleteDbTasksByCropId,
+  deleteDbTasksByPlanting,
   deleteDbTasksByFieldId,
   deleteAllDbTasks,
   purgeOrphanDbTasks,
@@ -118,12 +120,33 @@ export async function DELETE(req: Request) {
     const { searchParams } = new URL(req.url)
     const clearAll = searchParams.get('clearAll') === 'true'
     const fieldId = searchParams.get('fieldId')
+    const cropId = searchParams.get('cropId')
+    const cropName = searchParams.get('cropName')
     const id = searchParams.get('id')
 
     if (clearAll) {
       const success = await deleteAllDbTasks()
       return NextResponse.json(
         { success, clearedAll: true },
+        { headers: corsHeaders }
+      )
+    }
+
+    if (cropId) {
+      const success = await deleteDbTasksByCropId(cropId)
+      if (fieldId && cropName) {
+        await deleteDbTasksByPlanting(fieldId, cropName, cropId)
+      }
+      return NextResponse.json(
+        { success, cropId, fieldId, cropName },
+        { headers: corsHeaders }
+      )
+    }
+
+    if (fieldId && cropName) {
+      const success = await deleteDbTasksByPlanting(fieldId, cropName)
+      return NextResponse.json(
+        { success, fieldId, cropName },
         { headers: corsHeaders }
       )
     }
@@ -138,7 +161,7 @@ export async function DELETE(req: Request) {
 
     if (!id) {
       return NextResponse.json(
-        { error: 'Missing id, fieldId or clearAll query parameter' },
+        { error: 'Missing id, cropId, fieldId or clearAll query parameter' },
         { status: 400, headers: corsHeaders }
       )
     }

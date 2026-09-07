@@ -39,7 +39,12 @@ export default function TaskDetailScreen() {
 
   const field = fields.find((f) => f.id === task.fieldId);
   const fieldName = field?.name ?? 'Tarla';
-  const isCustom = Boolean(task.isCustom === true || task.source === 'manual');
+  const isCropPlanTask = Boolean(
+    task.source === 'crop_plan' ||
+    Boolean(task.cropId && task.cropId !== 'general') ||
+    (!task.isCustom && task.source !== 'manual')
+  );
+  const isCustom = !isCropPlanTask && Boolean(task.isCustom === true || task.source === 'manual');
 
   const handleSave = async () => {
     setSaving(true);
@@ -229,7 +234,7 @@ export default function TaskDetailScreen() {
       ) : (
         <View style={s.cropPlanNotice}>
           <Text style={s.cropPlanNoticeText}>
-            🌱 Bu işlem ekim-hasat planının bir parçasıdır. Takvimin agronomik bütünlüğü için silinemez; dilerseniz yukarıdan durumu "Atlandı" olarak işaretleyebilirsiniz.
+            🌱 Bu işlem ekim-hasat fenolojik planının bir parçasıdır. Plan görevleri tek tek silinemez; Takvim sayfasından ilgili ekim kaydı silindiğinde bağlı tüm görevler birlikte otomatik kaldırılır. Dilerseniz yukarıdan durumu "Atlandı" veya "Ertelendi" olarak işaretleyebilirsiniz.
           </Text>
         </View>
       )}

@@ -106,6 +106,184 @@ interface WeatherDayItem {
   advice: string
 }
 
+function getFenologicalStagesForCrop(cropNameTr: string, cropObj?: any) {
+  if (cropObj?.stages && Array.isArray(cropObj.stages) && cropObj.stages.length > 0) {
+    return cropObj.stages
+  }
+  const norm = (cropNameTr || '').toLowerCase()
+  if (norm.includes('zeytin') || norm.includes('olive')) {
+    return [
+      {
+        nameTr: 'İlkbahar Uyanışı ve Budama',
+        tasks: [
+          { type: 'other', titleTr: 'Ağaç Budaması ve Havalandırma', description: 'Kuru ve sık dallar temizlenir.', offset: 0 },
+          { type: 'fertilizing', titleTr: 'Kış/İlkbahar Gübrelemesi', description: 'Kalsiyum nitrat ve kompoze gübre verilir.', offset: 15 },
+          { type: 'spraying', titleTr: 'Bordo Bulamacı Uygulaması', description: 'Halkalı leke hastalığına karşı %1.5 luk bordo bulamacı atılır.', offset: 30 },
+        ],
+      },
+      {
+        nameTr: 'Çiçeklenme ve Meyve Bağlama',
+        tasks: [
+          { type: 'fertilizing', titleTr: 'Yapraktan Bor ve Çinko Desteği', description: 'Çiçek tutumunu artırmak için yaprak gübresi atılır.', offset: 45 },
+          { type: 'irrigation', titleTr: 'Yaz Sulamaları', description: 'Çekirdek sertleşme döneminde su verilir.', offset: 75 },
+        ],
+      },
+      {
+        nameTr: 'Meyve Büyütme ve Sinekle Mücadele',
+        tasks: [
+          { type: 'spraying', titleTr: 'Zeytin Sineği Tuzak ve İlaçlaması', description: 'Tuzak sayılarına göre zeytin sineği mücadelesi yapılır.', offset: 120 },
+        ],
+      },
+      {
+        nameTr: 'Hasat ve Sıkım',
+        tasks: [
+          { type: 'harvesting', titleTr: 'Zeytin Hasadı', description: 'Dip zeytini ile dal zeytini karıştırılmadan toplanır.', offset: 240 },
+        ],
+      },
+    ]
+  }
+  if (norm.includes('buğday') || norm.includes('arpa') || norm.includes('wheat')) {
+    return [
+      {
+        nameTr: 'Ekim ve Çimlenme',
+        tasks: [
+          { type: 'planting', titleTr: 'Buğday Tohum Ekimi', description: 'Mibzer ile uygun derinlikte ekim gerçekleştirilir.', offset: 0 },
+          { type: 'fertilizing', titleTr: 'Taban Gübresi (DAP)', description: 'Ekimle birlikte taban gübresi verilir.', offset: 0 },
+        ],
+      },
+      {
+        nameTr: 'Kardeşlenme ve Kışlama',
+        tasks: [
+          { type: 'fertilizing', titleTr: 'Birinci Üst Gübreleme (Üre)', description: 'Erken ilkbaharda kardeşlenmeyi artırmak için verilir.', offset: 40 },
+          { type: 'spraying', titleTr: 'Yabancı Ot İlaçlaması', description: 'Geniş ve dar yapraklı otlara karşı ot ilacı atılır.', offset: 60 },
+        ],
+      },
+      {
+        nameTr: 'Sapa Kalkma ve Başaklanma',
+        tasks: [
+          { type: 'fertilizing', titleTr: 'İkinci Üst Gübreleme (Nitrat)', description: 'Sapa kalkma döneminde verim için nitrat atılır.', offset: 110 },
+          { type: 'spraying', titleTr: 'Pas ve Sinek İlaçlaması', description: 'Sarı pas ve yaprak bitlerine karşı koruma yapılır.', offset: 130 },
+        ],
+      },
+      {
+        nameTr: 'Dane Doldurma ve Hasat',
+        tasks: [
+          { type: 'harvesting', titleTr: 'Biçerdöver ile Buğday Hasadı', description: 'Dane nem oranı %13 altına düştüğünde biçim yapılır.', offset: 160 },
+        ],
+      },
+    ]
+  }
+  if (norm.includes('domates') || norm.includes('tomato')) {
+    return [
+      {
+        nameTr: 'Fide ve Dikim',
+        tasks: [
+          { type: 'planting', titleTr: 'Domates Fide Dikimi', description: 'Fideler toprağa dikilir ve can suyu verilir.', offset: 0 },
+          { type: 'irrigation', titleTr: 'Can Suyu Sulaması', description: 'Toprağın nemli kalması sağlanır.', offset: 1 },
+        ],
+      },
+      {
+        nameTr: 'Vejetatif Gelişme',
+        tasks: [
+          { type: 'fertilizing', titleTr: 'Azot ve Fosforlu Gübreleme', description: 'Kök ve gövde gelişimi için besin desteği verilir.', offset: 20 },
+          { type: 'spraying', titleTr: 'Koruyucu İlaçlama', description: 'Kırmızı örümcek ve yaprak biti kontrolü yapılır.', offset: 30 },
+          { type: 'other', titleTr: 'Budama ve Askıya Alma', description: 'Koltuk budaması yapılarak ana gövde desteklenir.', offset: 40 },
+        ],
+      },
+      {
+        nameTr: 'Çiçeklenme ve Meyve Tutumu',
+        tasks: [
+          { type: 'fertilizing', titleTr: 'Potasyum ve Kalsiyum Desteği', description: 'Meyve kalitesi ve çiçek burnu çürüklüğünü önlemek için kalsiyum verilir.', offset: 50 },
+          { type: 'spraying', titleTr: 'Mildiyö ve Erken Yaprak Yanıklığı Önleme', description: 'Rutubetli havalarda fungisit uygulaması yapılır.', offset: 65 },
+        ],
+      },
+      {
+        nameTr: 'Olgunlaşma ve Hasat',
+        tasks: [
+          { type: 'harvesting', titleTr: 'İlk Hasat Periyodu', description: 'Kızaran domatesler kademeli toplanır.', offset: 80 },
+          { type: 'harvesting', titleTr: 'Ana Hasat Periyodu', description: 'Tam olgunluğa erişen ürünler toplanarak pazara hazırlanır.', offset: 100 },
+        ],
+      },
+    ]
+  }
+  if (norm.includes('biber') || norm.includes('pepper')) {
+    return [
+      {
+        nameTr: 'Fide Dikimi',
+        tasks: [
+          { type: 'planting', titleTr: 'Biber Fidelerini Dik', description: 'Sıra üzeri 35-40 cm mesafe ile dikim yapılır.', offset: 0 },
+          { type: 'irrigation', titleTr: 'İlk Can Suyu', description: 'Köklerin tutunması için bol sulama yapılır.', offset: 1 },
+        ],
+      },
+      {
+        nameTr: 'Gelişme ve Çiçeklenme',
+        tasks: [
+          { type: 'fertilizing', titleTr: 'Dengeli NPK Gübrelemesi', description: 'Damlama ile dengeli besin verilir.', offset: 25 },
+          { type: 'spraying', titleTr: 'Thrips ve Yaprak Biti Mücadelesi', description: 'Çiçek döneminde thrips kontrolü kritiktir.', offset: 40 },
+        ],
+      },
+      {
+        nameTr: 'Hasat Dönemi',
+        tasks: [
+          { type: 'harvesting', titleTr: 'Kademeli Biber Hasadı', description: '7-10 günde bir yeşil ve ergin biberler toplanır.', offset: 60 },
+        ],
+      },
+    ]
+  }
+  if (norm.includes('elma') || norm.includes('apple')) {
+    return [
+      {
+        nameTr: 'Budama ve Göz Kabarma',
+        tasks: [
+          { type: 'other', titleTr: 'Kış Budaması', description: 'Ağaç tacı şekillendirilir.', offset: 0 },
+          { type: 'spraying', titleTr: 'Bakırlı İlaçlama', description: 'Kara lekeye karşı önleyici bakır uygulaması yapılır.', offset: 15 },
+        ],
+      },
+      {
+        nameTr: 'Pembe Tomurcuk ve Çiçeklenme',
+        tasks: [
+          { type: 'spraying', titleTr: 'Elma Kara Lekesi İlaçlaması', description: 'Hassas pembe tomurcuk döneminde fungisit kullanılır.', offset: 35 },
+        ],
+      },
+      {
+        nameTr: 'Meyve Seyreltme ve Gelişme',
+        tasks: [
+          { type: 'other', titleTr: 'Meyve Seyreltme', description: 'Kaliteli elma için hüzme başı 1-2 meyve bırakılır.', offset: 65 },
+          { type: 'spraying', titleTr: 'Elma İç Kurdu Mücadelesi', description: 'Tahmin uyarı sistemine göre ilaçlama yapılır.', offset: 85 },
+        ],
+      },
+      {
+        nameTr: 'Hasat',
+        tasks: [
+          { type: 'harvesting', titleTr: 'El Elle Hasadı', description: 'Meyve sapı kırılmadan zedelenmeden toplanır ve kasalanır.', offset: 130 },
+        ],
+      },
+    ]
+  }
+  return [
+    {
+      nameTr: 'Ekim ve Dikim',
+      tasks: [
+        { type: 'planting', titleTr: `${cropNameTr} Ekim & Dikim Faaliyeti`, description: 'Toprak hazırlığı ve tohum/fide dikimi.', offset: 0 },
+        { type: 'irrigation', titleTr: 'Can Suyu Sulaması', description: 'Ekim sonrası ilk sulama.', offset: 2 },
+      ],
+    },
+    {
+      nameTr: 'Gelişme ve Gübreleme',
+      tasks: [
+        { type: 'fertilizing', titleTr: 'Gelişim Gübrelemesi', description: 'Vejetatif gelişimi destekleyici gübreleme.', offset: 25 },
+        { type: 'spraying', titleTr: 'Zararlı ve Hastalık Kontrolü', description: 'Koruyucu ilaçlama uygulaması.', offset: 40 },
+      ],
+    },
+    {
+      nameTr: 'Olgunlaşma ve Hasat',
+      tasks: [
+        { type: 'harvesting', titleTr: `${cropNameTr} Hasadı`, description: 'Olgunlaşan ürünlerin hasadı.', offset: 80 },
+      ],
+    },
+  ]
+}
+
 export default function DashboardView() {
   const [crops, setCrops] = useState<any[]>([])
   const [guides, setGuides] = useState<any[]>([])
@@ -569,7 +747,7 @@ export default function DashboardView() {
   }
 
   const handleDeleteField = async (id: string, name?: string) => {
-    if (name && typeof window !== 'undefined' && !window.confirm(`"${name}" tarlasını silmek istediğinize emin misiniz?`)) return
+    if (name && typeof window !== 'undefined' && !window.confirm(`"${name}" tarlasını silmek istediğinize emin misiniz? Tarlaya ait tüm ekim planları ve görevler de silinecektir.`)) return
     setFields((prev) => {
       const remaining = prev.filter((f) => f.id !== id)
       if (typeof window !== 'undefined') {
@@ -578,8 +756,24 @@ export default function DashboardView() {
       }
       return remaining
     })
+    setPlantingRecords((prev) => {
+      const remaining = prev.filter((r) => r.fieldId !== id)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('eh_web_plantings', JSON.stringify(remaining))
+      }
+      return remaining
+    })
+    setTasks((prev) => {
+      const remaining = prev.filter((t) => t.fieldId !== id)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('eh_mobile_tasks', JSON.stringify(remaining))
+        window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { source: 'web' } }))
+      }
+      return remaining
+    })
     try {
       await fetch(`/api/fields?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      await fetch(`/api/tasks?fieldId=${encodeURIComponent(id)}`, { method: 'DELETE' })
     } catch (e) {
       console.warn('Field delete error:', e)
     }
@@ -838,6 +1032,21 @@ export default function DashboardView() {
     return fields[0]?.name ? fields[0].name : 'Genel Parsel'
   }
 
+  const getTaskCropName = (t: any): string => {
+    if (t.cropName && t.cropName !== 'Genel' && t.cropName !== 'Genel Ürün' && t.cropName !== 'Ürün') {
+      return t.cropName
+    }
+    const matchingField = fields.find(
+      (f) =>
+        f.id === t.fieldId ||
+        f.customId === t.fieldId ||
+        (t.fieldId && String(f.id).endsWith(String(t.fieldId))) ||
+        (t.fieldId && String(t.fieldId).endsWith(String(f.id)))
+    )
+    if (matchingField?.cropName) return matchingField.cropName
+    return t.cropName || 'Genel'
+  }
+
   const groupedTasks = useMemo(() => {
     if (taskViewMode === 'by_field') {
       const map: Record<string, any[]> = {}
@@ -852,7 +1061,7 @@ export default function DashboardView() {
     if (taskViewMode === 'by_crop') {
       const map: Record<string, any[]> = {}
       filteredTasks.forEach((t) => {
-        const key = t.cropName || 'Genel'
+        const key = getTaskCropName(t)
         if (!map[key]) map[key] = []
         map[key].push(t)
       })
@@ -1290,8 +1499,78 @@ export default function DashboardView() {
                     setNewPlantDate(new Date().toISOString().slice(0, 10))
                     setShowAddPlantingModal(true)
                   }}
-                  onDeleteRecord={(recordId) => {
-                    setPlantingRecords((prev) => prev.filter((r) => r.id !== recordId))
+                  onDeleteRecord={async (recordId) => {
+                    const targetRecord = plantingRecords.find((r) => r.id === recordId)
+                    setPlantingRecords((prev) => {
+                      const next = prev.filter((r) => r.id !== recordId)
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('eh_web_plantings', JSON.stringify(next))
+                        window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', plantings: next } }))
+                      }
+                      return next
+                    })
+
+                    // Cascading delete: Remove all tasks associated with this planting plan
+                    setTasks((prev) => {
+                      const next = prev.filter((t) => {
+                        if (t.cropId === recordId) return false
+                        if (
+                          targetRecord &&
+                          (t.fieldId === targetRecord.fieldId || (!t.fieldId && !targetRecord.fieldId)) &&
+                          t.cropName === targetRecord.cropNameTr &&
+                          (t.source === 'crop_plan' || !t.isCustom)
+                        ) {
+                          return false
+                        }
+                        return true
+                      })
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('eh_mobile_tasks', JSON.stringify(next))
+                        window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { source: 'web' } }))
+                      }
+                      return next
+                    })
+
+                    // Clean up mobile demo state in localStorage if exists
+                    if (typeof window !== 'undefined') {
+                      try {
+                        const raw = localStorage.getItem('eh_mobile_state_v5')
+                        if (raw) {
+                          const parsed = JSON.parse(raw)
+                          if (parsed.crops) {
+                            parsed.crops = parsed.crops.filter((c: any) => c.id !== recordId)
+                          }
+                          if (parsed.tasks) {
+                            parsed.tasks = parsed.tasks.filter((t: any) => {
+                              if (t.cropId === recordId) return false
+                              if (
+                                targetRecord &&
+                                t.fieldId === targetRecord.fieldId &&
+                                (t.cropName === targetRecord.cropNameTr || t.cropId === targetRecord.cropTemplateId) &&
+                                (t.source === 'crop_plan' || !t.isCustom)
+                              ) {
+                                return false
+                              }
+                              return true
+                            })
+                          }
+                          localStorage.setItem('eh_mobile_state_v5', JSON.stringify(parsed))
+                        }
+                      } catch (err) {
+                        console.warn('Sync cleanup error:', err)
+                      }
+                    }
+
+                    // Delete from server SQLite database
+                    try {
+                      const query = new URLSearchParams()
+                      query.set('cropId', recordId)
+                      if (targetRecord?.fieldId) query.set('fieldId', targetRecord.fieldId)
+                      if (targetRecord?.cropNameTr) query.set('cropName', targetRecord.cropNameTr)
+                      await fetch(`/api/tasks?${query.toString()}`, { method: 'DELETE' })
+                    } catch (e) {
+                      console.warn('API task delete error:', e)
+                    }
                   }}
                   onTaskToggle={(recordId, taskId, nextStatus, taskTitle) => {
                     setPlantingRecords((prev) =>
@@ -1667,7 +1946,7 @@ export default function DashboardView() {
                                         </div>
 
                                         <p className="text-[11px] text-slate-500 font-medium mt-1">
-                                          📍 <strong>{getTaskFieldName(t)}</strong> - {t.plannedDate || t.date} - {t.cropName || 'Genel'}
+                                          📍 <strong>{getTaskFieldName(t)}</strong> - {t.plannedDate || t.date} - {getTaskCropName(t)}
                                         </p>
 
                                         {t.weatherReason && (
@@ -1869,7 +2148,7 @@ export default function DashboardView() {
                               <div className="min-w-0">
                                 <h4 className="text-xs font-bold text-slate-900 truncate">{t.title}</h4>
                                 <p className="text-[11px] text-slate-500 font-medium">
-                                  📍 <strong>{getTaskFieldName(t)}</strong> - {t.plannedDate || t.date} - {t.cropName || 'Genel'}
+                                  📍 <strong>{getTaskFieldName(t)}</strong> - {t.plannedDate || t.date} - {getTaskCropName(t)}
                                 </p>
                               </div>
                             </div>
@@ -3337,30 +3616,75 @@ export default function DashboardView() {
                 return next
               })
 
-              // Post planting task to server API so it appears in tasks across Web & Mobile
-              const plantingTask = {
-                id: `task-planting-${Date.now()}`,
-                fieldId: field?.id || 'f-1',
-                fieldName: field?.name || 'Tarla',
-                cropName: cropNameTr,
-                title: `🌱 ${cropNameTr} Ekim & Dikim Faaliyeti`,
-                type: 'planting',
-                plannedDate: newPlantDate,
-                date: newPlantDate,
-                status: 'pending',
-                notes: `${field?.name || 'Tarla'} için ${cropNameTr} ekimi planlandı.`,
-                isCustom: true,
-                source: 'crop_plan',
+              // Generate full fenological plan stages and tasks
+              const fenologicalStages = getFenologicalStagesForCrop(cropNameTr, crop)
+              const baseDate = new Date(newPlantDate)
+              const generatedTasks: any[] = []
+              let taskCount = 0
+
+              fenologicalStages.forEach((st: any) => {
+                const stageTasks = st.tasks || []
+                stageTasks.forEach((tk: any) => {
+                  taskCount++
+                  const offsetDays = tk.offset !== undefined ? tk.offset : (st.dayOffset || 0)
+                  const taskDate = new Date(baseDate.getTime() + offsetDays * 86400000)
+                  const dateStr = taskDate.toISOString().slice(0, 10)
+                  const taskId = `task-${newRecordId}-${taskCount}`
+
+                  generatedTasks.push({
+                    id: taskId,
+                    userId: 'demo-user-id',
+                    fieldId: field?.id || 'f-1',
+                    fieldName: field?.name || 'Tarla',
+                    cropId: newRecordId,
+                    cropName: cropNameTr,
+                    type: tk.type || 'other',
+                    title: tk.titleTr || tk.title || `${cropNameTr} Saha Görevi`,
+                    description: tk.description || '',
+                    notes: tk.description ? `${tk.description} (${st.nameTr || st.name || 'Plan'})` : undefined,
+                    plannedDate: dateStr,
+                    date: dateStr,
+                    originalDate: dateStr,
+                    status: 'pending',
+                    photoUris: [],
+                    isCustom: false,
+                    source: 'crop_plan',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  })
+                })
+              })
+
+              setTasks((prev) => {
+                const next = [...generatedTasks, ...prev]
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('eh_mobile_tasks', JSON.stringify(next))
+                  window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { source: 'web', count: generatedTasks.length } }))
+                }
+                return next
+              })
+
+              if (typeof window !== 'undefined') {
+                try {
+                  const raw = localStorage.getItem('eh_mobile_state_v5')
+                  if (raw) {
+                    const parsed = JSON.parse(raw)
+                    parsed.tasks = [...generatedTasks, ...(parsed.tasks || [])]
+                    localStorage.setItem('eh_mobile_state_v5', JSON.stringify(parsed))
+                  }
+                } catch (err) {}
               }
+
+              // Post generated tasks to server API so they appear across Web and Mobile
               fetch('/api/tasks', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ task: plantingTask }),
-              }).then(() => fetchTasksFromApi()).catch(() => {})
+                body: JSON.stringify({ tasks: generatedTasks }),
+              }).then(() => fetchTasksFromApi()).catch((err) => console.warn('Save generated tasks error:', err))
 
               setShowAddPlantingModal(false)
               if (typeof window !== 'undefined') {
-                alert(`✅ Yeni Ekim Kaydı Başarıyla Eklendi!\nTarla: ${field?.name || 'Tarla'}\nÜrün: ${cropNameTr}\nEkim Tarihi: ${newPlantDate}`)
+                alert(`✅ Yeni Ekim Kaydı ve ${generatedTasks.length} Fenolojik Saha Görevi Başarıyla Eklendi!\nTarla: ${field?.name || 'Tarla'}\nÜrün: ${cropNameTr}\nEkim Tarihi: ${newPlantDate}`)
               }
             }}
           >

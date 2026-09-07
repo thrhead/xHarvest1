@@ -203,6 +203,102 @@ const DEFAULT_CROPS = [
       },
     ],
   },
+  {
+    id: 'crop-zeytin',
+    name: 'Olive',
+    nameTr: 'Zeytin',
+    category: 'fruit',
+    defaultDurationDays: 365,
+    stages: [
+      {
+        name: 'Spring Awakening & Pruning',
+        nameTr: 'İlkbahar Uyanışı ve Budama',
+        dayOffset: 0,
+        durationDays: 45,
+        tasks: [
+          { type: 'other', title: 'Annual pruning', titleTr: 'Ağaç Budaması ve Havalandırma', description: 'Kuru ve sık dallar temizlenir.' },
+          { type: 'fertilizing', title: 'Organic & Mineral fertilization', titleTr: 'Kış/İlkbahar Gübrelemesi', description: 'Kalsiyum nitrat ve kompoze gübre verilir.' },
+          { type: 'spraying', title: 'Bordeaux mixture application', titleTr: 'Bordo Bulamacı Uygulaması', description: 'Halkalı leke hastalığına karşı %1.5 luk bordo bulamacı atılır.' },
+        ],
+      },
+      {
+        name: 'Flowering & Fruit Set',
+        nameTr: 'Çiçeklenme ve Meyve Bağlama',
+        dayOffset: 45,
+        durationDays: 60,
+        tasks: [
+          { type: 'fertilizing', title: 'Foliar Boron & Zinc spray', titleTr: 'Yapraktan Bor ve Çinko Desteği', description: 'Çiçek tutumunu artırmak için yaprak gübresi atılır.' },
+          { type: 'irrigation', title: 'Summer irrigation cycle', titleTr: 'Yaz Sulamaları', description: 'Çekirdek sertleşme döneminde su verilir.' },
+        ],
+      },
+      {
+        name: 'Fruit Growth & Pest Control',
+        nameTr: 'Meyve Büyütme ve Sinekle Mücadele',
+        dayOffset: 105,
+        durationDays: 90,
+        tasks: [
+          { type: 'spraying', title: 'Olive fruit fly monitoring', titleTr: 'Zeytin Sineği Tuzak ve İlaçlaması', description: 'Tuzak sayılarına göre zeytin sineği mücadelesi yapılır.' },
+        ],
+      },
+      {
+        name: 'Harvesting & Oil Pressing',
+        nameTr: 'Hasat ve Sıkım',
+        dayOffset: 250,
+        durationDays: 60,
+        tasks: [
+          { type: 'harvesting', title: 'Early / Main harvest', titleTr: 'Zeytin Hasadı', description: 'Dip zeytini ile dal zeytini karıştırılmadan toplanır.' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'crop-elma',
+    name: 'Apple',
+    nameTr: 'Elma',
+    category: 'fruit',
+    defaultDurationDays: 210,
+    stages: [
+      {
+        name: 'Dormancy & Pruning',
+        nameTr: 'Budama ve Göz Kabarma',
+        dayOffset: 0,
+        durationDays: 30,
+        tasks: [
+          { type: 'other', title: 'Winter pruning', titleTr: 'Kış Budaması', description: 'Hava ve ışık geçirgenliği için taç budaması yapılır.' },
+          { type: 'spraying', title: 'Dormant copper spray', titleTr: 'Göz Kabarması Bakırlı İlaçlama', description: 'Karasakız ve bakteriyel yanıklığa karşı koruma sağlanır.' },
+        ],
+      },
+      {
+        name: 'Flowering',
+        nameTr: 'Pembe Tomurcuk ve Çiçeklenme',
+        dayOffset: 30,
+        durationDays: 30,
+        tasks: [
+          { type: 'spraying', title: 'Scab & Mildew control', titleTr: 'Elma Karalekesi İlaçlaması', description: 'Pembe tomurcuk ve taç yaprak dökümünde ilaçlama tekrarlanır.' },
+          { type: 'fertilizing', title: 'Zinc & Boron application', titleTr: 'Çinko ve Bor Desteği', description: 'Meyve tutumunu ve polen kalitesini artırır.' },
+        ],
+      },
+      {
+        name: 'Fruit Growth',
+        nameTr: 'Meyve Seyreltme ve Gelişme',
+        dayOffset: 60,
+        durationDays: 60,
+        tasks: [
+          { type: 'other', title: 'Fruit thinning', titleTr: 'Meyve Seyreltmesi', description: 'Meyve iriliği için huzmelerde 1-2 meyve bırakılır.' },
+          { type: 'spraying', title: 'Codling moth control', titleTr: 'İç Kurdu (Cydia pomonella) Mücadelesi', description: 'Feromon tuzak takibine göre yumurta açılımında ilaçlama yapılır.' },
+        ],
+      },
+      {
+        name: 'Harvest',
+        nameTr: 'Hasat',
+        dayOffset: 150,
+        durationDays: 45,
+        tasks: [
+          { type: 'harvesting', title: 'Careful picking', titleTr: 'Elma Hasadı', description: 'Sapıyla birlikte zedelenmeden toplanarak kasalanır.' },
+        ],
+      },
+    ],
+  },
 ]
 
 const DEFAULT_GUIDES = [

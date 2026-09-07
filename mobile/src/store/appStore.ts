@@ -92,6 +92,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           get().refreshTasks();
         };
         window.addEventListener('eh_fields_sync', handleSync);
+        window.addEventListener('eh_tasks_sync', handleSync);
         window.addEventListener('storage', handleSync);
       }
 
@@ -191,6 +192,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       await fb.updateTask(taskId, { status: nextStatus, completedAt });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('eh_tasks_sync', {
+            detail: { source: 'mobile', taskId, status: nextStatus },
+          })
+        );
+      }
     } catch (e) {
       console.warn('Failed to update task status:', e);
     }
@@ -300,3 +308,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().setupNotifications(hour);
   },
 }));
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('eh_fields_sync', () => {
+    useAppStore.getState().refreshFields();
+    useAppStore.getState().refreshCrops();
+  });
+  window.addEventListener('eh_tasks_sync', () => {
+    useAppStore.getState().refreshTasks();
+  });
+}

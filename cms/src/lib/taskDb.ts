@@ -280,7 +280,19 @@ export async function saveDbTasks(taskList: DbTask[]): Promise<DbTask[]> {
   await ensureTasksTable()
   const savedList: DbTask[] = []
   for (const t of taskList) {
-    if (String(t.id).startsWith('t-') || !t.title || !t.fieldId) continue
+    if (!t || !t.title || !t.fieldId) continue
+    const tId = String(t.id || '')
+    if (
+      tId === 't-hasat-domates-1' ||
+      tId === 't-ilac-1' ||
+      tId === 't-gubre-1' ||
+      tId === 't-sulama-1' ||
+      tId === 't-bakim-1' ||
+      tId === 't-cron-1' ||
+      tId === 't-cron-2'
+    ) {
+      continue
+    }
     const s = await saveDbTask(t)
     savedList.push(s)
   }
@@ -293,6 +305,32 @@ export async function deleteDbTask(id: string): Promise<boolean> {
     sql: `DELETE FROM tasks WHERE id = ?`,
     args: [id],
   })
+  return true
+}
+
+export async function deleteDbTasksByCropId(cropId: string): Promise<boolean> {
+  await ensureTasksTable()
+  await executeSql({
+    sql: `DELETE FROM tasks WHERE crop_id = ?`,
+    args: [cropId],
+  })
+  return true
+}
+
+export async function deleteDbTasksByPlanting(fieldId: string, cropName?: string, cropId?: string): Promise<boolean> {
+  await ensureTasksTable()
+  if (cropId) {
+    await executeSql({
+      sql: `DELETE FROM tasks WHERE crop_id = ?`,
+      args: [cropId],
+    })
+  }
+  if (fieldId && cropName) {
+    await executeSql({
+      sql: `DELETE FROM tasks WHERE field_id = ? AND (crop_name = ? OR crop_id = ?)`,
+      args: [fieldId, cropName, cropName],
+    })
+  }
   return true
 }
 

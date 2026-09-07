@@ -263,7 +263,7 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
 
         // Remove crops deleted on Web
         targetDemo.crops = targetDemo.crops.filter((c) => {
-          if (c.id.startsWith('pr_')) {
+          if (c.id.startsWith('pr_') || c.id.startsWith('pr-')) {
             return webIds.has(c.id) || webFieldCropKeys.has(`${c.fieldId}_${c.cropName}`);
           }
           return true;
@@ -308,7 +308,7 @@ function syncMobileCropsToWebPlantings() {
 
     // Purge records that no longer exist in Mobile crops
     webPlantings = webPlantings.filter((wp: any) => {
-      if (wp.id && wp.id.startsWith('pr_')) {
+      if (wp.id && (wp.id.startsWith('pr_') || wp.id.startsWith('pr-'))) {
         return activeCropIds.has(wp.id) || activeCropFieldKeys.has(`${wp.fieldId}_${wp.cropNameTr}`);
       }
       return true;
@@ -744,12 +744,78 @@ export async function deleteField(fieldId: string): Promise<void> {
   demo.applicationLogs = demo.applicationLogs.filter((l) => l.fieldId !== fieldId);
   persistDemo();
   syncDemoFieldsToWeb();
+
+  // Also clean web plantings for this field
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const raw = window.localStorage.getItem(WEB_PLANTINGS_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          const next = arr.filter((p: any) => p.fieldId !== fieldId);
+          window.localStorage.setItem(WEB_PLANTINGS_KEY, JSON.stringify(next));
+        }
+      }
+    } catch {}
+  }
 }
 
 // ── CROPS ──
 
+function reconcileWebPlantingsIntoDemo() {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const validFieldIds = new Set(demo.fields.map((f) => String(f.id)));
+    const webPlantingStr = window.localStorage.getItem(WEB_PLANTINGS_KEY);
+    const webPlantings = webPlantingStr ? JSON.parse(webPlantingStr) : [];
+
+    if (Array.isArray(webPlantings)) {
+      const activeWebPlantingIds = new Set(webPlantings.map((wp: any) => String(wp.id)));
+
+      // Remove orphaned crops whose field no longer exists
+      demo.crops = demo.crops.filter((c) => validFieldIds.has(String(c.fieldId)));
+
+      // Remove any web-originated crop that was deleted from web plantings
+      demo.crops = demo.crops.filter((c) => {
+        if (String(c.id).startsWith('pr-')) {
+          return activeWebPlantingIds.has(String(c.id));
+        }
+        return true;
+      });
+
+      // Add or update active web plantings into demo.crops
+      webPlantings.forEach((wp: any) => {
+        if (!validFieldIds.has(String(wp.fieldId))) return;
+        const cropId = String(wp.id);
+        const existingIdx = demo.crops.findIndex(
+          (c) => c.id === cropId || (c.fieldId === wp.fieldId && c.cropName === wp.cropNameTr)
+        );
+        const cropObj: Crop = {
+          id: cropId,
+          userId: demo.uid || 'demo-user-id',
+          fieldId: wp.fieldId,
+          cropTemplateId: wp.cropTemplateId || 'crop-domates',
+          cropName: wp.cropNameTr || 'Ürün',
+          plantingDate: new Date(wp.plantingDate || Date.now()),
+          status: wp.status === 'hasat_edildi' ? 'completed' : 'active',
+        };
+        if (existingIdx >= 0) {
+          demo.crops[existingIdx] = { ...demo.crops[existingIdx], ...cropObj };
+        } else {
+          demo.crops.push(cropObj);
+        }
+      });
+
+      persistDemo();
+    }
+  } catch (err) {
+    console.warn('[getCrops reconcile error]:', err);
+  }
+}
+
 export async function getCrops(userId?: string): Promise<Crop[]> {
   const uid = userId || demo.uid || 'demo-user-id';
+  reconcileWebPlantingsIntoDemo();
   return demo.crops.filter((c) => !c.userId || c.userId === uid || c.userId === 'demo-user-id');
 }
 
@@ -786,6 +852,29 @@ export async function deleteCrop(cropId: string): Promise<void> {
   }
 
   persistDemo();
+
+  // Also remove from eh_web_plantings in localStorage if present
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const raw = window.localStorage.getItem(WEB_PLANTINGS_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          const next = arr.filter((p: any) => p.id !== cropId);
+          window.localStorage.setItem(WEB_PLANTINGS_KEY, JSON.stringify(next));
+        }
+      }
+      window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'mobile' } }));
+      window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { source: 'mobile' } }));
+    } catch {}
+  }
+
+  // Delete all tasks belonging to this crop from the backend API
+  if (typeof fetch !== 'undefined') {
+    safeFetchJson(resolveApiUrl(`/api/tasks?cropId=${encodeURIComponent(cropId)}`), {
+      method: 'DELETE',
+    }).catch(() => {});
+  }
 }
 
 // ── TASKS ──

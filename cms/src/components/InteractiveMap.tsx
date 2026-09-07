@@ -552,7 +552,7 @@ export default function InteractiveMap({
                     className="w-full text-xs font-semibold px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   >
                     <option value="field">🌾 Açık Tarla</option>
-                    <option value="greenhouse">🎪 Sera</option>
+                    <option value="greenhouse">🏡 Sera</option>
                   </select>
                 </div>
                 <div>
