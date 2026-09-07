@@ -106,20 +106,26 @@ interface WeatherDayItem {
   advice: string
 }
 
+function extractTasksArray(raw: any): any[] {
+  if (Array.isArray(raw)) return raw
+  if (raw && typeof raw === 'object') return [raw]
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed
+      if (parsed && typeof parsed === 'object') return [parsed]
+      return [{ type: 'other', titleTr: String(raw), title: String(raw), description: '' }]
+    } catch {
+      return [{ type: 'other', titleTr: raw, title: raw, description: '' }]
+    }
+  }
+  return []
+}
+
 function getFenologicalStagesForCrop(cropNameTr: string, cropObj?: any) {
   if (cropObj?.stages && Array.isArray(cropObj.stages) && cropObj.stages.length > 0) {
     const mappedStages = cropObj.stages.map((st: any) => {
-      let stageTasks: any[] = []
-      if (typeof st.tasks === 'string' && st.tasks.trim()) {
-        try {
-          const parsed = JSON.parse(st.tasks)
-          stageTasks = Array.isArray(parsed) ? parsed : []
-        } catch {
-          stageTasks = [{ type: 'other', titleTr: st.tasks, title: st.tasks, description: '' }]
-        }
-      } else if (Array.isArray(st.tasks)) {
-        stageTasks = st.tasks
-      }
+      const stageTasks = extractTasksArray(st?.tasks)
       return {
         ...st,
         tasks: stageTasks,
@@ -3666,16 +3672,7 @@ export default function DashboardView() {
                 let taskCount = 0
 
                 fenologicalStages.forEach((st: any) => {
-                  let stageTasks: any[] = []
-                  if (typeof st.tasks === 'string' && st.tasks.trim()) {
-                    try {
-                      stageTasks = JSON.parse(st.tasks)
-                    } catch {
-                      stageTasks = []
-                    }
-                  } else if (Array.isArray(st.tasks)) {
-                    stageTasks = st.tasks
-                  }
+                  const stageTasks = extractTasksArray(st?.tasks)
 
                   stageTasks.forEach((tk: any) => {
                     taskCount++
@@ -3743,7 +3740,8 @@ export default function DashboardView() {
                           status: 'active',
                         })
                       }
-                      parsed.tasks = [...generatedTasks, ...(parsed.tasks || [])]
+                      const existingTasks = Array.isArray(parsed.tasks) ? parsed.tasks : []
+                      parsed.tasks = [...generatedTasks, ...existingTasks]
                       localStorage.setItem('eh_mobile_state_v5', JSON.stringify(parsed))
                     }
                   } catch (err) {}

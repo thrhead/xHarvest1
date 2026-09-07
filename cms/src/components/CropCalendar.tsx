@@ -176,14 +176,14 @@ function fmtDate(d: Date) {
 
 export function getTasksArray(tasks: any): CalTask[] {
   if (Array.isArray(tasks)) return tasks
-  if (typeof tasks === 'string') {
+  if (tasks && typeof tasks === 'object') return [tasks]
+  if (typeof tasks === 'string' && tasks.trim()) {
     try {
       const parsed = JSON.parse(tasks)
       if (Array.isArray(parsed)) return parsed
+      if (parsed && typeof parsed === 'object') return [parsed]
     } catch {
-      if (tasks.trim()) {
-        return [{ type: 'other', title: tasks, titleTr: tasks, description: '' }]
-      }
+      return [{ type: 'other', title: tasks, titleTr: tasks, description: '' }]
     }
   }
   return []
