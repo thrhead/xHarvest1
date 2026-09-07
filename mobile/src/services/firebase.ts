@@ -337,7 +337,6 @@ function syncMobileCropsToWebPlantings() {
     });
 
     window.localStorage.setItem(WEB_PLANTINGS_KEY, JSON.stringify(webPlantings));
-    window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'mobile', plantings: webPlantings } }));
   } catch {}
 }
 
@@ -524,6 +523,78 @@ export async function deleteTaskFromServer(taskId: string): Promise<void> {
     await safeFetchJson(url, { method: 'DELETE' }, 5000);
   } catch (e) {
     console.warn('[firebase.ts] Failed to delete task on server:', e);
+  }
+}
+
+export async function savePlantingToServer(crop: Crop): Promise<void> {
+  try {
+    const url = resolveApiUrl('/api/plantings');
+    const field = demo.fields.find((f) => f.id === crop.fieldId);
+    const dbPlanting = {
+      id: crop.id,
+      userId: crop.userId || 'demo-user-id',
+      fieldId: crop.fieldId,
+      fieldName: field?.name || 'Tarla',
+      cropTemplateId: crop.cropTemplateId || 'demo-domates',
+      cropNameTr: crop.cropName || 'Ürün',
+      plantingDate: crop.plantingDate instanceof Date ? crop.plantingDate.toISOString().slice(0, 10) : String(crop.plantingDate).slice(0, 10),
+      status: crop.status === 'completed' ? 'hasat_edildi' : 'active',
+      areaDa: field ? Math.round((field.areaHectare || 1) * 10) : 10,
+      taskProgress: {},
+    };
+    await safeFetchJson(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ planting: dbPlanting }),
+    }, 5000);
+  } catch (e) {
+    console.warn('[firebase.ts] Failed to save planting to server:', e);
+  }
+}
+
+export async function deletePlantingFromServer(cropId: string, fieldId?: string, cropName?: string): Promise<void> {
+  try {
+    const query = new URLSearchParams();
+    query.set('id', cropId);
+    if (fieldId) query.set('fieldId', fieldId);
+    if (cropName) query.set('cropName', cropName);
+
+    // Cascading delete planting and all associated tasks from server SQLite
+    await safeFetchJson(resolveApiUrl(`/api/plantings?${query.toString()}`), { method: 'DELETE' }, 5000);
+    await safeFetchJson(resolveApiUrl(`/api/tasks?${query.toString()}`), { method: 'DELETE' }, 5000);
+  } catch (e) {
+    console.warn('[firebase.ts] Failed to delete planting/tasks on server:', e);
+  }
+}
+
+export async function syncPlantingsFromServer(): Promise<void> {
+  try {
+    const url = resolveApiUrl('/api/plantings');
+    const res = await safeFetchJson<{ success: boolean; plantings: any[] }>(url, { method: 'GET' }, 5000);
+    if (res.ok && res.data?.success && Array.isArray(res.data.plantings)) {
+      const serverPlantings = res.data.plantings;
+      let hasChanges = false;
+      serverPlantings.forEach((sp: any) => {
+        const existing = demo.crops.find((c) => c.id === sp.id);
+        if (!existing) {
+          demo.crops.push({
+            id: sp.id,
+            userId: sp.userId || 'demo-user-id',
+            fieldId: sp.fieldId,
+            cropTemplateId: sp.cropTemplateId || 'demo-domates',
+            cropName: sp.cropNameTr || 'Ürün',
+            plantingDate: new Date(sp.plantingDate || Date.now()),
+            status: sp.status === 'hasat_edildi' || sp.status === 'completed' ? 'completed' : 'active',
+          });
+          hasChanges = true;
+        }
+      });
+      if (hasChanges && typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(demo));
+      }
+    }
+  } catch (err) {
+    console.warn('[firebase.ts] syncPlantingsFromServer error:', err);
   }
 }
 
@@ -806,7 +877,10 @@ function reconcileWebPlantingsIntoDemo() {
         }
       });
 
-      persistDemo();
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(demo));
+      }
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(demo)).catch(() => {});
     }
   } catch (err) {
     console.warn('[getCrops reconcile error]:', err);
@@ -816,20 +890,38 @@ function reconcileWebPlantingsIntoDemo() {
 export async function getCrops(userId?: string): Promise<Crop[]> {
   const uid = userId || demo.uid || 'demo-user-id';
   reconcileWebPlantingsIntoDemo();
+  syncPlantingsFromServer().catch(() => {});
   return demo.crops.filter((c) => !c.userId || c.userId === uid || c.userId === 'demo-user-id');
 }
 
 export async function createCrop(data: Omit<Crop, 'id'>): Promise<string> {
   const id = genId('c');
-  demo.crops.push({ ...data, id });
+  const newCrop: Crop = { ...data, id };
+  demo.crops.push(newCrop);
   persistDemo();
+  await savePlantingToServer(newCrop);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'mobile' } }));
+  }
   return id;
 }
 
 export async function deleteCrop(cropId: string): Promise<void> {
   const cropToDelete = demo.crops.find((c) => c.id === cropId);
   demo.crops = demo.crops.filter((c) => c.id !== cropId);
-  demo.tasks = demo.tasks.filter((t) => t.cropId !== cropId);
+
+  // Cascading delete tasks belonging to this crop from local demo state
+  demo.tasks = demo.tasks.filter((t) => {
+    if (t.cropId === cropId) return false;
+    if (
+      cropToDelete &&
+      t.fieldId === cropToDelete.fieldId &&
+      (t.cropName === cropToDelete.cropName || t.cropId === cropToDelete.cropTemplateId)
+    ) {
+      return false;
+    }
+    return true;
+  });
 
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
@@ -843,9 +935,6 @@ export async function deleteCrop(cropId: string): Promise<void> {
               !(cropToDelete && wp.fieldId === cropToDelete.fieldId && wp.cropNameTr === cropToDelete.cropName)
           );
           window.localStorage.setItem(WEB_PLANTINGS_KEY, JSON.stringify(webPlantings));
-          window.dispatchEvent(
-            new CustomEvent('eh_fields_sync', { detail: { source: 'mobile', plantings: webPlantings } })
-          );
         }
       }
     } catch {}
@@ -853,27 +942,12 @@ export async function deleteCrop(cropId: string): Promise<void> {
 
   persistDemo();
 
-  // Also remove from eh_web_plantings in localStorage if present
-  if (typeof window !== 'undefined' && window.localStorage) {
-    try {
-      const raw = window.localStorage.getItem(WEB_PLANTINGS_KEY);
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr)) {
-          const next = arr.filter((p: any) => p.id !== cropId);
-          window.localStorage.setItem(WEB_PLANTINGS_KEY, JSON.stringify(next));
-        }
-      }
-      window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'mobile' } }));
-      window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { source: 'mobile' } }));
-    } catch {}
-  }
+  // Await server deletion so subsequent sync doesn't resurrect deleted records
+  await deletePlantingFromServer(cropId, cropToDelete?.fieldId, cropToDelete?.cropName);
 
-  // Delete all tasks belonging to this crop from the backend API
-  if (typeof fetch !== 'undefined') {
-    safeFetchJson(resolveApiUrl(`/api/tasks?cropId=${encodeURIComponent(cropId)}`), {
-      method: 'DELETE',
-    }).catch(() => {});
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'mobile' } }));
+    window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { source: 'mobile' } }));
   }
 }
 
@@ -975,7 +1049,11 @@ export async function createCropWithTasks(
   taskList: Omit<Task, 'id'>[]
 ): Promise<{ cropId: string; taskIds: string[] }> {
   const cropId = await createCrop(cropData);
-  const tasksWithCrop = taskList.map((t) => ({ ...t, cropId }));
+  const tasksWithCrop = taskList.map((t) => ({
+    ...t,
+    cropId,
+    cropName: cropData.cropName,
+  }));
   const taskIds = await createTasks(tasksWithCrop);
   return { cropId, taskIds };
 }

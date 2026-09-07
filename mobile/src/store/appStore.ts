@@ -310,11 +310,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 }));
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('eh_fields_sync', () => {
+  window.addEventListener('eh_fields_sync', (e: any) => {
+    if (e?.detail?.source === 'mobile') return;
     useAppStore.getState().refreshFields();
     useAppStore.getState().refreshCrops();
   });
-  window.addEventListener('eh_tasks_sync', () => {
+  window.addEventListener('eh_tasks_sync', (e: any) => {
+    if (e?.detail?.source === 'mobile') return;
     useAppStore.getState().refreshTasks();
   });
 }

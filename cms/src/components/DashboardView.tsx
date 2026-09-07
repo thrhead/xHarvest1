@@ -391,6 +391,34 @@ export default function DashboardView() {
     }
   }
 
+  const fetchPlantingsFromApi = async () => {
+    try {
+      const res = await fetch('/api/plantings')
+      if (res.ok) {
+        const d = await res.json()
+        if (d.success && Array.isArray(d.plantings)) {
+          const apiPlantings: PlantingRecord[] = d.plantings.map((p: any) => ({
+            id: p.id,
+            fieldId: p.fieldId,
+            fieldName: p.fieldName || 'Tarla',
+            cropTemplateId: p.cropTemplateId || 'demo-domates',
+            cropNameTr: p.cropNameTr || 'Ürün',
+            plantingDate: p.plantingDate,
+            status: p.status || 'active',
+            areaDa: p.areaDa || 10,
+            taskProgress: p.taskProgress || {},
+          }))
+          setPlantingRecords(apiPlantings)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('eh_web_plantings', JSON.stringify(apiPlantings))
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Fetch plantings error:', e)
+    }
+  }
+
   const handleClearAllTasks = async () => {
     if (typeof window !== 'undefined' && !window.confirm('Tüm saha görevlerini ve önbelleği sıfırlamak istediğinize emin misiniz?')) return
     setTasks([])
@@ -849,6 +877,7 @@ export default function DashboardView() {
     fetchCronLogs()
     fetchFieldsFromApi()
     fetchTasksFromApi()
+    fetchPlantingsFromApi()
 
     if (typeof window !== 'undefined') {
       try {
@@ -888,20 +917,15 @@ export default function DashboardView() {
       const onFocus = () => {
         fetchFieldsFromApi()
         fetchTasksFromApi()
+        fetchPlantingsFromApi()
       }
       const onSyncEvent = (e: any) => {
+        if (e?.detail?.source === 'web') return
         fetchFieldsFromApi()
-        if (typeof window !== 'undefined') {
-          try {
-            const savedPlantings = localStorage.getItem('eh_web_plantings')
-            if (savedPlantings) {
-              const parsed = JSON.parse(savedPlantings)
-              if (Array.isArray(parsed)) setPlantingRecords(parsed)
-            }
-          } catch {}
-        }
+        fetchPlantingsFromApi()
       }
-      const onTasksSync = () => {
+      const onTasksSync = (e: any) => {
+        if (e?.detail?.source === 'web') return
         fetchTasksFromApi()
       }
 
@@ -1561,15 +1585,21 @@ export default function DashboardView() {
                       }
                     }
 
-                    // Delete from server SQLite database
+                    // Delete from server SQLite database (both plantings and tasks)
                     try {
                       const query = new URLSearchParams()
-                      query.set('cropId', recordId)
+                      query.set('id', recordId)
                       if (targetRecord?.fieldId) query.set('fieldId', targetRecord.fieldId)
                       if (targetRecord?.cropNameTr) query.set('cropName', targetRecord.cropNameTr)
-                      await fetch(`/api/tasks?${query.toString()}`, { method: 'DELETE' })
+                      await fetch(`/api/plantings?${query.toString()}`, { method: 'DELETE' })
+
+                      const taskQuery = new URLSearchParams()
+                      taskQuery.set('cropId', recordId)
+                      if (targetRecord?.fieldId) taskQuery.set('fieldId', targetRecord.fieldId)
+                      if (targetRecord?.cropNameTr) taskQuery.set('cropName', targetRecord.cropNameTr)
+                      await fetch(`/api/tasks?${taskQuery.toString()}`, { method: 'DELETE' })
                     } catch (e) {
-                      console.warn('API task delete error:', e)
+                      console.warn('API planting/task delete error:', e)
                     }
                   }}
                   onTaskToggle={(recordId, taskId, nextStatus, taskTitle) => {
@@ -3675,7 +3705,13 @@ export default function DashboardView() {
                 } catch (err) {}
               }
 
-              // Post generated tasks to server API so they appear across Web and Mobile
+              // Post planting and generated tasks to server API so they appear across Web and Mobile
+              fetch('/api/plantings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ planting: newRecord }),
+              }).catch((err) => console.warn('Save planting error:', err))
+
               fetch('/api/tasks', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
