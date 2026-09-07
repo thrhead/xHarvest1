@@ -380,10 +380,20 @@ export default function DashboardView() {
       if (res.ok) {
         const d = await res.json()
         if (d.success && Array.isArray(d.tasks)) {
-          setTasks(d.tasks)
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('eh_mobile_tasks', JSON.stringify(d.tasks))
-          }
+          setTasks((prev) => {
+            const map = new Map<string, any>()
+            d.tasks.forEach((t: any) => map.set(t.id, t))
+            prev.forEach((t: any) => {
+              if (!map.has(t.id)) {
+                map.set(t.id, t)
+              }
+            })
+            const merged = Array.from(map.values())
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('eh_mobile_tasks', JSON.stringify(merged))
+            }
+            return merged
+          })
         }
       }
     } catch (e) {
@@ -408,10 +418,26 @@ export default function DashboardView() {
             areaDa: p.areaDa || 10,
             taskProgress: p.taskProgress || {},
           }))
-          setPlantingRecords(apiPlantings)
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('eh_web_plantings', JSON.stringify(apiPlantings))
-          }
+          setPlantingRecords((prev) => {
+            const map = new Map<string, PlantingRecord>()
+            apiPlantings.forEach((p) => map.set(p.id, p))
+            prev.forEach((p) => {
+              if (!map.has(p.id)) {
+                map.set(p.id, p)
+                // Sync unsaved local planting to server API in background
+                fetch('/api/plantings', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ planting: p }),
+                }).catch(() => {})
+              }
+            })
+            const merged = Array.from(map.values())
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('eh_web_plantings', JSON.stringify(merged))
+            }
+            return merged
+          })
         }
       }
     } catch (e) {
@@ -905,7 +931,7 @@ export default function DashboardView() {
         if (savedTasks) {
           const parsed = JSON.parse(savedTasks)
           if (Array.isArray(parsed)) {
-            const clean = parsed.filter((t: any) => t && t.id && t.title && !String(t.id).startsWith('t-'))
+            const clean = parsed.filter((t: any) => t && t.id && t.title)
             setTasks(clean)
           }
         }
@@ -1712,17 +1738,6 @@ export default function DashboardView() {
                     </span>
                     {recordsSubTab === 'tasks' || recordsSubTab === 'agenda' ? (
                       <div className="flex items-center gap-2">
-                        {activeTasksList.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={handleClearAllTasks}
-                            className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1 shadow-2xs"
-                            title="Tüm saha görevlerini temizle"
-                          >
-                            <Trash2 size={13} />
-                            <span>Temizle</span>
-                          </button>
-                        )}
                         <button
                           type="button"
                           onClick={() => {
@@ -3699,6 +3714,19 @@ export default function DashboardView() {
                   const raw = localStorage.getItem('eh_mobile_state_v5')
                   if (raw) {
                     const parsed = JSON.parse(raw)
+                    if (!parsed.crops) parsed.crops = []
+                    const cropExists = parsed.crops.some((c: any) => c.id === newRecordId)
+                    if (!cropExists) {
+                      parsed.crops.unshift({
+                        id: newRecordId,
+                        userId: 'demo-user-id',
+                        fieldId: field?.id || 'f-1',
+                        cropTemplateId,
+                        cropName: cropNameTr,
+                        plantingDate: newPlantDate,
+                        status: 'active',
+                      })
+                    }
                     parsed.tasks = [...generatedTasks, ...(parsed.tasks || [])]
                     localStorage.setItem('eh_mobile_state_v5', JSON.stringify(parsed))
                   }
@@ -3710,7 +3738,7 @@ export default function DashboardView() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ planting: newRecord }),
-              }).catch((err) => console.warn('Save planting error:', err))
+              }).then(() => fetchPlantingsFromApi()).catch((err) => console.warn('Save planting error:', err))
 
               fetch('/api/tasks', {
                 method: 'POST',
@@ -3719,9 +3747,6 @@ export default function DashboardView() {
               }).then(() => fetchTasksFromApi()).catch((err) => console.warn('Save generated tasks error:', err))
 
               setShowAddPlantingModal(false)
-              if (typeof window !== 'undefined') {
-                alert(`✅ Yeni Ekim Kaydı ve ${generatedTasks.length} Fenolojik Saha Görevi Başarıyla Eklendi!\nTarla: ${field?.name || 'Tarla'}\nÜrün: ${cropNameTr}\nEkim Tarihi: ${newPlantDate}`)
-              }
             }}
           >
             <div className="flex items-center justify-between">

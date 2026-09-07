@@ -31,12 +31,9 @@ export async function GET(req: Request) {
     const fieldId = searchParams.get('fieldId') || undefined
     const status = searchParams.get('status') || undefined
 
-    // Purge orphan records on fetch to keep Turso DB clean
-    const purgedCount = await purgeOrphanDbTasks()
-
     const tasks = await getDbTasks({ fieldId, status })
     return NextResponse.json(
-      { success: true, tasks, count: tasks.length, purgedCount, timestamp: Date.now() },
+      { success: true, tasks, count: tasks.length, timestamp: Date.now() },
       { headers: corsHeaders }
     )
   } catch (err: any) {

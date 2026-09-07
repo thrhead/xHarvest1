@@ -99,11 +99,14 @@ export async function ensurePlantingsTable(): Promise<void> {
 
 export async function getDbPlantings(userId?: string): Promise<DbPlanting[]> {
   await ensurePlantingsTable()
-  const uid = userId || 'demo-user-id'
-  const rs = await executeSql({
-    sql: `SELECT * FROM plantings WHERE user_id = ? OR user_id IS NULL ORDER BY planting_date DESC`,
-    args: [uid],
-  })
+  let sql = `SELECT * FROM plantings`
+  const args: any[] = []
+  if (userId && userId !== 'all' && userId !== 'demo-user-id') {
+    sql += ` WHERE user_id = ? OR user_id = 'demo-user-id' OR user_id IS NULL`
+    args.push(userId)
+  }
+  sql += ` ORDER BY planting_date DESC`
+  const rs = await executeSql({ sql, args })
 
   return rs.rows.map((row: any) => {
     let taskProgress: Record<string, boolean> = {}

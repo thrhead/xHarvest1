@@ -246,9 +246,6 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
         });
 
         targetDemo.fields = convertedFields;
-
-        const validFieldIds = new Set(convertedFields.map((f) => f.id));
-        targetDemo.crops = targetDemo.crops.filter((c) => validFieldIds.has(c.fieldId));
       }
     }
     // Sync Web Planting Records (eh_web_plantings) into Mobile Crops
@@ -256,20 +253,7 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
     if (webPlantingStr) {
       const webPlantings = JSON.parse(webPlantingStr);
       if (Array.isArray(webPlantings)) {
-        const webIds = new Set(webPlantings.map((wp: any) => wp.id));
-        const webFieldCropKeys = new Set(
-          webPlantings.map((wp: any) => `${wp.fieldId}_${wp.cropNameTr}`)
-        );
-
-        // Remove crops deleted on Web
-        targetDemo.crops = targetDemo.crops.filter((c) => {
-          if (c.id.startsWith('pr_') || c.id.startsWith('pr-')) {
-            return webIds.has(c.id) || webFieldCropKeys.has(`${c.fieldId}_${c.cropName}`);
-          }
-          return true;
-        });
-
-        // Add new crops created on Web
+        // Add new crops created on Web without deleting existing mobile crops
         webPlantings.forEach((wp: any) => {
           const existing = targetDemo.crops.find(
             (c) => c.id === wp.id || (c.fieldId === wp.fieldId && c.cropName === wp.cropNameTr)
@@ -302,17 +286,6 @@ function syncMobileCropsToWebPlantings() {
         if (Array.isArray(parsed)) webPlantings = parsed;
       } catch {}
     }
-
-    const activeCropIds = new Set(demo.crops.map((c) => c.id));
-    const activeCropFieldKeys = new Set(demo.crops.map((c) => `${c.fieldId}_${c.cropName}`));
-
-    // Purge records that no longer exist in Mobile crops
-    webPlantings = webPlantings.filter((wp: any) => {
-      if (wp.id && (wp.id.startsWith('pr_') || wp.id.startsWith('pr-'))) {
-        return activeCropIds.has(wp.id) || activeCropFieldKeys.has(`${wp.fieldId}_${wp.cropNameTr}`);
-      }
-      return true;
-    });
 
     demo.crops.forEach((c) => {
       const field = demo.fields.find((f) => f.id === c.fieldId);
@@ -457,11 +430,15 @@ export async function syncTasksFromServer(): Promise<Task[]> {
 export async function saveTaskToServer(t: Task): Promise<void> {
   try {
     const url = resolveApiUrl('/api/tasks');
+    const field = demo.fields.find((f) => f.id === t.fieldId);
+    const crop = demo.crops.find((c) => c.id === t.cropId);
     const dbTask = {
       id: t.id,
-      userId: t.userId || 'demo-user-id',
+      userId: 'demo-user-id',
       fieldId: t.fieldId,
+      fieldName: t.fieldName || field?.name || 'Tarla',
       cropId: t.cropId,
+      cropName: t.cropName || crop?.cropName || 'Ürün',
       type: t.type,
       title: t.title,
       description: t.description,
@@ -489,29 +466,39 @@ export async function saveTasksBatchToServer(tasks: Task[]): Promise<void> {
   if (!tasks.length) return;
   try {
     const url = resolveApiUrl('/api/tasks');
-    const dbTasks = tasks.map((t) => ({
-      id: t.id,
-      userId: t.userId || 'demo-user-id',
-      fieldId: t.fieldId,
-      cropId: t.cropId,
-      type: t.type,
-      title: t.title,
-      description: t.description,
-      plannedDate: t.plannedDate instanceof Date ? t.plannedDate.toISOString().slice(0, 10) : String(t.plannedDate),
-      originalDate: t.originalDate instanceof Date ? t.originalDate.toISOString().slice(0, 10) : String(t.originalDate),
-      status: t.status,
-      weatherReason: t.weatherReason,
-      notes: t.notes,
-      photoUris: t.photoUris,
-      isCustom: t.isCustom,
-      source: t.source,
-      completedAt: t.completedAt instanceof Date ? t.completedAt.toISOString() : undefined,
-    }));
+    const dbTasks = tasks.map((t) => {
+      const field = demo.fields.find((f) => f.id === t.fieldId);
+      const crop = demo.crops.find((c) => c.id === t.cropId);
+      return {
+        id: t.id,
+        userId: 'demo-user-id',
+        fieldId: t.fieldId,
+        fieldName: t.fieldName || field?.name || 'Tarla',
+        cropId: t.cropId,
+        cropName: t.cropName || crop?.cropName || 'Ürün',
+        type: t.type,
+        title: t.title,
+        description: t.description,
+        plannedDate: t.plannedDate instanceof Date ? t.plannedDate.toISOString().slice(0, 10) : String(t.plannedDate),
+        originalDate: t.originalDate instanceof Date ? t.originalDate.toISOString().slice(0, 10) : String(t.originalDate),
+        status: t.status,
+        weatherReason: t.weatherReason,
+        notes: t.notes,
+        photoUris: t.photoUris,
+        isCustom: t.isCustom,
+        source: t.source,
+        completedAt: t.completedAt instanceof Date ? t.completedAt.toISOString() : undefined,
+      };
+    });
     await safeFetchJson(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tasks: dbTasks }),
     }, 6000);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { source: 'mobile' } }));
+    }
   } catch (e) {
     console.warn('[firebase.ts] Failed to batch save tasks to server:', e);
   }
@@ -532,7 +519,7 @@ export async function savePlantingToServer(crop: Crop): Promise<void> {
     const field = demo.fields.find((f) => f.id === crop.fieldId);
     const dbPlanting = {
       id: crop.id,
-      userId: crop.userId || 'demo-user-id',
+      userId: 'demo-user-id',
       fieldId: crop.fieldId,
       fieldName: field?.name || 'Tarla',
       cropTemplateId: crop.cropTemplateId || 'demo-domates',
@@ -891,15 +878,16 @@ export async function getCrops(userId?: string): Promise<Crop[]> {
   const uid = userId || demo.uid || 'demo-user-id';
   reconcileWebPlantingsIntoDemo();
   syncPlantingsFromServer().catch(() => {});
-  return demo.crops.filter((c) => !c.userId || c.userId === uid || c.userId === 'demo-user-id');
+  return demo.crops.filter((c) => !c.userId || c.userId === uid || c.userId === 'demo-user-id' || uid === 'demo-user-id');
 }
 
 export async function createCrop(data: Omit<Crop, 'id'>): Promise<string> {
   const id = genId('c');
-  const newCrop: Crop = { ...data, id };
+  const newCrop: Crop = { ...data, id, userId: 'demo-user-id' };
   demo.crops.push(newCrop);
   persistDemo();
   await savePlantingToServer(newCrop);
+  syncMobileCropsToWebPlantings();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'mobile' } }));
   }

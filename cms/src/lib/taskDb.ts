@@ -157,15 +157,7 @@ export async function getDbTasks(opts?: { fieldId?: string; status?: string }): 
   await ensureTasksTable()
   await ensureFieldsTable().catch(() => {})
 
-  let sql = `
-    SELECT tasks.* FROM tasks
-    WHERE EXISTS (
-      SELECT 1 FROM fields
-      WHERE fields.custom_id = tasks.field_id
-         OR CAST(fields.id AS TEXT) = tasks.field_id
-         OR ('f-' || fields.id) = tasks.field_id
-    )
-  `
+  let sql = `SELECT * FROM tasks WHERE 1=1`
   const args: any[] = []
 
   if (opts?.fieldId) {
@@ -190,8 +182,16 @@ export async function saveDbTask(task: DbTask): Promise<DbTask> {
 
   const id = task.id || `t_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 
-  // Reject legacy mock format or tasks without title/field
-  if (String(id).startsWith('t-') || !task.title || !task.fieldId) {
+  const mockIds = new Set([
+    't-hasat-domates-1',
+    't-ilac-1',
+    't-gubre-1',
+    't-sulama-1',
+    't-bakim-1',
+    't-cron-1',
+    't-cron-2',
+  ])
+  if (mockIds.has(String(id)) || !task.title || !task.fieldId) {
     return {
       ...task,
       id,
@@ -344,23 +344,8 @@ export async function deleteDbTasksByFieldId(fieldId: string): Promise<boolean> 
 }
 
 export async function purgeOrphanDbTasks(): Promise<number> {
-  await ensureTasksTable()
-  await ensureFieldsTable().catch(() => {})
-  try {
-    const res = await executeSql(`
-      DELETE FROM tasks
-      WHERE NOT EXISTS (
-        SELECT 1 FROM fields
-        WHERE fields.custom_id = tasks.field_id
-           OR CAST(fields.id AS TEXT) = tasks.field_id
-           OR ('f-' || fields.id) = tasks.field_id
-      )
-    `)
-    return Number(res.rowsAffected || 0)
-  } catch (e) {
-    console.warn('[taskDb] purgeOrphanDbTasks error:', e)
-    return 0
-  }
+  // Do not automatically purge tasks on read/GET requests
+  return 0
 }
 
 export async function deleteAllDbTasks(): Promise<boolean> {
