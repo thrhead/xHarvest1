@@ -1,5 +1,58 @@
-import { openDb } from './bootstrapSchema'
+import { createClient, type Client } from '@libsql/client'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { TUIK_PROVINCES_SEED, AGRICULTURAL_BASINS_SEED, RegionSeedData } from '../seed/regionsData'
+
+const filename = fileURLToPath(import.meta.url)
+const dirname = path.dirname(filename)
+const isVercel = Boolean(process.env.VERCEL)
+const defaultDbPath = isVercel
+  ? path.join('/tmp', 'ekim-hasat.db')
+  : path.resolve(dirname, '../../ekim-hasat.db')
+
+function isPlaceholderToken(token?: string): boolean {
+  if (!token) return true
+  const t = token.trim()
+  return t === '' || t.includes('YOUR_TURSO') || t === 'change-me'
+}
+
+function getDatabaseConfig() {
+  let rawUrl = process.env.DATABASE_URI || process.env.TURSO_DATABASE_URL || `file:${defaultDbPath}`
+  if (rawUrl.startsWith('llibsql://')) {
+    rawUrl = 'libsql://' + rawUrl.slice(10)
+  }
+  const authToken = (process.env.DATABASE_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || '').trim()
+  const isRemote = rawUrl.startsWith('libsql://') || rawUrl.startsWith('https://')
+
+  if (isRemote && !isPlaceholderToken(authToken)) {
+    return { url: rawUrl, authToken, isRemote: true }
+  }
+  return { url: `file:${defaultDbPath}`, isRemote: false }
+}
+
+export function createDbClient(): Client {
+  const config = getDatabaseConfig()
+  try {
+    return createClient(config)
+  } catch {
+    return createClient({ url: `file:${defaultDbPath}` })
+  }
+}
+
+async function executeSql(sql: string | { sql: string; args: any[] }) {
+  const client = createDbClient()
+  try {
+    return await client.execute(sql)
+  } catch (err: any) {
+    const config = getDatabaseConfig()
+    if (config.isRemote) {
+      console.warn('[regionDb] Remote Turso error, fallback SQLite:', err?.message || err)
+      const localClient = createClient({ url: `file:${defaultDbPath}` })
+      return await localClient.execute(sql)
+    }
+    throw err
+  }
+}
 
 export interface DbRegion {
   id: number
@@ -70,9 +123,7 @@ export function isPointInPolygon(
 
 // Initialize regions table and seed if empty
 export async function ensureRegionsTableAndSeed(force = false): Promise<void> {
-  const db = openDb()
-
-  await db.execute(`
+  await executeSql(`
     CREATE TABLE IF NOT EXISTS regions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -92,11 +143,11 @@ export async function ensureRegionsTableAndSeed(force = false): Promise<void> {
   `)
 
   // Ensure index on slug and coordinates
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_regions_slug ON regions(slug);`)
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_regions_source ON regions(source);`)
+  await executeSql(`CREATE INDEX IF NOT EXISTS idx_regions_slug ON regions(slug);`)
+  await executeSql(`CREATE INDEX IF NOT EXISTS idx_regions_source ON regions(source);`)
 
   // Check count
-  const countRes = await db.execute(`SELECT COUNT(*) as count FROM regions;`)
+  const countRes = await executeSql(`SELECT COUNT(*) as count FROM regions;`)
   const count = Number(countRes.rows[0]?.count ?? 0)
 
   if (count === 0 || force) {
@@ -105,7 +156,7 @@ export async function ensureRegionsTableAndSeed(force = false): Promise<void> {
     // 1. Insert Basins
     for (let i = 0; i < AGRICULTURAL_BASINS_SEED.length; i++) {
       const b = AGRICULTURAL_BASINS_SEED[i]
-      await db.execute({
+      await executeSql({
         sql: `INSERT OR REPLACE INTO regions (name, slug, source, center_lat, center_lng, default_zoom, boundary_json, is_active, sort_order, created_at, updated_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`,
         args: [
@@ -124,7 +175,7 @@ export async function ensureRegionsTableAndSeed(force = false): Promise<void> {
     // 2. Insert 81 Provinces
     for (let i = 0; i < TUIK_PROVINCES_SEED.length; i++) {
       const p = TUIK_PROVINCES_SEED[i]
-      await db.execute({
+      await executeSql({
         sql: `INSERT OR REPLACE INTO regions (name, slug, source, tuik_code, center_lat, center_lng, default_zoom, boundary_json, is_active, sort_order, created_at, updated_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`,
         args: [
@@ -152,14 +203,13 @@ export async function ensureRegionsTableAndSeed(force = false): Promise<void> {
 // Fetch all active regions
 export async function getDbRegions(source?: string): Promise<DbRegion[]> {
   await ensureRegionsTableAndSeed()
-  const db = openDb()
 
   const sql = source
     ? `SELECT * FROM regions WHERE is_active = 1 AND source = ? ORDER BY sort_order ASC, name ASC`
     : `SELECT * FROM regions WHERE is_active = 1 ORDER BY sort_order ASC, name ASC`
   const args = source ? [source] : []
 
-  const res = await db.execute({ sql, args })
+  const res = await executeSql({ sql, args })
   return res.rows as unknown as DbRegion[]
 }
 
