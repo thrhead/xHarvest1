@@ -17,7 +17,7 @@ import { TaskStatus } from '../src/types';
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { tasks, fields, updateTask, deleteTask } = useAppStore();
+  const { tasks, fields, crops, updateTask, deleteTask } = useAppStore();
   const task = useMemo(() => tasks.find((t) => t.id === id), [tasks, id]);
 
   const [currentStatus, setCurrentStatus] = useState<TaskStatus>(task?.status ?? 'pending');
@@ -25,6 +25,23 @@ export default function TaskDetailScreen() {
   const [photoUris, setPhotoUris] = useState<string[]>(task?.photoUris ?? []);
   const [photoInput, setPhotoInput] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const resolvedCropName = useMemo(() => {
+    if (!task) return 'Genel';
+    if (task.cropName && task.cropName !== 'Genel' && task.cropName !== 'Ürün' && task.cropName !== 'Mevsimlik') {
+      return task.cropName;
+    }
+    if (task.cropId) {
+      const c = crops.find((crop) => crop.id === task.cropId || crop.cropTemplateId === task.cropId);
+      if (c?.cropName) return c.cropName;
+    }
+    const matchingCrops = crops.filter((crop) => crop.fieldId === task.fieldId);
+    if (matchingCrops.length === 1) return matchingCrops[0].cropName;
+    if (matchingCrops.length > 1) return matchingCrops.map((c) => c.cropName).join(', ');
+    const f = fields.find((field) => field.id === task.fieldId);
+    if (f?.cropName) return f.cropName;
+    return 'Genel';
+  }, [task, crops, fields]);
 
   if (!task) {
     return (
@@ -111,7 +128,7 @@ export default function TaskDetailScreen() {
       <View style={s.card}>
         <View style={s.topHeader}>
           <View style={s.badge}>
-            <Text style={s.badgeText}>{task.cropName || (field as any)?.cropName || 'Genel'}</Text>
+            <Text style={s.badgeText}>{resolvedCropName}</Text>
           </View>
           <Text style={s.fieldSub}>{fieldName}</Text>
         </View>

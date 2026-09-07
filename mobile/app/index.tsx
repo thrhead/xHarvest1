@@ -97,11 +97,18 @@ export default function HomeScreen() {
   const toggleTask = useAppStore((s) => s.toggleTask);
   const fieldName = (id: string) => fields.find((f) => f.id === id)?.name ?? 'Tarla';
   const getCropNameForTask = (t: any) => {
-    if (t.cropName && t.cropName !== 'Genel' && t.cropName !== 'Ürün') return t.cropName;
+    if (t.cropName && t.cropName !== 'Genel' && t.cropName !== 'Ürün' && t.cropName !== 'Mevsimlik') {
+      return t.cropName;
+    }
+    if (t.cropId) {
+      const c = crops.find((crop) => crop.id === t.cropId || crop.cropTemplateId === t.cropId);
+      if (c?.cropName) return c.cropName;
+    }
+    const matchingCrops = crops.filter((crop) => crop.fieldId === t.fieldId);
+    if (matchingCrops.length === 1) return matchingCrops[0].cropName;
+    if (matchingCrops.length > 1) return matchingCrops.map((c) => c.cropName).join(', ');
     const f = fields.find((field) => field.id === t.fieldId);
     if (f?.cropName) return f.cropName;
-    const c = crops.find((crop) => crop.fieldId === t.fieldId);
-    if (c?.cropName) return c.cropName;
     return 'Genel';
   };
   const pendingCount = tasks.filter((t) => t.status !== 'completed').length;
@@ -355,9 +362,20 @@ export default function HomeScreen() {
                   <View>
                     <Text style={styles.fieldTitle}>{f.name}</Text>
                     <Text style={styles.fieldSubtitle}>
-                      {f.type === 'greenhouse' ? '🏡 Sera' : '🌾 Açık Tarla'} • 🌱 {(f as any).cropName || (f as any).crop || 'Ürün'} •{' '}
+                      {f.type === 'greenhouse' ? '🏡 Sera' : '🌾 Açık Tarla'} • 🌱{' '}
+                      {(() => {
+                        const fieldCrops = crops.filter((c) => c.fieldId === f.id);
+                        if (fieldCrops.length > 0) return fieldCrops.map((c) => c.cropName).join(', ');
+                        return (f as any).cropName || (f as any).crop || 'Ürün';
+                      })()}{' '}
+                      •{' '}
                       <Text style={{ fontWeight: '700' }}>
-                        {(f as any).areaDecares || (f as any).areaHectare ? ((f as any).areaHectare ? ((f as any).areaHectare * 10).toFixed(0) : (f as any).areaDecares) : '10'} Dönüm
+                        {(f as any).areaDecares || (f as any).areaHectare
+                          ? (f as any).areaHectare
+                            ? ((f as any).areaHectare * 10).toFixed(0)
+                            : (f as any).areaDecares
+                          : '10'}{' '}
+                        Dönüm
                       </Text>
                     </Text>
                   </View>

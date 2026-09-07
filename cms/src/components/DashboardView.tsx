@@ -1083,8 +1083,19 @@ export default function DashboardView() {
   }
 
   const getTaskCropName = (t: any): string => {
-    if (t.cropName && t.cropName !== 'Genel' && t.cropName !== 'Genel Ürün' && t.cropName !== 'Ürün') {
+    if (t.cropName && t.cropName !== 'Genel' && t.cropName !== 'Genel Ürün' && t.cropName !== 'Ürün' && t.cropName !== 'Mevsimlik') {
       return t.cropName
+    }
+    if (t.cropId) {
+      const matchPl = plantingRecords.find((p) => p.id === t.cropId || p.cropTemplateId === t.cropId)
+      if (matchPl?.cropNameTr) return matchPl.cropNameTr
+    }
+    const matchingPlantings = plantingRecords.filter((p) => p.fieldId === t.fieldId)
+    if (matchingPlantings.length === 1 && matchingPlantings[0].cropNameTr) {
+      return matchingPlantings[0].cropNameTr
+    }
+    if (matchingPlantings.length > 1) {
+      return matchingPlantings.map((p) => p.cropNameTr).join(', ')
     }
     const matchingField = fields.find(
       (f) =>
@@ -2108,7 +2119,7 @@ export default function DashboardView() {
                           const dayName = curr.toLocaleDateString('tr-TR', { weekday: 'short' })
                           const dayNum = curr.getDate()
 
-                          const countOnDay = tasks.filter((t) => (t.plannedDate || t.date) === dateStr).length
+                          const countOnDay = tasks.filter((t) => String(t.plannedDate || t.date || '').slice(0, 10) === dateStr).length
 
                           return (
                             <button
@@ -2145,7 +2156,8 @@ export default function DashboardView() {
                     <div className="space-y-3">
                       {(() => {
                         const scopeTasks = tasks.filter((t) => {
-                          const d = t.plannedDate || t.date || ''
+                          const d = String(t.plannedDate || t.date || '').slice(0, 10)
+                          if (!d) return false
                           if (agendaTimeScope === 'day') return d === selectedAgendaDate
                           if (agendaTimeScope === 'week') {
                             const now = new Date(selectedAgendaDate)

@@ -151,26 +151,43 @@ export default function TasksScreen() {
 
   const getFieldInfo = (fieldId: string) => {
     const f = fields.find((item) => item.id === fieldId);
+    const fieldCrops = crops.filter((c) => c.fieldId === fieldId);
+    const cropDisplay =
+      fieldCrops.length > 0
+        ? fieldCrops.map((c) => c.cropName).join(', ')
+        : f?.cropName || (f?.type === 'greenhouse' ? 'Sera Ürünü' : 'Açık Tarla');
+
     if (!f) {
       return {
         name: 'Genel Arazi',
-        cropName: 'Mevsimlik',
+        cropName: cropDisplay || 'Mevsimlik',
         area: '',
       };
     }
     return {
       name: f.name,
-      cropName: f.cropName || (f.type === 'greenhouse' ? 'Sera Ürünü' : 'Açık Tarla'),
-      area: f.areaHectare ? `${(f.areaHectare * 10).toFixed(0)} da` : '',
+      cropName: cropDisplay,
+      area: f.areaHectare
+        ? `${(f.areaHectare * 10).toFixed(0)} da`
+        : (f as any).areaDecares
+        ? `${(f as any).areaDecares} da`
+        : '',
     };
   };
 
   const getCropNameForTask = (t: Task) => {
-    if (t.cropName && t.cropName !== 'Genel' && t.cropName !== 'Ürün') return t.cropName;
+    if (t.cropName && t.cropName !== 'Genel' && t.cropName !== 'Ürün' && t.cropName !== 'Mevsimlik') {
+      return t.cropName;
+    }
+    if (t.cropId) {
+      const c = crops.find((crop) => crop.id === t.cropId || crop.cropTemplateId === t.cropId);
+      if (c?.cropName) return c.cropName;
+    }
+    const matchingCrops = crops.filter((crop) => crop.fieldId === t.fieldId);
+    if (matchingCrops.length === 1) return matchingCrops[0].cropName;
+    if (matchingCrops.length > 1) return matchingCrops.map((c) => c.cropName).join(', ');
     const f = fields.find((field) => field.id === t.fieldId);
     if (f?.cropName) return f.cropName;
-    const c = crops.find((crop) => crop.fieldId === t.fieldId);
-    if (c?.cropName) return c.cropName;
     return 'Genel';
   };
 
@@ -243,9 +260,10 @@ export default function TasksScreen() {
       fields.forEach((f) => {
         const tasksInField = fieldMap.get(f.id);
         if (tasksInField && tasksInField.length > 0) {
-          const areaStr = f.areaHectare ? ` · ${(f.areaHectare * 10).toFixed(0)} da` : '';
+          const fieldInfo = getFieldInfo(f.id);
+          const areaStr = fieldInfo.area ? ` · ${fieldInfo.area}` : '';
           sections.push({
-            title: `📍 ${f.name} (${f.cropName || 'Genel'}${areaStr})`,
+            title: `📍 ${f.name} (${fieldInfo.cropName}${areaStr})`,
             count: tasksInField.length,
             data: tasksInField.sort((a, b) => new Date(a.plannedDate).getTime() - new Date(b.plannedDate).getTime()),
             badgeColor: '#059669',
@@ -275,8 +293,7 @@ export default function TasksScreen() {
     if (viewMode === 'by_crop') {
       const cropMap = new Map<string, Task[]>();
       filteredTasks.forEach((t) => {
-        const fieldInfo = getFieldInfo(t.fieldId);
-        const cropName = t.cropName || fieldInfo.cropName || 'Genel';
+        const cropName = getCropNameForTask(t);
         const list = cropMap.get(cropName) || [];
         list.push(t);
         cropMap.set(cropName, list);
