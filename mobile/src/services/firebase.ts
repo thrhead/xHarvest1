@@ -278,19 +278,9 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
 function syncMobileCropsToWebPlantings() {
   if (typeof window === 'undefined' || !window.localStorage) return;
   try {
-    const existingWebStr = window.localStorage.getItem(WEB_PLANTINGS_KEY);
-    let webPlantings: any[] = [];
-    if (existingWebStr) {
-      try {
-        const parsed = JSON.parse(existingWebStr);
-        if (Array.isArray(parsed)) webPlantings = parsed;
-      } catch {}
-    }
-
-    demo.crops.forEach((c) => {
+    const webPlantings: any[] = demo.crops.map((c) => {
       const field = demo.fields.find((f) => f.id === c.fieldId);
-      const existingIdx = webPlantings.findIndex((wp) => wp.id === c.id || (wp.fieldId === c.fieldId && wp.cropNameTr === c.cropName));
-      const pRecord = {
+      return {
         id: c.id,
         fieldId: c.fieldId,
         fieldName: field?.name || 'Tarla',
@@ -301,12 +291,6 @@ function syncMobileCropsToWebPlantings() {
         areaDa: field ? Math.round((field.areaHectare || 1) * 10) : 10,
         taskProgress: {},
       };
-
-      if (existingIdx >= 0) {
-        webPlantings[existingIdx] = { ...webPlantings[existingIdx], ...pRecord };
-      } else {
-        webPlantings.unshift(pRecord);
-      }
     });
 
     window.localStorage.setItem(WEB_PLANTINGS_KEY, JSON.stringify(webPlantings));
@@ -560,30 +544,22 @@ export async function syncPlantingsFromServer(): Promise<void> {
     const res = await safeFetchJson<{ success: boolean; plantings: any[] }>(url, { method: 'GET' }, 5000);
     if (res.ok && res.data?.success && Array.isArray(res.data.plantings)) {
       const serverPlantings = res.data.plantings;
-      let hasChanges = false;
-      serverPlantings.forEach((sp: any) => {
-        const existingIdx = demo.crops.findIndex(
-          (c) => c.id === sp.id || (c.fieldId === sp.fieldId && c.cropName === (sp.cropNameTr || sp.cropName))
-        );
-        const cropObj: Crop = {
-          id: sp.id,
-          userId: sp.userId || 'demo-user-id',
-          fieldId: sp.fieldId,
-          cropTemplateId: sp.cropTemplateId || 'demo-domates',
-          cropName: sp.cropNameTr || sp.cropName || 'Ürün',
-          plantingDate: new Date(sp.plantingDate || Date.now()),
-          status: sp.status === 'hasat_edildi' || sp.status === 'completed' ? 'completed' : 'active',
-        };
-        if (existingIdx >= 0) {
-          demo.crops[existingIdx] = { ...demo.crops[existingIdx], ...cropObj };
-        } else {
-          demo.crops.push(cropObj);
-          hasChanges = true;
-        }
-      });
-      if (hasChanges && typeof window !== 'undefined' && window.localStorage) {
+      const serverCrops: Crop[] = serverPlantings.map((sp: any) => ({
+        id: sp.id,
+        userId: sp.userId || 'demo-user-id',
+        fieldId: sp.fieldId,
+        cropTemplateId: sp.cropTemplateId || 'demo-domates',
+        cropName: sp.cropNameTr || sp.cropName || 'Ürün',
+        plantingDate: new Date(sp.plantingDate || Date.now()),
+        status: sp.status === 'hasat_edildi' || sp.status === 'completed' ? 'completed' : 'active',
+      }));
+
+      demo.crops = serverCrops;
+      if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(demo));
+        syncMobileCropsToWebPlantings();
       }
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(demo)).catch(() => {});
     }
   } catch (err) {
     console.warn('[firebase.ts] syncPlantingsFromServer error:', err);
@@ -820,51 +796,11 @@ export async function deleteField(fieldId: string): Promise<void> {
 
 // ── CROPS ──
 
-function reconcileWebPlantingsIntoDemo() {
-  if (typeof window === 'undefined' || !window.localStorage) return;
-  try {
-    const webPlantingStr = window.localStorage.getItem(WEB_PLANTINGS_KEY);
-    const webPlantings = webPlantingStr ? JSON.parse(webPlantingStr) : [];
-
-    if (Array.isArray(webPlantings)) {
-      // Add or update active web plantings into demo.crops
-      webPlantings.forEach((wp: any) => {
-        const cropId = String(wp.id);
-        const existingIdx = demo.crops.findIndex(
-          (c) => c.id === cropId || (c.fieldId === wp.fieldId && c.cropName === (wp.cropNameTr || wp.cropName))
-        );
-        const cropObj: Crop = {
-          id: cropId,
-          userId: demo.uid || 'demo-user-id',
-          fieldId: wp.fieldId,
-          cropTemplateId: wp.cropTemplateId || 'crop-domates',
-          cropName: wp.cropNameTr || wp.cropName || 'Ürün',
-          plantingDate: new Date(wp.plantingDate || Date.now()),
-          status: wp.status === 'hasat_edildi' || wp.status === 'completed' ? 'completed' : 'active',
-        };
-        if (existingIdx >= 0) {
-          demo.crops[existingIdx] = { ...demo.crops[existingIdx], ...cropObj };
-        } else {
-          demo.crops.push(cropObj);
-        }
-      });
-
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(demo));
-      }
-      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(demo)).catch(() => {});
-    }
-  } catch (err) {
-    console.warn('[getCrops reconcile error]:', err);
-  }
-}
-
 export async function getCrops(userId?: string): Promise<Crop[]> {
   const uid = userId || demo.uid || 'demo-user-id';
   try {
     await syncPlantingsFromServer();
   } catch {}
-  reconcileWebPlantingsIntoDemo();
   return demo.crops.filter((c) => !c.userId || c.userId === uid || c.userId === 'demo-user-id' || uid === 'demo-user-id');
 }
 

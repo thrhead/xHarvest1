@@ -400,20 +400,10 @@ export default function DashboardView() {
       if (res.ok) {
         const d = await res.json()
         if (d.success && Array.isArray(d.tasks)) {
-          setTasks((prev) => {
-            const map = new Map<string, any>()
-            d.tasks.forEach((t: any) => map.set(t.id, t))
-            prev.forEach((t: any) => {
-              if (!map.has(t.id)) {
-                map.set(t.id, t)
-              }
-            })
-            const merged = Array.from(map.values())
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('eh_mobile_tasks', JSON.stringify(merged))
-            }
-            return merged
-          })
+          setTasks(d.tasks)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('eh_mobile_tasks', JSON.stringify(d.tasks))
+          }
         }
       }
     } catch (e) {
@@ -438,26 +428,10 @@ export default function DashboardView() {
             areaDa: p.areaDa || 10,
             taskProgress: p.taskProgress || {},
           }))
-          setPlantingRecords((prev) => {
-            const map = new Map<string, PlantingRecord>()
-            apiPlantings.forEach((p) => map.set(p.id, p))
-            prev.forEach((p) => {
-              if (!map.has(p.id)) {
-                map.set(p.id, p)
-                // Sync unsaved local planting to server API in background
-                fetch('/api/plantings', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ planting: p }),
-                }).catch(() => {})
-              }
-            })
-            const merged = Array.from(map.values())
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('eh_web_plantings', JSON.stringify(merged))
-            }
-            return merged
-          })
+          setPlantingRecords(apiPlantings)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('eh_web_plantings', JSON.stringify(apiPlantings))
+          }
         }
       }
     } catch (e) {
@@ -1644,6 +1618,8 @@ export default function DashboardView() {
                       if (targetRecord?.fieldId) taskQuery.set('fieldId', targetRecord.fieldId)
                       if (targetRecord?.cropNameTr) taskQuery.set('cropName', targetRecord.cropNameTr)
                       await fetch(`/api/tasks?${taskQuery.toString()}`, { method: 'DELETE' })
+                      await fetchPlantingsFromApi()
+                      await fetchTasksFromApi()
                     } catch (e) {
                       console.warn('API planting/task delete error:', e)
                     }

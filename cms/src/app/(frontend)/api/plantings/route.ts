@@ -4,6 +4,7 @@ import {
   upsertDbPlanting,
   upsertDbPlantingsBatch,
   deleteDbPlanting,
+  deleteDbPlantingsByFieldAndCrop,
   deleteDbPlantingsByFieldId,
 } from '@/lib/plantingDb'
 import {
@@ -77,12 +78,14 @@ export async function DELETE(req: Request) {
     const fieldId = searchParams.get('fieldId')
     const cropName = searchParams.get('cropName')
 
-    if (id) {
-      await deleteDbPlanting(id)
-      // Cascading delete tasks belonging to this planting record
-      await deleteDbTasksByCropId(id)
+    if (id || (fieldId && cropName)) {
+      if (id) {
+        await deleteDbPlanting(id)
+        await deleteDbTasksByCropId(id)
+      }
       if (fieldId && cropName) {
-        await deleteDbTasksByPlanting(fieldId, cropName, id)
+        await deleteDbPlantingsByFieldAndCrop(fieldId, cropName)
+        await deleteDbTasksByPlanting(fieldId, cropName, id || undefined)
       }
       return NextResponse.json(
         { success: true, deletedPlantingId: id },

@@ -192,6 +192,15 @@ export async function deleteDbPlanting(id: string): Promise<boolean> {
   return true
 }
 
+export async function deleteDbPlantingsByFieldAndCrop(fieldId: string, cropName: string): Promise<boolean> {
+  await ensurePlantingsTable()
+  await executeSql({
+    sql: `DELETE FROM plantings WHERE field_id = ? AND (crop_name_tr = ? OR crop_template_id = ?)`,
+    args: [fieldId, cropName, cropName],
+  })
+  return true
+}
+
 export async function deleteDbPlantingsByFieldId(fieldId: string): Promise<boolean> {
   await ensurePlantingsTable()
   await executeSql({
