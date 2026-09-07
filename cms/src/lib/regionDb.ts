@@ -69,7 +69,7 @@ export function isPointInPolygon(
 }
 
 // Initialize regions table and seed if empty
-export async function ensureRegionsTableAndSeed(): Promise<void> {
+export async function ensureRegionsTableAndSeed(force = false): Promise<void> {
   const db = openDb()
 
   await db.execute(`
@@ -99,15 +99,15 @@ export async function ensureRegionsTableAndSeed(): Promise<void> {
   const countRes = await db.execute(`SELECT COUNT(*) as count FROM regions;`)
   const count = Number(countRes.rows[0]?.count ?? 0)
 
-  if (count === 0) {
-    console.log('[regionDb] Seeding 81 TÜİK Provinces and Agricultural Basins...')
+  if (count === 0 || force) {
+    console.log(`[regionDb] Seeding 81 TÜİK Provinces and Agricultural Basins (force=${force})...`)
 
     // 1. Insert Basins
     for (let i = 0; i < AGRICULTURAL_BASINS_SEED.length; i++) {
       const b = AGRICULTURAL_BASINS_SEED[i]
       await db.execute({
-        sql: `INSERT OR IGNORE INTO regions (name, slug, source, center_lat, center_lng, default_zoom, boundary_json, is_active, sort_order)
-              VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+        sql: `INSERT OR REPLACE INTO regions (name, slug, source, center_lat, center_lng, default_zoom, boundary_json, is_active, sort_order, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`,
         args: [
           b.name,
           b.slug,
@@ -125,8 +125,8 @@ export async function ensureRegionsTableAndSeed(): Promise<void> {
     for (let i = 0; i < TUIK_PROVINCES_SEED.length; i++) {
       const p = TUIK_PROVINCES_SEED[i]
       await db.execute({
-        sql: `INSERT OR IGNORE INTO regions (name, slug, source, tuik_code, center_lat, center_lng, default_zoom, boundary_json, is_active, sort_order)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+        sql: `INSERT OR REPLACE INTO regions (name, slug, source, tuik_code, center_lat, center_lng, default_zoom, boundary_json, is_active, sort_order, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`,
         args: [
           p.name,
           p.slug,
@@ -145,7 +145,7 @@ export async function ensureRegionsTableAndSeed(): Promise<void> {
       })
     }
 
-    console.log('[regionDb] Seeding completed: 81 Provinces & 6 Basins created.')
+    console.log('[regionDb] Seeding completed: 81 Provinces & 6 Basins created/updated.')
   }
 }
 

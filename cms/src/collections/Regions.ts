@@ -2,7 +2,12 @@ import type { CollectionConfig } from 'payload'
 
 export const Regions: CollectionConfig = {
   slug: 'regions',
+  labels: {
+    singular: 'Bölge / İl (TÜİK)',
+    plural: 'Bölgeler & Havzalar (TÜİK)',
+  },
   admin: {
+    group: 'Tarımsal İçerik',
     useAsTitle: 'name',
     defaultColumns: ['name', 'tuikCode', 'source', 'centerLat', 'centerLng', 'isActive'],
   },
