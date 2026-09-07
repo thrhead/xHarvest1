@@ -562,17 +562,22 @@ export async function syncPlantingsFromServer(): Promise<void> {
       const serverPlantings = res.data.plantings;
       let hasChanges = false;
       serverPlantings.forEach((sp: any) => {
-        const existing = demo.crops.find((c) => c.id === sp.id);
-        if (!existing) {
-          demo.crops.push({
-            id: sp.id,
-            userId: sp.userId || 'demo-user-id',
-            fieldId: sp.fieldId,
-            cropTemplateId: sp.cropTemplateId || 'demo-domates',
-            cropName: sp.cropNameTr || 'Ürün',
-            plantingDate: new Date(sp.plantingDate || Date.now()),
-            status: sp.status === 'hasat_edildi' || sp.status === 'completed' ? 'completed' : 'active',
-          });
+        const existingIdx = demo.crops.findIndex(
+          (c) => c.id === sp.id || (c.fieldId === sp.fieldId && c.cropName === (sp.cropNameTr || sp.cropName))
+        );
+        const cropObj: Crop = {
+          id: sp.id,
+          userId: sp.userId || 'demo-user-id',
+          fieldId: sp.fieldId,
+          cropTemplateId: sp.cropTemplateId || 'demo-domates',
+          cropName: sp.cropNameTr || sp.cropName || 'Ürün',
+          plantingDate: new Date(sp.plantingDate || Date.now()),
+          status: sp.status === 'hasat_edildi' || sp.status === 'completed' ? 'completed' : 'active',
+        };
+        if (existingIdx >= 0) {
+          demo.crops[existingIdx] = { ...demo.crops[existingIdx], ...cropObj };
+        } else {
+          demo.crops.push(cropObj);
           hasChanges = true;
         }
       });
@@ -676,11 +681,6 @@ export async function getFields(_userId?: string): Promise<Field[]> {
         });
 
         demo.fields = convertedFields;
-
-        // Reconcile crops
-        const validFieldIds = new Set(convertedFields.map((f) => f.id));
-        demo.crops = demo.crops.filter((c) => validFieldIds.has(c.fieldId));
-
         persistDemo();
         return demo.fields;
       }
@@ -823,39 +823,24 @@ export async function deleteField(fieldId: string): Promise<void> {
 function reconcileWebPlantingsIntoDemo() {
   if (typeof window === 'undefined' || !window.localStorage) return;
   try {
-    const validFieldIds = new Set(demo.fields.map((f) => String(f.id)));
     const webPlantingStr = window.localStorage.getItem(WEB_PLANTINGS_KEY);
     const webPlantings = webPlantingStr ? JSON.parse(webPlantingStr) : [];
 
     if (Array.isArray(webPlantings)) {
-      const activeWebPlantingIds = new Set(webPlantings.map((wp: any) => String(wp.id)));
-
-      // Remove orphaned crops whose field no longer exists
-      demo.crops = demo.crops.filter((c) => validFieldIds.has(String(c.fieldId)));
-
-      // Remove any web-originated crop that was deleted from web plantings
-      demo.crops = demo.crops.filter((c) => {
-        if (String(c.id).startsWith('pr-')) {
-          return activeWebPlantingIds.has(String(c.id));
-        }
-        return true;
-      });
-
       // Add or update active web plantings into demo.crops
       webPlantings.forEach((wp: any) => {
-        if (!validFieldIds.has(String(wp.fieldId))) return;
         const cropId = String(wp.id);
         const existingIdx = demo.crops.findIndex(
-          (c) => c.id === cropId || (c.fieldId === wp.fieldId && c.cropName === wp.cropNameTr)
+          (c) => c.id === cropId || (c.fieldId === wp.fieldId && c.cropName === (wp.cropNameTr || wp.cropName))
         );
         const cropObj: Crop = {
           id: cropId,
           userId: demo.uid || 'demo-user-id',
           fieldId: wp.fieldId,
           cropTemplateId: wp.cropTemplateId || 'crop-domates',
-          cropName: wp.cropNameTr || 'Ürün',
+          cropName: wp.cropNameTr || wp.cropName || 'Ürün',
           plantingDate: new Date(wp.plantingDate || Date.now()),
-          status: wp.status === 'hasat_edildi' ? 'completed' : 'active',
+          status: wp.status === 'hasat_edildi' || wp.status === 'completed' ? 'completed' : 'active',
         };
         if (existingIdx >= 0) {
           demo.crops[existingIdx] = { ...demo.crops[existingIdx], ...cropObj };
@@ -876,8 +861,10 @@ function reconcileWebPlantingsIntoDemo() {
 
 export async function getCrops(userId?: string): Promise<Crop[]> {
   const uid = userId || demo.uid || 'demo-user-id';
+  try {
+    await syncPlantingsFromServer();
+  } catch {}
   reconcileWebPlantingsIntoDemo();
-  syncPlantingsFromServer().catch(() => {});
   return demo.crops.filter((c) => !c.userId || c.userId === uid || c.userId === 'demo-user-id' || uid === 'demo-user-id');
 }
 

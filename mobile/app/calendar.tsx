@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Pressable,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAppStore } from '../src/store/appStore';
 import { Task } from '../src/types';
 
@@ -37,6 +37,14 @@ export default function CalendarScreen() {
   const crops = useAppStore((s) => s.crops);
   const fields = useAppStore((s) => s.fields);
   const updateTask = useAppStore((s) => s.updateTask);
+
+  useFocusEffect(
+    useCallback(() => {
+      useAppStore.getState().refreshCrops();
+      useAppStore.getState().refreshTasks();
+      useAppStore.getState().refreshFields();
+    }, [])
+  );
 
   // Time scope filter for calendar agenda: 'selected_day' | 'week' | 'month' | 'all'
   const [timeScope, setTimeScope] = useState<'day' | 'week' | 'month' | 'all'>('week');

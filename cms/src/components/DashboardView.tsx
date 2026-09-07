@@ -108,7 +108,27 @@ interface WeatherDayItem {
 
 function getFenologicalStagesForCrop(cropNameTr: string, cropObj?: any) {
   if (cropObj?.stages && Array.isArray(cropObj.stages) && cropObj.stages.length > 0) {
-    return cropObj.stages
+    const mappedStages = cropObj.stages.map((st: any) => {
+      let stageTasks: any[] = []
+      if (typeof st.tasks === 'string' && st.tasks.trim()) {
+        try {
+          const parsed = JSON.parse(st.tasks)
+          stageTasks = Array.isArray(parsed) ? parsed : []
+        } catch {
+          stageTasks = [{ type: 'other', titleTr: st.tasks, title: st.tasks, description: '' }]
+        }
+      } else if (Array.isArray(st.tasks)) {
+        stageTasks = st.tasks
+      }
+      return {
+        ...st,
+        tasks: stageTasks,
+      }
+    })
+    const totalCount = mappedStages.reduce((acc: number, s: any) => acc + (s.tasks?.length || 0), 0)
+    if (totalCount > 0) {
+      return mappedStages
+    }
   }
   const norm = (cropNameTr || '').toLowerCase()
   if (norm.includes('zeytin') || norm.includes('olive')) {
@@ -3634,119 +3654,147 @@ export default function DashboardView() {
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault()
-              const field = fields.find((f) => f.id === newPlantFieldId) || fields[0]
-              const crop = crops.find((c) => String(c.id) === String(newPlantCropId)) || crops[0]
-              const cropNameTr = crop?.nameTr || field?.cropName || 'Ürün'
-              const cropTemplateId = crop ? String(crop.id) : newPlantCropId || 'demo-domates'
-              const newRecordId = `pr-${Date.now()}`
-              const newRecord = {
-                id: newRecordId,
-                fieldId: field?.id || 'f-1',
-                fieldName: field?.name || 'Tarla',
-                cropTemplateId,
-                cropNameTr,
-                plantingDate: newPlantDate,
-                status: 'planlandi' as const,
-                areaDa: field?.areaDecares,
-                taskProgress: {},
-              }
-              setPlantingRecords((p) => {
-                const next = [newRecord, ...p]
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem('eh_web_plantings', JSON.stringify(next))
-                  window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', plantings: next } }))
+              try {
+                const field = fields.find((f) => f.id === newPlantFieldId) || fields[0]
+                const crop = crops.find((c) => String(c.id) === String(newPlantCropId)) || crops[0]
+                const cropNameTr = crop?.nameTr || field?.cropName || 'Ürün'
+                const cropTemplateId = crop ? String(crop.id) : newPlantCropId || 'demo-domates'
+                const newRecordId = `pr-${Date.now()}`
+                const newRecord: PlantingRecord = {
+                  id: newRecordId,
+                  fieldId: field?.id || 'f-1',
+                  fieldName: field?.name || 'Tarla',
+                  cropTemplateId,
+                  cropNameTr,
+                  plantingDate: newPlantDate,
+                  status: 'planlandi' as const,
+                  areaDa: field?.areaDecares || 10,
+                  taskProgress: {},
                 }
-                return next
-              })
 
-              // Generate full fenological plan stages and tasks
-              const fenologicalStages = getFenologicalStagesForCrop(cropNameTr, crop)
-              const baseDate = new Date(newPlantDate)
-              const generatedTasks: any[] = []
-              let taskCount = 0
+                setPlantingRecords((p) => {
+                  const next = [newRecord, ...p]
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('eh_web_plantings', JSON.stringify(next))
+                    window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'web', plantings: next } }))
+                  }
+                  return next
+                })
 
-              fenologicalStages.forEach((st: any) => {
-                const stageTasks = st.tasks || []
-                stageTasks.forEach((tk: any) => {
-                  taskCount++
-                  const offsetDays = tk.offset !== undefined ? tk.offset : (st.dayOffset || 0)
-                  const taskDate = new Date(baseDate.getTime() + offsetDays * 86400000)
-                  const dateStr = taskDate.toISOString().slice(0, 10)
-                  const taskId = `task-${newRecordId}-${taskCount}`
+                // Generate full fenological plan stages and tasks
+                const fenologicalStages = getFenologicalStagesForCrop(cropNameTr, crop)
+                const baseDate = new Date(newPlantDate)
+                const generatedTasks: any[] = []
+                let taskCount = 0
 
-                  generatedTasks.push({
-                    id: taskId,
-                    userId: 'demo-user-id',
-                    fieldId: field?.id || 'f-1',
-                    fieldName: field?.name || 'Tarla',
-                    cropId: newRecordId,
-                    cropName: cropNameTr,
-                    type: tk.type || 'other',
-                    title: tk.titleTr || tk.title || `${cropNameTr} Saha Görevi`,
-                    description: tk.description || '',
-                    notes: tk.description ? `${tk.description} (${st.nameTr || st.name || 'Plan'})` : undefined,
-                    plannedDate: dateStr,
-                    date: dateStr,
-                    originalDate: dateStr,
-                    status: 'pending',
-                    photoUris: [],
-                    isCustom: false,
-                    source: 'crop_plan',
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
+                fenologicalStages.forEach((st: any) => {
+                  let stageTasks: any[] = []
+                  if (typeof st.tasks === 'string' && st.tasks.trim()) {
+                    try {
+                      stageTasks = JSON.parse(st.tasks)
+                    } catch {
+                      stageTasks = []
+                    }
+                  } else if (Array.isArray(st.tasks)) {
+                    stageTasks = st.tasks
+                  }
+
+                  stageTasks.forEach((tk: any) => {
+                    taskCount++
+                    const offsetDays = tk.offset !== undefined ? tk.offset : (st.dayOffset || 0)
+                    const taskDate = new Date(baseDate.getTime() + offsetDays * 86400000)
+                    const dateStr = !isNaN(taskDate.getTime()) ? taskDate.toISOString().slice(0, 10) : newPlantDate
+                    const taskId = `task-${newRecordId}-${taskCount}`
+
+                    let mappedType = tk.type || 'other'
+                    if (mappedType === 'fertilization') mappedType = 'fertilizing'
+                    if (mappedType === 'pest_control') mappedType = 'spraying'
+                    if (mappedType === 'harvest') mappedType = 'harvesting'
+                    if (mappedType === 'field_scouting') mappedType = 'other'
+
+                    generatedTasks.push({
+                      id: taskId,
+                      userId: 'demo-user-id',
+                      fieldId: field?.id || 'f-1',
+                      fieldName: field?.name || 'Tarla',
+                      cropId: newRecordId,
+                      cropName: cropNameTr,
+                      type: mappedType,
+                      title: tk.titleTr || tk.title || `${cropNameTr} Saha Görevi`,
+                      description: tk.description || '',
+                      notes: tk.description ? `${tk.description} (${st.nameTr || st.name || 'Plan'})` : undefined,
+                      plannedDate: dateStr,
+                      date: dateStr,
+                      originalDate: dateStr,
+                      status: 'pending',
+                      photoUris: [],
+                      isCustom: false,
+                      source: 'crop_plan',
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                    })
                   })
                 })
-              })
 
-              setTasks((prev) => {
-                const next = [...generatedTasks, ...prev]
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem('eh_mobile_tasks', JSON.stringify(next))
-                  window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { source: 'web', count: generatedTasks.length } }))
-                }
-                return next
-              })
-
-              if (typeof window !== 'undefined') {
-                try {
-                  const raw = localStorage.getItem('eh_mobile_state_v5')
-                  if (raw) {
-                    const parsed = JSON.parse(raw)
-                    if (!parsed.crops) parsed.crops = []
-                    const cropExists = parsed.crops.some((c: any) => c.id === newRecordId)
-                    if (!cropExists) {
-                      parsed.crops.unshift({
-                        id: newRecordId,
-                        userId: 'demo-user-id',
-                        fieldId: field?.id || 'f-1',
-                        cropTemplateId,
-                        cropName: cropNameTr,
-                        plantingDate: newPlantDate,
-                        status: 'active',
-                      })
+                if (generatedTasks.length > 0) {
+                  setTasks((prev) => {
+                    const next = [...generatedTasks, ...prev]
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('eh_mobile_tasks', JSON.stringify(next))
+                      window.dispatchEvent(new CustomEvent('eh_tasks_sync', { detail: { source: 'web', count: generatedTasks.length } }))
                     }
-                    parsed.tasks = [...generatedTasks, ...(parsed.tasks || [])]
-                    localStorage.setItem('eh_mobile_state_v5', JSON.stringify(parsed))
-                  }
-                } catch (err) {}
+                    return next
+                  })
+                }
+
+                if (typeof window !== 'undefined') {
+                  try {
+                    const raw = localStorage.getItem('eh_mobile_state_v5')
+                    if (raw) {
+                      const parsed = JSON.parse(raw)
+                      if (!parsed.crops) parsed.crops = []
+                      const cropExists = parsed.crops.some((c: any) => c.id === newRecordId)
+                      if (!cropExists) {
+                        parsed.crops.unshift({
+                          id: newRecordId,
+                          userId: 'demo-user-id',
+                          fieldId: field?.id || 'f-1',
+                          cropTemplateId,
+                          cropName: cropNameTr,
+                          plantingDate: newPlantDate,
+                          status: 'active',
+                        })
+                      }
+                      parsed.tasks = [...generatedTasks, ...(parsed.tasks || [])]
+                      localStorage.setItem('eh_mobile_state_v5', JSON.stringify(parsed))
+                    }
+                  } catch (err) {}
+                }
+
+                // Post planting and generated tasks to server API so they appear across Web and Mobile
+                await fetch('/api/plantings', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ planting: newRecord }),
+                }).catch((err) => console.warn('Save planting error:', err))
+
+                if (generatedTasks.length > 0) {
+                  await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tasks: generatedTasks }),
+                  }).catch((err) => console.warn('Save generated tasks error:', err))
+                }
+
+                fetchPlantingsFromApi().catch(() => {})
+                fetchTasksFromApi().catch(() => {})
+              } catch (submitErr) {
+                console.error('Add planting error:', submitErr)
+              } finally {
+                setShowAddPlantingModal(false)
               }
-
-              // Post planting and generated tasks to server API so they appear across Web and Mobile
-              fetch('/api/plantings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ planting: newRecord }),
-              }).then(() => fetchPlantingsFromApi()).catch((err) => console.warn('Save planting error:', err))
-
-              fetch('/api/tasks', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tasks: generatedTasks }),
-              }).then(() => fetchTasksFromApi()).catch((err) => console.warn('Save generated tasks error:', err))
-
-              setShowAddPlantingModal(false)
             }}
           >
             <div className="flex items-center justify-between">

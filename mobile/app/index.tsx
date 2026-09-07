@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAppStore } from '../src/store/appStore';
 import { getActivePhiWarnings } from '../src/utils/phi';
 import { webRefreshControl } from '../src/components/SafeRefreshControl';
@@ -65,6 +65,15 @@ export default function HomeScreen() {
   useEffect(() => {
     init().catch((e) => console.warn('init failed', e));
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshFields();
+      refreshTasks();
+      refreshLogs();
+      useAppStore.getState().refreshCrops();
+    }, [])
+  );
 
   const onRefresh = async () => {
     await refreshFields();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useAppStore } from '../src/store/appStore';
 import {
   fetchCropTemplates,
@@ -53,6 +53,14 @@ export default function CropPlanScreen() {
   const updateTask = useAppStore((s) => s.updateTask);
   const createTask = useAppStore((s) => s.createTask);
   const deleteCrop = useAppStore((s) => s.deleteCrop);
+
+  useFocusEffect(
+    useCallback(() => {
+      useAppStore.getState().refreshCrops();
+      useAppStore.getState().refreshTasks();
+      useAppStore.getState().refreshFields();
+    }, [])
+  );
 
   const [templates, setTemplates] = useState<CropTemplate[]>(LOCAL_CROP_TEMPLATES);
   const [loading, setLoading] = useState(true);
