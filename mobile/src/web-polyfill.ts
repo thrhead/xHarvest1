@@ -4,6 +4,28 @@
  */
 if (typeof window !== 'undefined') {
   try {
+    // 1. Direct CSSStyleDeclaration Prototype Index Patch (Highly effective for React 19 array style assign)
+    if (typeof CSSStyleDeclaration !== 'undefined' && CSSStyleDeclaration.prototype) {
+      const proto = CSSStyleDeclaration.prototype;
+      for (let i = 0; i < 300; i++) {
+        const propStr = String(i);
+        const desc = Object.getOwnPropertyDescriptor(proto, propStr);
+        if (!desc || desc.configurable) {
+          Object.defineProperty(proto, propStr, {
+            configurable: true,
+            enumerable: true,
+            get() {
+              return undefined;
+            },
+            set(val) {
+              // Ignore index writes to prevent read-only throws
+            }
+          });
+        }
+      }
+    }
+
+    // 2. Element Style Getter Proxy (Backup defense)
     const patchElementStyleGetter = (TargetClass: any) => {
       if (!TargetClass || !TargetClass.prototype) return;
       const desc = Object.getOwnPropertyDescriptor(TargetClass.prototype, 'style');

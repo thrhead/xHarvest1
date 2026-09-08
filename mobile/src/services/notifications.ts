@@ -16,13 +16,17 @@ let Notifications: any = null;
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   Notifications = require('expo-notifications');
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  });
+  if (Notifications && typeof Notifications.setNotificationHandler === 'function') {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+  } else {
+    Notifications = null;
+  }
 } catch {
   Notifications = null;
 }

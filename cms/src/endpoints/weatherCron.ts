@@ -289,7 +289,7 @@ export async function runWeatherAdjustCron(req: Request | PayloadRequest): Promi
       errors,
       durationMs,
       jobLog: logEntry,
-      tasks: sampleTasks,
+      tasks: allPendingTasks,
       rescheduledTasks: lastRescheduledTasks,
     })
   } catch (error: any) {

@@ -48,7 +48,6 @@ import {
   ClipboardList,
 } from 'lucide-react'
 import { FieldPolygon } from '../types/field'
-import MobileSimulator from './MobileSimulator'
 import { AppSidebar, type PortalTab, type SidebarAction } from './ui/sidebar-component'
 import { runSidebarAction } from './sidebarActionHandler'
 import CropCalendar, { type PlantingRecord } from './CropCalendar'
@@ -3190,24 +3189,6 @@ export default function DashboardView() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* 10. MOBİL SİMÜLATÖR (MOBILE) */}
-            {activeTab === 'mobile' && (
-              <div className="space-y-4">
-                <MobileSimulator
-                  fields={fields}
-                  plantingRecords={plantingRecords}
-                  webRecords={webRecords}
-                  tasks={tasks}
-                  onAddField={(f) => handleCreateField({ ...f, id: `f-${Date.now()}` })}
-                  onDeleteField={(id) => handleDeleteField(id)}
-                  onAddWebRecord={(rec) => setWebRecords((prev) => [rec, ...prev])}
-                  onAddTask={handleCreateWebTask}
-                  onUpdateTaskStatus={handleToggleTaskStatus}
-                  onDeleteTask={handleDeleteTask}
-                />
               </div>
             )}
           </div>

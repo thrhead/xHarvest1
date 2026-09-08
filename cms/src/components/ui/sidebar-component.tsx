@@ -34,7 +34,6 @@ export type PortalTab =
   | 'coop'
   | 'ai'
   | 'guides'
-  | 'mobile'
 
 export type SidebarAction =
   | 'map.draw'
@@ -72,7 +71,6 @@ export type SidebarAction =
   | 'guides.fertilizing'
   | 'guides.general'
   | 'guides.all'
-  | 'mobile.sim'
 
 interface NavItem {
   id: PortalTab
@@ -92,7 +90,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'coop', label: 'Ekip & Kooperatif', icon: Users },
   { id: 'ai', label: 'AI Zirai Teşhis', icon: Bot, badge: 'Yeni' },
   { id: 'guides', label: 'Bilgi & Rehber', icon: BookOpen },
-  { id: 'mobile', label: 'Mobil Simülatör', icon: Smartphone },
 ]
 
 type DetailItem = { label: string; action: SidebarAction }
@@ -263,16 +260,6 @@ const DETAIL: Record<
           { label: 'Bitki Besleme / Gübre', action: 'guides.fertilizing' },
           { label: 'Genel Tarım Bilgisi', action: 'guides.general' },
         ],
-      },
-    ],
-  },
-  mobile: {
-    title: 'Mobil Simülatör',
-    subtitle: 'Saha Deneyimi',
-    sections: [
-      {
-        title: 'Görünüm',
-        items: [{ label: 'Telefon Arayüzünü Aç', action: 'mobile.sim' }],
       },
     ],
   },

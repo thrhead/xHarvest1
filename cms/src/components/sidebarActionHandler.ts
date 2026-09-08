@@ -31,7 +31,6 @@ export function runSidebarAction(action: SidebarAction, d: SidebarActionDeps) {
     coop: 'coop',
     ai: 'ai',
     guides: 'guides',
-    mobile: 'mobile',
   }
   const prefix = action.split('.')[0]
   if (tabMap[prefix]) d.setActiveTab(tabMap[prefix])
@@ -155,8 +154,6 @@ export function runSidebarAction(action: SidebarAction, d: SidebarActionDeps) {
       break
     case 'guides.general':
       d.setGuideFilter('general')
-      break
-    case 'mobile.sim':
       break
   }
 }
