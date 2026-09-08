@@ -114,12 +114,9 @@ export default buildConfig({
       }
 
       // Auto seed crops and guides
-      const crops = await payload.find({ collection: 'crops', limit: 1 }).catch(() => ({ totalDocs: 0, docs: [] }))
-      if (crops.totalDocs === 0) {
-        payload.logger.info('Auto-seeding initial crops and guides...')
-        const { runSeed } = await import('./seed/index')
-        await runSeed(payload).catch((e: any) => payload.logger.warn(`Crop seed warning: ${e?.message || e}`))
-      }
+      payload.logger.info('Checking and syncing initial crops and guides...')
+      const { runSeed } = await import('./seed/index')
+      await runSeed(payload).catch((e: any) => payload.logger.warn(`Crop seed warning: ${e?.message || e}`))
 
       // Auto seed regions
       const regionsCount = await payload.find({ collection: 'regions', limit: 1 }).catch(() => ({ totalDocs: 0, docs: [] }))

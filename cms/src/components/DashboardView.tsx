@@ -1457,22 +1457,9 @@ export default function DashboardView() {
                       onUpdateFieldCrop={(id, crop) => handleUpdateFieldCrop(id, crop)}
                       selectedCrop={mapCropFilter}
                       availableCrops={Array.from(
-                        new Set([
-                          ...crops.map((c) => c.nameTr).filter((n) => n && n !== '5' && isNaN(Number(n))),
-                          'Domates',
-                          'Biber',
-                          'Patlıcan',
-                          'Salatalık',
-                          'Mısır',
-                          'Buğday',
-                          'Pamuk',
-                          'Zeytin',
-                          'Elma',
-                          'Üzüm',
-                          'Çilek',
-                          'Ayçiçeği',
-                          'Diğer',
-                        ]),
+                        new Set(
+                          crops.map((c) => c.nameTr).filter((n) => n && n !== '5' && isNaN(Number(n)))
+                        ),
                       )}
                     />
                   ) : (

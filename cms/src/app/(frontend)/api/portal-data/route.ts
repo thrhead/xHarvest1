@@ -299,6 +299,114 @@ const DEFAULT_CROPS = [
       },
     ],
   },
+  {
+    id: 'crop-uzum',
+    name: 'Grape',
+    nameTr: 'Üzüm',
+    category: 'fruit',
+    defaultDurationDays: 150,
+    stages: [
+      {
+        name: 'Pruning & Budding',
+        nameTr: 'Budama ve Gözlerin Uyanması',
+        dayOffset: 0,
+        durationDays: 30,
+        tasks: [
+          { type: 'other', title: 'Vineyard pruning', titleTr: 'Asma Budama', description: 'Kış budaması yapılarak verim dengesi kurulur.' }
+        ]
+      },
+      {
+        name: 'Harvest',
+        nameTr: 'Hasat',
+        dayOffset: 90,
+        durationDays: 60,
+        tasks: [
+          { type: 'harvesting', title: 'Grape harvest', titleTr: 'Bağ Bozumu (Hasat)', description: 'Salkımlar uygun şeker oranına ulaştığında makasla kesilerek toplanır.' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'crop-cilek',
+    name: 'Strawberry',
+    nameTr: 'Çilek',
+    category: 'fruit',
+    defaultDurationDays: 90,
+    stages: [
+      {
+        name: 'Planting',
+        nameTr: 'Fide Dikimi',
+        dayOffset: 0,
+        durationDays: 20,
+        tasks: [
+          { type: 'planting', title: 'Planting runners', titleTr: 'Fide Dikimi', description: 'Malçlanmış sıralara çilek fideleri dikilir.' }
+        ]
+      },
+      {
+        name: 'Harvest',
+        nameTr: 'Hasat',
+        dayOffset: 55,
+        durationDays: 35,
+        tasks: [
+          { type: 'harvesting', title: 'Hand picking strawberries', titleTr: 'Çilek Hasadı', description: 'Kızaran çilekler ezilmeden sabah serinliğinde toplanır.' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'crop-salatalik-basit',
+    name: 'Cucumber Simple',
+    nameTr: 'Salatalık',
+    category: 'vegetable',
+    defaultDurationDays: 70,
+    stages: [
+      {
+        name: 'Ekim ve Çimlenme',
+        nameTr: 'Ekim ve Çimlenme',
+        dayOffset: 0,
+        durationDays: 15,
+        tasks: [
+          { type: 'planting', title: 'Sow seeds', titleTr: 'Tohum / Fide Dikimi', description: 'Toprak nemli tutulur.' }
+        ]
+      },
+      {
+        name: 'Harvest',
+        nameTr: 'Hasat',
+        dayOffset: 40,
+        durationDays: 30,
+        tasks: [
+          { type: 'harvesting', title: 'Regular picking', titleTr: 'Salatalık Hasadı', description: '2 günde bir toplama yapılır.' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'crop-diger',
+    name: 'Other',
+    nameTr: 'Diğer',
+    category: 'other',
+    defaultDurationDays: 100,
+    stages: [
+      {
+        name: 'Ekim ve Bakım',
+        nameTr: 'Ekim ve Bakım',
+        dayOffset: 0,
+        durationDays: 50,
+        tasks: [
+          { type: 'planting', title: 'General planting', titleTr: 'Genel Ekim/Dikim', description: 'Ürünün genel dikimi ve ilk bakımı yapılır.' }
+        ]
+      },
+      {
+        name: 'Hasat',
+        nameTr: 'Hasat',
+        dayOffset: 50,
+        durationDays: 50,
+        tasks: [
+          { type: 'harvesting', title: 'Harvesting', titleTr: 'Hasat Dönemi', description: 'Olgunlaşan ürünlerin toplanması.' }
+        ]
+      }
+    ]
+  },
 ]
 
 const DEFAULT_GUIDES = [
