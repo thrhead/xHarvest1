@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       {
         success: true,
         data: result,
+        resolution: result, // For mobile app compatibility
       },
       {
         status: 200,

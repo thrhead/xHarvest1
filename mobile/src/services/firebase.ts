@@ -1165,7 +1165,7 @@ export async function resolveRegionFromCoordinates(
 ): Promise<MobileRegionResolution | null> {
   try {
     const url = resolveApiUrl('/api/regions/resolve');
-    const res = await safeFetchJson<{ success: boolean; resolution: MobileRegionResolution }>(
+    const res = await safeFetchJson<{ success: boolean; resolution?: MobileRegionResolution; data?: MobileRegionResolution }>(
       url,
       {
         method: 'POST',
@@ -1174,8 +1174,8 @@ export async function resolveRegionFromCoordinates(
       },
       4000
     );
-    if (res.ok && res.data?.success && res.data.resolution) {
-      return res.data.resolution;
+    if (res.ok && res.data?.success) {
+      return res.data.resolution || res.data.data || null;
     }
   } catch (err) {
     console.warn('[firebase.ts] resolveRegionFromCoordinates error:', err);
