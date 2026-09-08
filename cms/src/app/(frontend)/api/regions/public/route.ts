@@ -3,6 +3,20 @@ import { getDbRegions } from '@/lib/regionDb'
 
 export const dynamic = 'force-dynamic'
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+  'Access-Control-Max-Age': '86400',
+}
+
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: corsHeaders,
+  })
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -27,16 +41,25 @@ export async function GET(request: Request) {
       sortOrder: r.sort_order,
     }))
 
-    return NextResponse.json({
-      success: true,
-      count: regions.length,
-      regions,
-    })
+    return NextResponse.json(
+      {
+        success: true,
+        count: regions.length,
+        regions,
+      },
+      {
+        status: 200,
+        headers: corsHeaders,
+      }
+    )
   } catch (error: any) {
     console.error('[API /api/regions/public] Error:', error)
     return NextResponse.json(
       { success: false, error: error?.message || 'Bölgeler alınamadı' },
-      { status: 500 }
+      {
+        status: 500,
+        headers: corsHeaders,
+      }
     )
   }
 }
