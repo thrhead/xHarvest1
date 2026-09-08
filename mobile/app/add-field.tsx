@@ -65,7 +65,7 @@ export default function AddFieldScreen() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Auto-resolve region when coordinates change
-  const triggerAutoResolve = async (latitude: number, longitude: number) => {
+  const triggerAutoResolve = useCallback(async (latitude: number, longitude: number) => {
     setIsResolvingRegion(true);
     try {
       const res = await resolveRegionFromCoordinates(latitude, longitude);
@@ -74,26 +74,38 @@ export default function AddFieldScreen() {
         if (res.primaryRegion) {
           setSelectedRegion(res.primaryRegion.slug);
         }
+      } else {
+        // Fallback default label if server response returns null or fails
+        setResolvedRegion({
+          formattedLabel: 'İç Anadolu Bölgesi / Ankara',
+          primaryRegion: { id: 6, name: 'Ankara', slug: 'ankara', source: 'default' },
+        });
       }
     } catch (e) {
       console.warn('Auto resolve error:', e);
+      setResolvedRegion({
+        formattedLabel: 'İç Anadolu Bölgesi / Ankara',
+        primaryRegion: { id: 6, name: 'Ankara', slug: 'ankara', source: 'default' },
+      });
     } finally {
       setIsResolvingRegion(false);
     }
-  };
+  }, []);
 
-  // Haritadan dönünce seçilen konumu al
+  // Haritadan dönünce seçilen konumu al ve ekran açılışında varsayılan koordinatlarla otomatik bölge tara
   useFocusEffect(
     useCallback(() => {
+      let isMounted = true;
       (async () => {
         const picked = await consumePickedLocation();
-        if (picked) {
+        if (picked && isMounted) {
           setLat(picked.lat.toFixed(5));
           setLng(picked.lng.toFixed(5));
           triggerAutoResolve(picked.lat, picked.lng);
+          return;
         }
         const drawn = await consumeDrawnPolygon();
-        if (drawn) {
+        if (drawn && isMounted) {
           setPolygon(drawn.polygon);
           setLat(drawn.centroid.lat.toFixed(5));
           setLng(drawn.centroid.lng.toFixed(5));
@@ -102,9 +114,21 @@ export default function AddFieldScreen() {
             setArea((drawn.areaHa * 10).toFixed(1));
           }
           triggerAutoResolve(drawn.centroid.lat, drawn.centroid.lng);
+          return;
+        }
+
+        // Ekran ilk açıldığında eğer bölge çözümlenmemişse varsayılan enlem/boylam için çöz
+        if (isMounted) {
+          const currentLat = parseFloat(lat.replace(',', '.')) || 39.92;
+          const currentLng = parseFloat(lng.replace(',', '.')) || 32.85;
+          triggerAutoResolve(currentLat, currentLng);
         }
       })();
-    }, [])
+
+      return () => {
+        isMounted = false;
+      };
+    }, [lat, lng, triggerAutoResolve])
   );
 
   const handleSelectRegion = (preset: typeof REGION_PRESETS[0]) => {
