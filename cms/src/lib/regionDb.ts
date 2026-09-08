@@ -64,6 +64,7 @@ export interface DbRegion {
   center_lng: number
   default_zoom: number
   boundary_json?: string | null
+  boundary?: string | null
   parent_id?: number | null
   is_active: number
   sort_order: number
@@ -157,8 +158,8 @@ export async function ensureRegionsTableAndSeed(force = false): Promise<void> {
     for (let i = 0; i < AGRICULTURAL_BASINS_SEED.length; i++) {
       const b = AGRICULTURAL_BASINS_SEED[i]
       await executeSql({
-        sql: `INSERT OR REPLACE INTO regions (name, slug, source, center_lat, center_lng, default_zoom, boundary_json, is_active, sort_order, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`,
+        sql: `INSERT OR REPLACE INTO regions (name, slug, source, center_lat, center_lng, default_zoom, boundary, boundary_json, is_active, sort_order, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`,
         args: [
           b.name,
           b.slug,
@@ -166,6 +167,7 @@ export async function ensureRegionsTableAndSeed(force = false): Promise<void> {
           b.centerLat,
           b.centerLng,
           b.defaultZoom,
+          JSON.stringify({ bbox: b.bbox }),
           JSON.stringify({ bbox: b.bbox }),
           10 + i,
         ],
@@ -176,8 +178,8 @@ export async function ensureRegionsTableAndSeed(force = false): Promise<void> {
     for (let i = 0; i < TUIK_PROVINCES_SEED.length; i++) {
       const p = TUIK_PROVINCES_SEED[i]
       await executeSql({
-        sql: `INSERT OR REPLACE INTO regions (name, slug, source, tuik_code, center_lat, center_lng, default_zoom, boundary_json, is_active, sort_order, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`,
+        sql: `INSERT OR REPLACE INTO regions (name, slug, source, tuik_code, center_lat, center_lng, default_zoom, boundary, boundary_json, is_active, sort_order, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`,
         args: [
           p.name,
           p.slug,
@@ -186,6 +188,11 @@ export async function ensureRegionsTableAndSeed(force = false): Promise<void> {
           p.centerLat,
           p.centerLng,
           p.defaultZoom,
+          JSON.stringify({
+            bbox: p.bbox,
+            basinSlug: p.basinSlug,
+            basinName: p.basinName,
+          }),
           JSON.stringify({
             bbox: p.bbox,
             basinSlug: p.basinSlug,
@@ -280,9 +287,10 @@ export async function resolveRegionByCoords(
   // Step 1: Check Bounding Box match for Provinces (TÜİK İl - Primary)
   const bboxCandidates: DbRegion[] = []
   for (const prov of provinces) {
-    if (prov.boundary_json) {
+    const boundaryStr = prov.boundary || prov.boundary_json
+    if (boundaryStr) {
       try {
-        const parsed = JSON.parse(prov.boundary_json)
+        const parsed = JSON.parse(boundaryStr)
         if (parsed.bbox && isPointInBBox(lat, lng, parsed.bbox)) {
           bboxCandidates.push(prov)
         }
@@ -320,9 +328,10 @@ export async function resolveRegionByCoords(
   }
 
   // Step 3: Check Secondary Agricultural Basin Context
-  if (matchedProvince?.boundary_json) {
+  const provBoundary = matchedProvince ? (matchedProvince.boundary || matchedProvince.boundary_json) : null
+  if (provBoundary) {
     try {
-      const parsed = JSON.parse(matchedProvince.boundary_json)
+      const parsed = JSON.parse(provBoundary)
       if (parsed.basinSlug) {
         const b = basins.find((basin) => basin.slug === parsed.basinSlug)
         if (b) matchedBasin = b
@@ -333,9 +342,10 @@ export async function resolveRegionByCoords(
   // If no basin from province link, check basin BBoxes
   if (!matchedBasin) {
     for (const b of basins) {
-      if (b.boundary_json) {
+      const basinBoundary = b.boundary || b.boundary_json
+      if (basinBoundary) {
         try {
-          const parsed = JSON.parse(b.boundary_json)
+          const parsed = JSON.parse(basinBoundary)
           if (parsed.bbox && isPointInBBox(lat, lng, parsed.bbox)) {
             matchedBasin = b
             break

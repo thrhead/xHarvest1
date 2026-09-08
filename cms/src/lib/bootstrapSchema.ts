@@ -82,6 +82,7 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
       center_lng REAL NOT NULL,
       default_zoom INTEGER NOT NULL DEFAULT 9,
       boundary_json TEXT,
+      boundary TEXT,
       parent_id INTEGER,
       is_active INTEGER NOT NULL DEFAULT 1,
       sort_order INTEGER NOT NULL DEFAULT 0,
@@ -245,6 +246,8 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
     `ALTER TABLE crops_stages ADD COLUMN tasks TEXT`,
     `ALTER TABLE payload_locked_documents_rels ADD COLUMN fields_id INTEGER`,
     `ALTER TABLE payload_locked_documents_rels ADD COLUMN regions_id INTEGER`,
+    `ALTER TABLE regions ADD COLUMN boundary TEXT`,
+    `ALTER TABLE regions ADD COLUMN boundary_json TEXT`,
   ]
 
   for (const alt of safeAlters) {
@@ -254,6 +257,12 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
       // Column already exists
     }
   }
+
+  // Sync columns if one of them is populated and other is empty
+  try {
+    await client.execute(`UPDATE regions SET boundary = boundary_json WHERE boundary IS NULL AND boundary_json IS NOT NULL`)
+    await client.execute(`UPDATE regions SET boundary_json = boundary WHERE boundary_json IS NULL AND boundary IS NOT NULL`)
+  } catch {}
 
   // Ensure 81 Provinces and Basins are seeded
   try {
