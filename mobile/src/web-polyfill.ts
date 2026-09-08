@@ -8,19 +8,23 @@ if (typeof window !== 'undefined') {
     if (typeof CSSStyleDeclaration !== 'undefined' && CSSStyleDeclaration.prototype) {
       const proto = CSSStyleDeclaration.prototype;
       for (let i = 0; i < 300; i++) {
-        const propStr = String(i);
-        const desc = Object.getOwnPropertyDescriptor(proto, propStr);
-        if (!desc || desc.configurable) {
-          Object.defineProperty(proto, propStr, {
-            configurable: true,
-            enumerable: true,
-            get() {
-              return undefined;
-            },
-            set(val) {
-              // Ignore index writes to prevent read-only throws
-            }
-          });
+        try {
+          const propStr = String(i);
+          const desc = Object.getOwnPropertyDescriptor(proto, propStr);
+          if (!desc || desc.configurable) {
+            Object.defineProperty(proto, propStr, {
+              configurable: true,
+              enumerable: true,
+              get() {
+                return undefined;
+              },
+              set(val) {
+                // Ignore index writes to prevent read-only throws
+              }
+            });
+          }
+        } catch (e) {
+          // Ignore individual index failures (e.g. non-redefinable on mobile browsers)
         }
       }
     }
