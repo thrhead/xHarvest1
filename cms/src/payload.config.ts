@@ -120,6 +120,14 @@ export default buildConfig({
         const { runSeed } = await import('./seed/index')
         await runSeed(payload).catch((e: any) => payload.logger.warn(`Crop seed warning: ${e?.message || e}`))
       }
+
+      // Auto seed regions
+      const regionsCount = await payload.find({ collection: 'regions', limit: 1 }).catch(() => ({ totalDocs: 0, docs: [] }))
+      if (regionsCount.totalDocs === 0) {
+        payload.logger.info('Auto-seeding 81 TÜİK Provinces and Agricultural Basins...')
+        const { ensureRegionsTableAndSeed } = await import('./lib/regionDb')
+        await ensureRegionsTableAndSeed(true).catch((e: any) => payload.logger.warn(`Region seed warning: ${e?.message || e}`))
+      }
     } catch (err: any) {
       payload.logger.warn(`Init seeding notice: ${err?.message || err}`)
     }
