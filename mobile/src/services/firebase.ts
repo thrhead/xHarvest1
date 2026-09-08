@@ -217,10 +217,26 @@ function parseStoredData(stored: string) {
   }
 }
 
-function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
-  if (typeof window === 'undefined' || !window.localStorage) return;
+function safeLocalStorageGet(key: string): string | null {
+  if (typeof window === 'undefined') return null;
   try {
-    const webStr = window.localStorage.getItem(WEB_FIELDS_KEY);
+    return window.localStorage ? window.localStorage.getItem(key) : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeLocalStorageSet(key: string, value: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (window.localStorage) window.localStorage.setItem(key, value);
+  } catch {}
+}
+
+function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
+  if (typeof window === 'undefined') return;
+  try {
+    const webStr = safeLocalStorageGet(WEB_FIELDS_KEY);
     if (webStr) {
       const webFields = JSON.parse(webStr);
       if (Array.isArray(webFields)) {
@@ -249,7 +265,7 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
       }
     }
     // Sync Web Planting Records (eh_web_plantings) into Mobile Crops
-    const webPlantingStr = window.localStorage.getItem(WEB_PLANTINGS_KEY);
+    const webPlantingStr = safeLocalStorageGet(WEB_PLANTINGS_KEY);
     if (webPlantingStr) {
       const webPlantings = JSON.parse(webPlantingStr);
       if (Array.isArray(webPlantings)) {
@@ -276,7 +292,7 @@ function syncWebFieldsIntoDemo(targetDemo: typeof initialDemo) {
 }
 
 function syncMobileCropsToWebPlantings() {
-  if (typeof window === 'undefined' || !window.localStorage) return;
+  if (typeof window === 'undefined') return;
   try {
     const webPlantings: any[] = demo.crops.map((c) => {
       const field = demo.fields.find((f) => f.id === c.fieldId);
@@ -293,12 +309,12 @@ function syncMobileCropsToWebPlantings() {
       };
     });
 
-    window.localStorage.setItem(WEB_PLANTINGS_KEY, JSON.stringify(webPlantings));
+    safeLocalStorageSet(WEB_PLANTINGS_KEY, JSON.stringify(webPlantings));
   } catch {}
 }
 
 function syncDemoFieldsToWeb() {
-  if (typeof window === 'undefined' || !window.localStorage) return;
+  if (typeof window === 'undefined') return;
   try {
     const webFields: any[] = demo.fields.map((mf) => {
       const matchingCrop = demo.crops.find((c) => c.fieldId === mf.id);
@@ -322,17 +338,19 @@ function syncDemoFieldsToWeb() {
       };
     });
 
-    window.localStorage.setItem(WEB_FIELDS_KEY, JSON.stringify(webFields));
-    window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'mobile', fields: webFields } }));
-    window.dispatchEvent(new Event('storage'));
+    safeLocalStorageSet(WEB_FIELDS_KEY, JSON.stringify(webFields));
+    if (typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('eh_fields_sync', { detail: { source: 'mobile', fields: webFields } }));
+      window.dispatchEvent(new Event('storage'));
+    }
   } catch {}
 }
 
 function loadInitialSync(): typeof initialDemo {
   const defaultDemo = JSON.parse(JSON.stringify(initialDemo));
-  if (typeof window !== 'undefined' && window.localStorage) {
+  if (typeof window !== 'undefined') {
     try {
-      const s = window.localStorage.getItem(STORAGE_KEY);
+      const s = safeLocalStorageGet(STORAGE_KEY);
       if (s) {
         const p = parseStoredData(s);
         if (p) {
@@ -555,8 +573,8 @@ export async function syncPlantingsFromServer(): Promise<void> {
       }));
 
       demo.crops = serverCrops;
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(demo));
+      if (typeof window !== 'undefined') {
+        safeLocalStorageSet(STORAGE_KEY, JSON.stringify(demo));
         syncMobileCropsToWebPlantings();
       }
       AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(demo)).catch(() => {});
@@ -568,9 +586,9 @@ export async function syncPlantingsFromServer(): Promise<void> {
 
 function persistDemo() {
   const json = JSON.stringify(demo);
-  if (typeof window !== 'undefined' && window.localStorage) {
+  if (typeof window !== 'undefined') {
     try {
-      window.localStorage.setItem(STORAGE_KEY, json);
+      safeLocalStorageSet(STORAGE_KEY, json);
       syncDemoFieldsToWeb();
       syncMobileCropsToWebPlantings();
     } catch {}
@@ -784,14 +802,14 @@ export async function deleteField(fieldId: string): Promise<void> {
   syncDemoFieldsToWeb();
 
   // Also clean web plantings for this field
-  if (typeof window !== 'undefined' && window.localStorage) {
+  if (typeof window !== 'undefined') {
     try {
-      const raw = window.localStorage.getItem(WEB_PLANTINGS_KEY);
+      const raw = safeLocalStorageGet(WEB_PLANTINGS_KEY);
       if (raw) {
         const arr = JSON.parse(raw);
         if (Array.isArray(arr)) {
           const next = arr.filter((p: any) => p.fieldId !== fieldId);
-          window.localStorage.setItem(WEB_PLANTINGS_KEY, JSON.stringify(next));
+          safeLocalStorageSet(WEB_PLANTINGS_KEY, JSON.stringify(next));
         }
       }
     } catch {}
@@ -838,9 +856,9 @@ export async function deleteCrop(cropId: string): Promise<void> {
     return true;
   });
 
-  if (typeof window !== 'undefined' && window.localStorage) {
+  if (typeof window !== 'undefined') {
     try {
-      const existingWebStr = window.localStorage.getItem(WEB_PLANTINGS_KEY);
+      const existingWebStr = safeLocalStorageGet(WEB_PLANTINGS_KEY);
       if (existingWebStr) {
         let webPlantings = JSON.parse(existingWebStr);
         if (Array.isArray(webPlantings)) {
@@ -849,7 +867,7 @@ export async function deleteCrop(cropId: string): Promise<void> {
               wp.id !== cropId &&
               !(cropToDelete && wp.fieldId === cropToDelete.fieldId && wp.cropNameTr === cropToDelete.cropName)
           );
-          window.localStorage.setItem(WEB_PLANTINGS_KEY, JSON.stringify(webPlantings));
+          safeLocalStorageSet(WEB_PLANTINGS_KEY, JSON.stringify(webPlantings));
         }
       }
     } catch {}
