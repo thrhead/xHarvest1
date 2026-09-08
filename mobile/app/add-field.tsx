@@ -64,29 +64,51 @@ export default function AddFieldScreen() {
   const [polygon, setPolygon] = useState<GeoPoint[] | undefined>(undefined);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
+  // Match closest preset region when offline or fallback is needed
+  const getFallbackRegionByCoords = (latitude: number, longitude: number): MobileRegionResolution => {
+    let closest = REGION_PRESETS[0];
+    let minDistance = Infinity;
+
+    for (const preset of REGION_PRESETS) {
+      const d = Math.hypot(preset.lat - latitude, preset.lng - longitude);
+      if (d < minDistance) {
+        minDistance = d;
+        closest = preset;
+      }
+    }
+
+    const cleanLabel = closest.label.replace('📍 ', '');
+    return {
+      formattedLabel: `${cleanLabel} Bölgesi`,
+      primaryRegion: {
+        id: Math.floor(Math.random() * 1000) + 1,
+        name: cleanLabel,
+        slug: closest.id,
+        source: 'preset_fallback',
+      },
+    };
+  };
+
   // Auto-resolve region when coordinates change
   const triggerAutoResolve = useCallback(async (latitude: number, longitude: number) => {
     setIsResolvingRegion(true);
     try {
       const res = await resolveRegionFromCoordinates(latitude, longitude);
-      if (res) {
+      if (res && res.formattedLabel) {
         setResolvedRegion(res);
         if (res.primaryRegion) {
           setSelectedRegion(res.primaryRegion.slug);
         }
       } else {
-        // Fallback default label if server response returns null or fails
-        setResolvedRegion({
-          formattedLabel: 'İç Anadolu Bölgesi / Ankara',
-          primaryRegion: { id: 6, name: 'Ankara', slug: 'ankara', source: 'default' },
-        });
+        const fallback = getFallbackRegionByCoords(latitude, longitude);
+        setResolvedRegion(fallback);
+        setSelectedRegion(fallback.primaryRegion!.slug);
       }
     } catch (e) {
       console.warn('Auto resolve error:', e);
-      setResolvedRegion({
-        formattedLabel: 'İç Anadolu Bölgesi / Ankara',
-        primaryRegion: { id: 6, name: 'Ankara', slug: 'ankara', source: 'default' },
-      });
+      const fallback = getFallbackRegionByCoords(latitude, longitude);
+      setResolvedRegion(fallback);
+      setSelectedRegion(fallback.primaryRegion!.slug);
     } finally {
       setIsResolvingRegion(false);
     }
@@ -135,7 +157,35 @@ export default function AddFieldScreen() {
     setSelectedRegion(preset.id);
     setLat(preset.lat.toFixed(5));
     setLng(preset.lng.toFixed(5));
+    const presetLabel = preset.label.replace('📍 ', '');
+    setResolvedRegion({
+      formattedLabel: presetLabel,
+      primaryRegion: {
+        id: Math.floor(Math.random() * 1000) + 1,
+        name: presetLabel,
+        slug: preset.id,
+        source: 'preset_selection',
+      },
+    });
     triggerAutoResolve(preset.lat, preset.lng);
+  };
+
+  const handleLatChange = (text: string) => {
+    setLat(text);
+    const parsedLat = parseFloat(text.replace(',', '.'));
+    const parsedLng = parseFloat(lng.replace(',', '.'));
+    if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+      triggerAutoResolve(parsedLat, parsedLng);
+    }
+  };
+
+  const handleLngChange = (text: string) => {
+    setLng(text);
+    const parsedLat = parseFloat(lat.replace(',', '.'));
+    const parsedLng = parseFloat(text.replace(',', '.'));
+    if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+      triggerAutoResolve(parsedLat, parsedLng);
+    }
   };
 
   const useMyLocation = async () => {
@@ -349,14 +399,14 @@ export default function AddFieldScreen() {
         <TextInput
           style={[styles.input, { flex: 1 }]}
           value={lat}
-          onChangeText={setLat}
+          onChangeText={handleLatChange}
           keyboardType="decimal-pad"
           placeholder="Enlem (Lat)"
         />
         <TextInput
           style={[styles.input, { flex: 1 }]}
           value={lng}
-          onChangeText={setLng}
+          onChangeText={handleLngChange}
           keyboardType="decimal-pad"
           placeholder="Boylam (Lng)"
         />
