@@ -33,10 +33,14 @@ export async function GET(request: Request) {
       regions,
     })
   } catch (error: any) {
-    console.error('[API /api/regions] Error:', error)
+    console.error('[API /api/regions/public] Error:', error)
     return NextResponse.json(
       { success: false, error: error?.message || 'Bölgeler alınamadı' },
       { status: 500 }
     )
   }
+}
+
+export async function POST(request: Request) {
+  return GET(request)
 }

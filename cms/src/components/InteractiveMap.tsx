@@ -94,7 +94,7 @@ export default function InteractiveMap({
   useEffect(() => {
     async function loadRegions() {
       try {
-        const res = await fetch('/api/regions')
+        const res = await fetch('/api/regions/public')
         const data = await res.json()
         if (data.success && Array.isArray(data.regions)) {
           setDbRegions(data.regions)
@@ -103,7 +103,7 @@ export default function InteractiveMap({
           }
         }
       } catch (err) {
-        console.warn('[InteractiveMap] Failed to load /api/regions:', err)
+        console.warn('[InteractiveMap] Failed to load /api/regions/public:', err)
       }
     }
     loadRegions()
