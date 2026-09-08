@@ -25,11 +25,31 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundary
   render() {
     if (this.state.hasError) {
       return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#f8fafc' }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0f172a', marginBottom: 8 }}>Bir Hata Oluştu</Text>
-          <Text style={{ fontSize: 13, color: '#64748b', textAlign: 'center' }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#f8fafc' }}>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#064e3b', marginBottom: 8 }}>🌾 Ekim-Hasat</Text>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: '#0f172a', marginBottom: 8, textAlign: 'center' }}>Bir Hata Oluştu</Text>
+          <Text style={{ fontSize: 13, color: '#64748b', textAlign: 'center', marginBottom: 20, lineHeight: 18 }}>
             {this.state.error?.message || 'Sayfa yüklenirken beklenmeyen bir durum meydana geldi.'}
           </Text>
+          {Platform.OS === 'web' && (
+            <Text
+              style={{
+                backgroundColor: '#047857',
+                color: '#ffffff',
+                paddingHorizontal: 20,
+                paddingVertical: 10,
+                borderRadius: 8,
+                fontWeight: '700',
+                fontSize: 14,
+                overflow: 'hidden',
+              }}
+              onPress={() => {
+                if (typeof window !== 'undefined') window.location.reload();
+              }}
+            >
+              Sayfayı Yenile
+            </Text>
+          )}
         </View>
       );
     }
