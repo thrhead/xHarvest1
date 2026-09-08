@@ -181,6 +181,19 @@ export async function runWeatherAdjustCron(req: Request | PayloadRequest): Promi
     maxTemp: Number(process.env.WEATHER_MAX_TEMP) || 35.0,
   }
 
+  // Determine trigger source early so it can be used in logs and error catches
+  let sourceParam = 'cron-job.org'
+  let triggeredBy = 'Zamanlanmış Otomatik Sistem (cron-job.org)'
+  try {
+    const urlObj = new URL(req.url, 'http://localhost')
+    sourceParam = urlObj.searchParams.get('source') || (urlObj.searchParams.get('test') ? 'dashboard' : 'cron-job.org')
+    if (urlObj.searchParams.get('test') === 'true' || sourceParam === 'dashboard') {
+      triggeredBy = 'Sistem Yöneticisi (Dashboard Manuel Tetikleme)'
+    } else if (sourceParam === 'mobile') {
+      triggeredBy = 'Mobil Uygulama Senkronizasyonu'
+    }
+  } catch {}
+
   try {
     const fieldsList = await getDbFields()
     const activeTasks = await getDbTasks({ status: 'pending' })
@@ -227,16 +240,6 @@ export async function runWeatherAdjustCron(req: Request | PayloadRequest): Promi
       } catch (err: any) {
         errors.push(`Tarla ${field?.name || task.fieldId} hava durumu hatası: ${err.message}`)
       }
-    }
-
-    // Determine trigger source
-    const urlObj = new URL(req.url, 'http://localhost')
-    const sourceParam = urlObj.searchParams.get('source') || (urlObj.searchParams.get('test') ? 'dashboard' : 'cron-job.org')
-    let triggeredBy = 'Zamanlanmış Otomatik Sistem (cron-job.org)'
-    if (urlObj.searchParams.get('test') === 'true' || sourceParam === 'dashboard') {
-      triggeredBy = 'Sistem Yöneticisi (Dashboard Manuel Tetikleme)'
-    } else if (sourceParam === 'mobile') {
-      triggeredBy = 'Mobil Uygulama Senkronizasyonu'
     }
 
     const durationMs = Date.now() - startTime
@@ -293,10 +296,28 @@ export async function runWeatherAdjustCron(req: Request | PayloadRequest): Promi
       rescheduledTasks: lastRescheduledTasks,
     })
   } catch (error: any) {
+    const durationMs = Date.now() - startTime
+    const errorLogEntry: JobLogItem = {
+      id: `job-${Date.now()}-fail`,
+      jobName: 'Zirai Hava & Otomatik Görev Erteleme Senkronizasyonu',
+      ranAt: new Date().toISOString(),
+      triggeredBy,
+      source: sourceParam,
+      scanned: scannedCount,
+      moved: 0,
+      errors: [error?.message || 'Unknown server error'],
+      durationMs,
+      statusCode: 500,
+      statusText: 'Hata (500 Internal Server Error)',
+      details: [`Hata Mesajı: ${error?.message || 'Bilinmeyen sistem hatası'}`],
+    }
+    jobLogs.unshift(errorLogEntry)
+
     return Response.json(
       {
         ok: false,
         error: error?.message || 'Weather adjustment cron execution failed',
+        jobLog: errorLogEntry,
       },
       { status: 500 }
     )

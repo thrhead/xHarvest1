@@ -2583,7 +2583,15 @@ export default function DashboardView() {
                       <p className="text-xs font-extrabold text-slate-900 mt-1">
                         {cronLogs[0]?.ranAt ? new Date(cronLogs[0].ranAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : 'Bugün 06:00'}
                       </p>
-                      <span className="text-[10px] text-emerald-600 font-bold">200 OK (Başarılı)</span>
+                      {cronLogs[0] ? (
+                        cronLogs[0].statusCode >= 400 ? (
+                          <span className="text-[10px] text-rose-600 font-bold">{cronLogs[0].statusText || '500 Hata'}</span>
+                        ) : (
+                          <span className="text-[10px] text-emerald-600 font-bold">{cronLogs[0].statusText || '200 OK (Başarılı)'}</span>
+                        )
+                      ) : (
+                        <span className="text-[10px] text-emerald-600 font-bold">200 OK (Başarılı)</span>
+                      )}
                     </div>
 
                     <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80">
@@ -2823,7 +2831,13 @@ export default function DashboardView() {
                                       {log.durationMs || 250} ms
                                     </td>
                                     <td className="py-3 px-3.5 whitespace-nowrap">
-                                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-200">
+                                      <span
+                                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                                          log.statusCode >= 400
+                                            ? 'bg-rose-100 text-rose-900 border-rose-200'
+                                            : 'bg-emerald-100 text-emerald-900 border-emerald-200'
+                                        }`}
+                                      >
                                         {log.statusText || '200 OK'}
                                       </span>
                                     </td>
