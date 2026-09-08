@@ -244,6 +244,29 @@ export async function resolveRegionByCoords(
   lat: number,
   lng: number
 ): Promise<ResolveRegionResult> {
+  // Check if coordinates are reasonably within Turkey's general bounding box
+  // Turkey approx bounds: Lat 35.5 - 42.5, Lng 25.5 - 45.0
+  const isWithinTurkeyBounds = lat >= 35.0 && lat <= 43.0 && lng >= 25.0 && lng <= 45.5
+
+  if (!isWithinTurkeyBounds) {
+    return {
+      primaryRegion: {
+        id: 0,
+        name: 'Yurt Dışı / Serbest Bölge',
+        slug: 'yurt-disi',
+        tuikCode: null,
+        source: 'manual',
+        centerLat: lat,
+        centerLng: lng,
+        distanceKm: 0,
+      },
+      secondaryRegion: null,
+      formattedLabel: 'Yurt Dışı / Serbest Bölge',
+      confidence: 'high',
+      alternatives: [],
+    }
+  }
+
   const regions = await getDbRegions()
 
   // Separate provinces and basins
