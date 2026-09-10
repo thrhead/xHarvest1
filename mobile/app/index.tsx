@@ -242,6 +242,24 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Satellite Monitoring Feature Box */}
+      <View style={[styles.highlightDefterBox, { backgroundColor: '#064e3b', borderColor: '#047857', marginBottom: 10 }]}>
+        <View style={styles.highlightLeft}>
+          <Text style={styles.highlightIcon}>🛰️</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.highlightTitle, { color: '#ffffff' }]}>Uydu Verileriyle Tarla İzleme</Text>
+            <Text style={[styles.highlightSub, { color: '#a7f3d0' }]}>Sentinel-2 NDVI, klorofil ve su stresi analizi</Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={[styles.highlightBtn, { backgroundColor: '#ffffff' }]}
+          onPress={() => router.push('/satellite')}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.highlightBtnText, { color: '#064e3b', fontWeight: '800' }]}>İzle →</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Highlight Purple Defter Feature Box */}
       <View style={styles.highlightDefterBox}>
         <View style={styles.highlightLeft}>

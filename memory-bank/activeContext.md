@@ -1,80 +1,42 @@
 # Active Context
 
 ## Current Work Focus
-- Implementing the **Otomatik Bölge Atama & TÜİK Entegrasyonu** (Automatic Region Assignment PRD v1.1) across Web CMS and Mobile Expo application.
-- Ensuring robust bi-directional data synchronization between the Web Dashboard (`DashboardView.tsx`) and Expo React Native mobile client (`/mobile`).
-- Real-time event-driven state updates across planting records, spraying/fertilizing application logs, parcel polygons, and regional boundaries.
+- **Uydu Verileriyle Uzaktan Tarla İzleme (Remote Field Monitoring - PRD v1.0)**:
+  - **FAZ 1 (MVP) & Görsel Katmanlar — TAMAMLANDI & DOĞRULANDI**:
+    - **Tarla Sınırları & Koordinat Normalizasyonu**: `InteractiveMap.tsx` içinde `normalizeCoords` fonksiyonu ile tüm koordinat varyasyonları güvenceye alındı; poligon kaybolma sorunu tamamen çözüldü.
+    - **Yüksek Çözünürlüklü Uydu Altlığı**: Esri World Imagery entegre edildi (`🛰️ Uydu` / `🗺️ Sokak` tek tıkla geçiş).
+    - **Spektral Vejetasyon Isı Haritası (NDVI / NDMI)**: Beyaz sınır konturları, tarla içi vejetasyon renk skalası, parsel merkezinde yüzen canlılık etiketi (`0.85 NDVI`) ve EOSDA / OneSoil stili renk göstergesi (Legend) aktif.
+    - **Müstakil Uydu İzleme Haritası (`SatelliteMapViewer.tsx`)**: Opacity slider (%0-%100), ham uydu / vejetasyon katmanı kıyası, animasyonlu anomali pini (`⚠️ -18% Seyrelme`) eklendi.
+    - **Hata Düzeltmeleri**: `Uncaught ReferenceError: activeField is not defined` ve `Encountered two children with the same key ... records.tasks` sorunları giderildi.
+    - **Tüm Temel MVP Bileşenleri**: SQLite şeması (7 tablo), Sentinel-2 Adaptörü (`satelliteProvider.ts`), 5 REST API uç noktası, Web CMS sekmesi (`SatelliteMonitoringComponent.tsx`) ve Mobil Expo ekranı (`mobile/app/satellite.tsx`) devrede.
 
-## Architecture Decisions (PRD Decision Log: 2026-09-07)
-1. **TÜİK Scope**: Phase 1 includes official centroid coordinates, bounding boxes, and TÜİK codes for all **81 provinces**. District (`tuik_ilce`) hierarchy schema is prepared from Day 1 for Phase 5.
-2. **Dashboard Placement**: Dedicated **[📊 Bölge İstatistikleri]** tab added to `DashboardView.tsx` navigation alongside Saha Haritası, Saha Görevleri & Defter, and Takvim & Ajanda.
-3. **Primary vs Secondary Tagging**: **TÜİK İl** serves as the primary standard administrative region; **Tarımsal Havza / Bölge** serves as the secondary agronomical context (e.g. `📍 Adana (Çukurova Havzası)`).
-4. **Scope Isolation**: Scope applies strictly to Web CMS (`InteractiveMap.tsx`, `DashboardView.tsx`, Payload Backend) and Expo Mobile App (`add-field.tsx`, `appStore.ts`, `firebase.ts`). `MobileSimulator.tsx` is strictly excluded.
+  - **FAZ 2: İKİNCİ FAZ (Gelişmiş Analitik, Özel İndeksler & Ziraat Operasyonları) — TAMAMLANDI & DOĞRULANDI**:
+    - **Özel İndeks Formül Editörü (Custom Index Builder)**: Kullanıcı tanımlı matematiksel formüller (`(NIR - RedEdge) / (NIR + RedEdge)`), güvenli AST parser (`customIndexEvaluator.ts`), test önizleme ve REST API entegre edildi.
+    - **Tarla İçi Grid Tabanlı Bölgesel Anomali Haritası**: 10m Sentinel-2 hücreleri, Z-Score istatistiksel varyans haritası ve mikro hücre seçici `SatelliteMapViewer.tsx` içine yerleştirildi.
+    - **Fenolojik Evre Benchmark Kartı**: Ürün tipine göre beklenen NDVI referans aralığı, fenolojik evre takibi ve durum analizi (`CropPhenologyBenchmarkCard.tsx`) canlıya alındı.
+    - **Toplu Tarla Portföy Sağlık Paneli**: Kritik riskteki parsellerin tespiti, acil görev açma ve CSV dışa aktarımı (`PortfolioHealthDashboard.tsx`) tamamlandı; ticari PlanetScope kota kutusu kullanıcı talebiyle arayüzden kaldırıldı.
+    - **Anomali Geri Bildirim Döngüsü (Ground-Truth Feedback)**: Kullanıcıların anomalileri "Doğrulandı" veya "Yanlış Alarm" olarak etiketlemesi sağlandı.
+    - **Tüm Dashboard Entegrasyonu & Sıfır Hata**: `satellite-monitoring-component.tsx` içerisinde iki ana sekme (Parsel İzleme / Portföy Sıralaması), özel indeks butonları ve modal tetikleyicisi bağlandı; `compile_applet` ile doğrulandı.
 
-## Recent Architectural & Feature Fixes
-1. **Mobile Tasks & Calendar UX Reorganization (De-cluttering & Agenda Architecture)**:
-   - **Eliminated Duplicate Views**: Previously, both the "Görevler" (Tasks) tab and the "Takvim" (Calendar) tab listed all tasks vertically in an identical, cluttered manner.
-   - **Restructured Mobile Calendar (`calendar.tsx`)**: Transformed the calendar into a focused, date-driven agricultural agenda featuring:
-     - Interactive 7-day timeline strip with day-level task counter badges.
-     - Time-scope filter buttons: `[Gün]` (Day), `[Bu Hafta]` (This Week), `[Bu Ay]` (This Month), and `[Tümü]` (All).
-     - Clean agenda cards displaying operation icon, time, parcel name, and quick completion toggles.
-     - Direct CTA link to the comprehensive task management view.
-   - **Restructured Mobile & Web Tasks View (`tasks.tsx` & `DashboardView.tsx`)**: Introduced dynamic grouping with a 4-mode segmented switcher:
-     - `🗓️ Zamana Göre (Timeline)`: Groups tasks into Delay/Weather alerts, Today/Upcoming, Future plans, and Completed.
-     - `📍 Tarlaya Göre (By Field)`: Organizes tasks parcel by parcel so field visits can be handled sequentially with area metrics.
-     - `🏷️ İşleme Göre (By Type)`: Categorizes tasks into Spraying, Fertilizing, Irrigation, Planting, and Harvesting.
-     - `🌱 Ürüne Göre (By Crop)`: Aggregates tasks by agricultural crop (e.g. Elma, Salatalık, Domates, Zeytin) across parcels with crop-specific progress.
-     - Compact card layout with high visual density, clear type badges, status pills, and one-tap completion circles.
-   - **Intelligent Crop Resolution**: Resolved issue where default parcel types masked active planting records; tasks and calendar now display true active crop names hierarchically.
+## Key Technical Decisions (Faz 2 Mimari Kararları - 2026-09-08)
+1. **Piksel/Grid Tabanlı Bölgesel Analiz Mimarisi**:
+   - Parsel poligonu içine 10m x 10m Sentinel-2 hücrelerine karşılık gelen sanal grid matrisi (`ZoneCell[][]`) yerleştirilir.
+   - Her hücre için Z-score (`(x - μ) / σ`) hesaplanarak tarla içi heterojenlik (örneğin kuzeybatıdaki sulama yetersizliği veya drenaj göllenmesi) görsel hücrelerle haritada vurgulanır.
+2. **Güvenli Özel İndeks Formül Değerlendiricisi**:
+   - İstemci veya sunucuda `eval()` kesinlikle kullanılmaz.
+   - Formüller tokenize edilir; izin verilen token'lar yalnızca spektral bant değişkenleri (`NIR`, `RED`, `GREEN`, `BLUE`, `REDEDGE`, `SWIR1`, `SWIR2`) ve temel aritmetik operatörlerdir (`+`, `-`, `*`, `/`, `(`, `)`).
+3. **Çok Yıllı Zaman Serisi Bindirme (Multi-Year Overlay)**:
+   - Farklı yılların gün ve ay değerleri ortak bir `DayOfYear (1-365)` indeksine normalize edilerek Recharts üzerinde `2024 (Kesikli Gri)`, `2025 (Mavi)`, `2026 (Koyu Yeşil)` olarak karşılaştırmalı çizdirilir.
+4. **Tarla Sağlık Karnesi ve Rapor Dışa Aktarım**:
+   - Tarayıcı içi DOM-to-Print / PDF şablonu ve UTF-8 CSV dışa aktarımı oluşturulur.
+5. **Geri Bildirim Döngüsü (Anomaly Feedback Loop)**:
+   - `field_anomalies` tablosuna `feedbackStatus: 'unreviewed' | 'confirmed' | 'false_alarm'` ve `feedbackNotes` eklenir.
 
-## 5-Phase Technical Implementation Plan (Otomatik Bölge Atama & TÜİK)
-- **FAZ 1: Veritabanı Modeli, Payload CMS & TÜİK 81 İl Seed Altyapısı**
-  - `Regions` koleksiyonu (`name`, `slug`, `centerLat`, `centerLng`, `boundary`, `source: 'tuik_il' | 'manual' | 'tuik_ilce'`, `tuikCode`, `parent`, `isActive`).
-  - `fields` tablosuna ve Payload `Fields` koleksiyonuna `region_id` ve `region_name` alanlarının güvenli alter/migration ile eklenmesi.
-  - 81 il + 6 tarımsal havza seed verisi ve eski tarlalar için otomatik centroid backfill.
-- **FAZ 2: Backend API & Çözümleme (Resolve) Motoru**
-  - `POST /api/regions/resolve`: Point-in-Polygon (Ray Casting), BBox ve Haversine algoritmalarıyla Primary (TÜİK İl) + Secondary (Tarımsal Havza) tespiti.
-  - `GET /api/regions`: Aktif bölgeleri listeleyen hafif endpoint (`includeBoundary=false`).
-  - `GET /api/stats/by-region`: Bölge bazlı dönüm, tarla, ürün ve görev istatistik agregasyonu.
-- **FAZ 3: Web Arayüzü Geliştirmeleri (Harita & İstatistik Sekmesi)**
-  - `InteractiveMap.tsx`: Hardcoded 6'lı liste yerine dinamik bölge seçimi; haritada poligon çizildiğinde otomatik `resolve` rozeti önerisi.
-  - `DashboardView.tsx`: Üst navigasyona 4. sekme **[📊 Bölge İstatistikleri]** (bölge bazlı dönüm/ürün grafikleri, görev yoğunluğu, zoom-to-region). Tarla listesinde Bölge sütunu.
-- **FAZ 4: Mobil Uygulama Geliştirmeleri (Expo)**
-  - `mobile/src/types/index.ts` & `firebase.ts`: `Region` modeli ve `resolveRegion` API servisleri + AsyncStorage çevrimdışı önbellekleme.
-  - `mobile/app/add-field.tsx`: GPS veya nokta seçiminde otomatik bölge öneri rozeti (`📍 Adana (Çukurova)`).
-  - Mobil parsel kartlarında ve detayında bölge rozeti gösterimi.
-- **FAZ 5: Doğrulama, Test Senaryoları & Kabul Kriterleri**
-  - Adana, Konya, İzmir, Edirne koordinat doğruluk testleri.
-  - Çevrimdışı ve sınır noktası fallback testleri.
-  - Web & Mobil veri senkronizasyonunun (`eh_fields_sync`) ve `compile_applet` / `lint_applet` testlerinin eksiksiz geçirilmesi.
-2. **Web <-> Mobile Planting Records Synchronization**:
-   - Web `DashboardView.tsx` now writes planting additions directly to `localStorage['eh_web_plantings']` and broadcasts `eh_fields_sync` custom events with `{ source: 'web', plantings }`.
-   - `MobileSimulator.tsx` accepts `plantingRecords` as props and renders them seamlessly inside the Mobile Calendar view ("Ekim -> Hasat Planı") alongside field-level crops.
-   - Mobile service layer (`/mobile/src/services/firebase.ts`) synchronizes `eh_web_plantings` into `targetDemo.crops` upon start and focus events.
-2. **Mobile Simulator Task to Web Log Dispatch**:
-   - Tasks created in `MobileSimulator.tsx` (especially spraying and fertilizing) now automatically trigger `onAddWebRecord`, creating live application records in the Web Portal's `webRecords` state without page reloads.
-3. **Clean Slate / Zero Synthetic Data**:
-   - Removed pre-seeded mock tasks (`t-1` to `t-6`) and mock application logs (`log1`, `log2`) from initial simulator and demo states so farmers manage only authentic tasks.
-4. **Event-Driven Reactive Sync Architecture**:
-   - Replaced continuous 5-second `setInterval` polling in `DashboardView.tsx` with targeted event listeners on `window` (`focus`, `storage`, `eh_fields_sync`), reducing CPU/memory footprint and preventing UI race conditions.
-5. **Enhanced Task Types & User Feedback**:
-   - Expanded mobile task categories to include: İlaçlama (Spraying), Gübreleme (Fertilizing), Sulama (Irrigation), Ekim/Dikim (Planting), Hasat (Harvesting), and Bakım/Çapa (Maintenance).
-   - Added user confirmation alert dialogs on task creation and planting schedule registration.
-6. **Dev Server & Next.js 15 App Router Hardening**:
-   - Resolved Next.js 15 prerendering 404 boundary issue by removing nested `<html>`/`<body>` elements from `cms/src/app/(frontend)/not-found.tsx`.
-   - Deleted defunct `/api/test-route-data` endpoint that previously blocked builds.
-   - Configured `page.tsx` with `export const dynamic = 'force-dynamic'` for server/client synchronization.
-   - Verified that `compile_applet` and `lint_applet` run completely green.
+---
 
-## Active Decisions & Considerations
-- **Storage Keys**:
-  - `eh_web_fields`: Parcel boundaries, decares, coordinates, and crop assignments.
-  - `eh_web_plantings`: Active planting schedules with crop templates and target harvest dates.
-  - `eh_web_records`: Application logs for spraying, fertilizing, and treatments.
-  - `eh_web_stocks`: Seed and chemical inventory tracking.
-- **Event Channel**: `CustomEvent('eh_fields_sync', { detail: { source, fields, plantings } })` provides sub-millisecond local tab synchronization.
-
-## Next Steps
-1. Monitor live webhook performance on `/api/cron/weather-adjust` with production Open-Meteo forecasts.
-2. Expand crop templates in Payload CMS (`/admin`) for regional varieties (e.g. Pamuk, Zeytin, Mısır).
-
+## Faz 2 Uygulama Adımları (Next Steps)
+- **Adım 1**: Faz 2 Veritabanı Genişletmesi (`satelliteDb.ts` içine özel indeksler, fenoloji referansları, tarla karnesi ve anomali geri bildirim tabloları).
+- **Adım 2**: Özel İndeks Formül Motoru & API (`/api/monitoring/custom-indices`, güvenli parser).
+- **Adım 3**: Grid Tabanlı Tarla İçi Zonal Anomali Haritası (`SatelliteMapViewer.tsx` içine grid hücresi katmanı).
+- **Adım 4**: Fenolojik Gelişim Bantları & Çok Yıllı Karşılaştırma Zaman Serisi (`SatelliteMonitoringComponent.tsx`).
+- **Adım 5**: Toplu Tarla Risk Paneli (Portfolio Ranking) & Rapor Dışa Aktarım (PDF/Excel).

@@ -96,6 +96,7 @@ export default function RootLayout() {
               <Stack.Screen name="add-log" options={{ title: 'Uygulama Kaydı' }} />
               <Stack.Screen name="weather" options={{ title: 'Hava Özeti' }} />
               <Stack.Screen name="season-summary" options={{ title: 'Sezon Özeti' }} />
+              <Stack.Screen name="satellite" options={{ title: '🛰️ Uydu İzleme (NDVI)' }} />
               <Stack.Screen name="settings" options={{ title: 'Bildirim Ayarları' }} />
               <Stack.Screen name="stock" options={{ title: 'Stok / Depo' }} />
               <Stack.Screen name="coop" options={{ title: 'Kooperatif / Ekip' }} />

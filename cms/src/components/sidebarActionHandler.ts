@@ -22,9 +22,11 @@ export type SidebarActionDeps = {
 
 export function runSidebarAction(action: SidebarAction, d: SidebarActionDeps) {
   const tabMap: Record<string, PortalTab> = {
+    satellite: 'satellite',
     map: 'map',
     timeline: 'timeline',
     records: 'records',
+    regionStats: 'regionStats',
     weather: 'weather',
     season: 'season',
     stock: 'stock',

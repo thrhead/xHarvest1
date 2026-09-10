@@ -272,6 +272,14 @@ export async function bootstrapSchema(options?: { reset?: boolean; fix?: boolean
     console.warn('[bootstrapSchema] ensureRegionsTableAndSeed notice:', err)
   }
 
+  // Ensure Satellite Monitoring tables and index definitions are seeded
+  try {
+    const { ensureSatelliteTablesAndSeed } = await import('./satelliteDb')
+    await ensureSatelliteTablesAndSeed()
+  } catch (err) {
+    console.warn('[bootstrapSchema] ensureSatelliteTablesAndSeed notice:', err)
+  }
+
   return {
     ok: true,
     tables: statements.length,

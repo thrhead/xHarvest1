@@ -21,11 +21,13 @@ import {
   X,
   ClipboardList,
   MapPin,
+  Satellite,
 } from 'lucide-react'
 
 export type PortalTab =
   | 'map'
   | 'timeline'
+  | 'satellite'
   | 'records'
   | 'regionStats'
   | 'weather'
@@ -36,6 +38,12 @@ export type PortalTab =
   | 'guides'
 
 export type SidebarAction =
+  | 'satellite.ndvi'
+  | 'satellite.ndre'
+  | 'satellite.msavi'
+  | 'satellite.ndmi'
+  | 'satellite.anomalies'
+  | 'satellite.timeseries'
   | 'map.draw'
   | 'map.list'
   | 'map.assign'
@@ -82,6 +90,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'map', label: 'Tarla Haritası', icon: Map },
   { id: 'timeline', label: 'Ekim-Hasat Takvimi', icon: Calendar },
+  { id: 'satellite', label: 'Uydu İzleme', icon: Satellite, badge: 'Sentinel-2' },
   { id: 'records', label: 'Saha Görevleri & Defter', icon: ClipboardList },
   { id: 'regionStats', label: 'Bölge İstatistikleri', icon: MapPin, badge: 'TÜİK' },
   { id: 'weather', label: 'Zirai Hava', icon: CloudSun, badge: '14G' },
@@ -98,6 +107,28 @@ const DETAIL: Record<
   PortalTab,
   { title: string; subtitle: string; sections: { title: string; items: DetailItem[] }[] }
 > = {
+  satellite: {
+    title: 'Uydu İzleme',
+    subtitle: 'Uzaktan Algılama & İndeksler',
+    sections: [
+      {
+        title: 'Vejetasyon İndeksleri',
+        items: [
+          { label: '🌱 NDVI (Canlılık)', action: 'satellite.ndvi' },
+          { label: '🌿 NDRE (Azot/Klorofil)', action: 'satellite.ndre' },
+          { label: '🌾 MSAVI (Toprak Düzeltmeli)', action: 'satellite.msavi' },
+          { label: '💧 NDMI (Nem/Su Stresi)', action: 'satellite.ndmi' },
+        ],
+      },
+      {
+        title: 'Risk & Analiz',
+        items: [
+          { label: '⚠️ Saha Anomalileri', action: 'satellite.anomalies' },
+          { label: '📈 Zaman Serisi Eğrisi', action: 'satellite.timeseries' },
+        ],
+      },
+    ],
+  },
   map: {
     title: 'Tarla Haritası',
     subtitle: 'Parsel & Sınır Yönetimi',
@@ -414,11 +445,11 @@ export function AppSidebar({
                     {section.title}
                   </p>
                   <div className="space-y-0.5">
-                    {items.map((it) => {
+                    {items.map((it, itIdx) => {
                       const isSubActive = activeAction === it.action
                       return (
                         <button
-                          key={it.action}
+                          key={`${section.title}-${it.action}-${it.label}-${itIdx}`}
                           type="button"
                           onClick={() => onAction?.(it.action)}
                           className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center justify-between ${

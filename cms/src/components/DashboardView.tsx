@@ -52,6 +52,7 @@ import { AppSidebar, type PortalTab, type SidebarAction } from './ui/sidebar-com
 import { runSidebarAction } from './sidebarActionHandler'
 import CropCalendar, { type PlantingRecord } from './CropCalendar'
 import RegionStatsTab from './RegionStatsTab'
+import SatelliteMonitoringComponent from './ui/satellite-monitoring-component'
 
 const InteractiveMap = dynamic(() => import('./InteractiveMap'), {
   ssr: false,
@@ -1679,7 +1680,27 @@ export default function DashboardView() {
               </div>
             )}
 
-            {/* 3. SAHA GÖREVLERİ & DEFTER (RECORDS) */}
+            {/* 3. UYDU VERİLERİYLE UZAKTAN TARLA İZLEME (SATELLITE) */}
+            {activeTab === 'satellite' && (
+              <SatelliteMonitoringComponent
+                fields={fields}
+                selectedFieldId={selectedFieldId || activeField?.id}
+                onSelectField={(id) => setSelectedFieldId(id)}
+                onTaskCreated={(newTask) => {
+                  if (newTask) {
+                    setTasks((prev) => {
+                      const updated = [newTask, ...prev.filter((t) => t.id !== newTask.id)]
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('eh_mobile_tasks', JSON.stringify(updated))
+                      }
+                      return updated
+                    })
+                  }
+                }}
+              />
+            )}
+
+            {/* 4. SAHA GÖREVLERİ & DEFTER (RECORDS) */}
             {activeTab === 'records' && (
               <div className="space-y-4">
                 {/* Segmented Sub-Navigation: Saha Görevleri & Ajanda vs Resmi Defter */}
